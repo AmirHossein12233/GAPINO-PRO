@@ -1,0 +1,1733 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <meta name="theme-color" content="#070b16">
+
+    <title>GAPINO Live</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: #070b16;
+            color: #f8fafc;
+            font-family: Tahoma, Arial, sans-serif;
+        }
+
+        button,
+        input {
+            font: inherit;
+        }
+
+        .page {
+            width: min(1250px, 100%);
+            margin: auto;
+            padding: 20px;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo {
+            width: 44px;
+            height: 44px;
+            border-radius: 14px;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            background: linear-gradient(
+                135deg,
+                #6366f1,
+                #8b5cf6
+            );
+
+            font-weight: 900;
+            font-size: 20px;
+        }
+
+        .brand-text strong {
+            display: block;
+            font-size: 16px;
+        }
+
+        .brand-text span {
+            color: #94a3b8;
+            font-size: 9px;
+        }
+
+        .back-button {
+            padding: 10px 15px;
+            border-radius: 12px;
+            color: #cbd5e1;
+            background: rgba(255,255,255,.04);
+            border: 1px solid rgba(255,255,255,.08);
+            cursor: pointer;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 330px;
+            gap: 16px;
+        }
+
+        .card {
+            border: 1px solid rgba(255,255,255,.08);
+            background: rgba(255,255,255,.025);
+            border-radius: 22px;
+            overflow: hidden;
+        }
+
+        .video-wrap {
+            position: relative;
+            background: #000;
+            aspect-ratio: 16 / 9;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            display: block;
+            object-fit: contain;
+            background: #000;
+        }
+
+        .live-badge {
+            position: absolute;
+            top: 14px;
+            right: 14px;
+
+            padding: 7px 11px;
+            border-radius: 999px;
+
+            background: rgba(220,38,38,.92);
+            color: white;
+
+            font-size: 9px;
+            font-weight: 800;
+
+            display: none;
+        }
+
+        .live-badge.show {
+            display: block;
+        }
+
+        .video-info {
+            padding: 18px;
+        }
+
+        .title {
+            margin: 0 0 7px;
+            font-size: 18px;
+        }
+
+        .status {
+            color: #94a3b8;
+            font-size: 10px;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 15px;
+        }
+
+        button.action {
+            border: 0;
+            border-radius: 12px;
+            padding: 11px 15px;
+            cursor: pointer;
+            color: white;
+            background: linear-gradient(
+                135deg,
+                #6366f1,
+                #8b5cf6
+            );
+        }
+
+        button.action.secondary {
+            background: rgba(255,255,255,.06);
+            border: 1px solid rgba(255,255,255,.08);
+            color: #cbd5e1;
+        }
+
+        button.action.danger {
+            background: #991b1b;
+        }
+
+        button.action:disabled {
+            opacity: .5;
+            cursor: not-allowed;
+        }
+
+        .panel {
+            padding: 16px;
+        }
+
+        .panel h2 {
+            margin: 0 0 14px;
+            font-size: 14px;
+        }
+
+        .field {
+            margin-bottom: 10px;
+        }
+
+        .field label {
+            display: block;
+            margin-bottom: 6px;
+            color: #94a3b8;
+            font-size: 9px;
+        }
+
+        .field input {
+            width: 100%;
+            padding: 11px 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,.08);
+            outline: none;
+            background: rgba(255,255,255,.04);
+            color: white;
+        }
+
+        .stream-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .stream-item {
+            width: 100%;
+            text-align: right;
+            border: 1px solid rgba(255,255,255,.07);
+            border-radius: 14px;
+            padding: 12px;
+            color: white;
+            background: rgba(255,255,255,.025);
+            cursor: pointer;
+        }
+
+        .stream-item strong {
+            display: block;
+            font-size: 10px;
+            margin-bottom: 5px;
+        }
+
+        .stream-item span {
+            color: #94a3b8;
+            font-size: 8px;
+        }
+
+        .empty {
+            color: #64748b;
+            font-size: 9px;
+            text-align: center;
+            padding: 20px 5px;
+        }
+
+        .viewer-count {
+            display: inline-flex;
+            margin-top: 8px;
+            padding: 6px 9px;
+            border-radius: 999px;
+            background: rgba(99,102,241,.10);
+            color: #c7d2fe;
+            font-size: 8px;
+        }
+
+        @media (max-width: 850px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+
+            .page {
+                padding: 12px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="page">
+
+    <header class="header">
+
+        <div class="brand">
+            <div class="logo">G</div>
+
+            <div class="brand-text">
+                <strong>GAPINO Live</strong>
+                <span>پخش زنده</span>
+            </div>
+        </div>
+
+        <button
+            class="back-button"
+            id="backButton"
+        >
+            بازگشت
+        </button>
+
+    </header>
+
+
+    <div class="layout">
+
+        <main class="card">
+
+            <div class="video-wrap">
+
+                <video
+                    id="liveVideo"
+                    autoplay
+                    playsinline
+                    controls
+                ></video>
+
+                <div
+                    class="live-badge"
+                    id="liveBadge"
+                >
+                    🔴 LIVE
+                </div>
+
+            </div>
+
+
+            <div class="video-info">
+
+                <h1
+                    class="title"
+                    id="streamTitle"
+                >
+                    پخش زنده GAPINO
+                </h1>
+
+                <div
+                    class="status"
+                    id="status"
+                >
+                    آماده
+                </div>
+
+                <div
+                    class="viewer-count"
+                    id="viewerCount"
+                >
+                    👥 0 بیننده
+                </div>
+
+                <div class="controls">
+
+                    <button
+                        class="action"
+                        id="startButton"
+                    >
+                        🔴 شروع پخش
+                    </button>
+
+                    <button
+                        class="action danger"
+                        id="stopButton"
+                        disabled
+                    >
+                        ⏹️ پایان پخش
+                    </button>
+
+                </div>
+
+            </div>
+
+        </main>
+
+
+        <aside class="card">
+
+            <div class="panel">
+
+                <h2>
+                    ایجاد پخش زنده
+                </h2>
+
+                <div class="field">
+
+                    <label>
+                        عنوان پخش
+                    </label>
+
+                    <input
+                        id="titleInput"
+                        value="پخش زنده GAPINO"
+                        maxlength="100"
+                    >
+
+                </div>
+
+
+                <hr
+                    style="
+                        border:0;
+                        border-top:
+                        1px solid
+                        rgba(255,255,255,.06);
+                        margin:18px 0;
+                    "
+                >
+
+
+                <h2>
+                    پخش‌های فعال
+                </h2>
+
+                <div
+                    class="stream-list"
+                    id="streamList"
+                >
+                    <div class="empty">
+                        هنوز پخش زنده‌ای فعال نیست.
+                    </div>
+                </div>
+
+            </div>
+
+        </aside>
+
+    </div>
+
+</div>
+
+
+<script>
+"use strict";
+
+
+const API_BASE =
+    window.location.origin;
+
+
+const WS_BASE =
+    window.location.protocol === "https:"
+        ? `wss://${window.location.host}`
+        : `ws://${window.location.host}`;
+
+
+let socket = null;
+
+let currentUser = null;
+
+let liveRoom = null;
+
+let isHost = false;
+
+let localStream = null;
+
+let viewerPeers = new Map();
+
+let viewerPeer = null;
+
+let pendingCandidates = [];
+
+let remoteStream = null;
+
+
+const liveVideo =
+    document.getElementById("liveVideo");
+
+const startButton =
+    document.getElementById("startButton");
+
+const stopButton =
+    document.getElementById("stopButton");
+
+const titleInput =
+    document.getElementById("titleInput");
+
+const streamTitle =
+    document.getElementById("streamTitle");
+
+const statusElement =
+    document.getElementById("status");
+
+const liveBadge =
+    document.getElementById("liveBadge");
+
+const viewerCount =
+    document.getElementById("viewerCount");
+
+const streamList =
+    document.getElementById("streamList");
+
+const backButton =
+    document.getElementById("backButton");
+
+
+const rtcConfiguration = {
+    iceServers: [
+        {
+            urls: "stun:stun.l.google.com:19302"
+        }
+    ]
+};
+
+
+function setStatus(text) {
+    statusElement.textContent =
+        text || "";
+}
+
+
+async function readJson(response) {
+
+    try {
+        return await response.json();
+    } catch {
+        return null;
+    }
+}
+
+
+async function getMe() {
+
+    const response =
+        await fetch(
+            `${API_BASE}/api/me`,
+            {
+                credentials: "include",
+                cache: "no-store"
+            }
+        );
+
+
+    const data =
+        await readJson(response);
+
+
+    if (!response.ok) {
+        throw new Error(
+            data?.detail ||
+            "ابتدا وارد حساب GAPINO شوید."
+        );
+    }
+
+
+    currentUser = data;
+
+    return data;
+}
+
+
+function sendSocket(data) {
+
+    if (
+        !socket ||
+        socket.readyState !== WebSocket.OPEN
+    ) {
+        return false;
+    }
+
+
+    try {
+
+        socket.send(
+            JSON.stringify(data)
+        );
+
+        return true;
+
+    } catch {
+
+        return false;
+    }
+}
+
+
+function connectSocket() {
+
+    return new Promise(
+        (resolve, reject) => {
+
+            if (
+                socket &&
+                socket.readyState ===
+                    WebSocket.OPEN
+            ) {
+                resolve();
+                return;
+            }
+
+
+            socket =
+                new WebSocket(
+                    `${WS_BASE}/ws`
+                );
+
+
+            socket.addEventListener(
+                "open",
+                () => {
+                    resolve();
+                },
+                {
+                    once: true
+                }
+            );
+
+
+            socket.addEventListener(
+                "error",
+                () => {
+                    reject(
+                        new Error(
+                            "اتصال WebSocket برقرار نشد."
+                        )
+                    );
+                },
+                {
+                    once: true
+                }
+            );
+
+
+            socket.addEventListener(
+                "message",
+                event => {
+
+                    handleSocketMessage(
+                        event.data
+                    );
+                }
+            );
+
+
+            socket.addEventListener(
+                "close",
+                () => {
+
+                    if (
+                        liveRoom
+                    ) {
+
+                        setStatus(
+                            "اتصال پخش قطع شد."
+                        );
+                    }
+                }
+            );
+
+        }
+    );
+}
+
+
+function updateViewerCount(count) {
+
+    viewerCount.textContent =
+        `👥 ${Number(count || 0)} بیننده`;
+}
+
+
+function updateHostUI(active) {
+
+    startButton.disabled =
+        Boolean(active);
+
+    stopButton.disabled =
+        !Boolean(active);
+
+    titleInput.disabled =
+        Boolean(active);
+
+
+    liveBadge.classList.toggle(
+        "show",
+        Boolean(active)
+    );
+}
+
+
+async function createLiveRoom() {
+
+    const title =
+        titleInput.value.trim() ||
+        "پخش زنده GAPINO";
+
+
+    if (!localStream) {
+
+        localStream =
+            await navigator.mediaDevices.getUserMedia(
+                {
+                    video: true,
+                    audio: true
+                }
+            );
+    }
+
+
+    streamTitle.textContent =
+        title;
+
+
+    sendSocket({
+        type: "live_create",
+        title
+    });
+}
+
+
+async function stopLiveRoom() {
+
+    if (!isHost || !liveRoom) {
+        return;
+    }
+
+
+    sendSocket({
+        type: "live_end",
+        room_id: liveRoom
+    });
+
+
+    for (
+        const pc of viewerPeers.values()
+    ) {
+
+        try {
+            pc.close();
+        } catch {}
+    }
+
+
+    viewerPeers.clear();
+
+
+    if (localStream) {
+
+        localStream
+            .getTracks()
+            .forEach(
+                track =>
+                    track.stop()
+            );
+
+        localStream = null;
+    }
+
+
+    liveRoom = null;
+    isHost = false;
+
+
+    liveVideo.srcObject = null;
+
+    updateHostUI(false);
+
+    updateViewerCount(0);
+
+    setStatus(
+        "پخش زنده پایان یافت."
+    );
+
+
+    await loadStreams();
+}
+
+
+async function joinLiveRoom(
+    room
+) {
+
+    if (!room?.room_id) {
+        return;
+    }
+
+
+    if (room.host_id === currentUser.id) {
+
+        isHost = true;
+        liveRoom = room.room_id;
+
+        streamTitle.textContent =
+            room.title;
+
+        setStatus(
+            "شما پخش‌کننده این اتاق هستید."
+        );
+
+        updateHostUI(true);
+
+        return;
+    }
+
+
+    leaveCurrentViewer();
+
+
+    isHost = false;
+
+    liveRoom =
+        room.room_id;
+
+
+    streamTitle.textContent =
+        room.title || "پخش زنده";
+
+
+    setStatus(
+        "در حال اتصال به پخش زنده..."
+    );
+
+
+    sendSocket({
+        type: "live_join",
+        room_id: room.room_id
+    });
+}
+
+
+function leaveCurrentViewer() {
+
+    if (viewerPeer) {
+
+        try {
+            viewerPeer.close();
+        } catch {}
+
+        viewerPeer = null;
+    }
+
+
+    remoteStream = null;
+
+    liveVideo.srcObject = null;
+
+
+    if (
+        liveRoom &&
+        !isHost
+    ) {
+
+        sendSocket({
+            type: "live_leave",
+            room_id: liveRoom
+        });
+    }
+
+
+    liveRoom = null;
+}
+
+
+async function createViewerPeer(
+    hostId
+) {
+
+    viewerPeer =
+        new RTCPeerConnection(
+            rtcConfiguration
+        );
+
+
+    viewerPeer.addTransceiver(
+        "video",
+        {
+            direction:
+                "recvonly"
+        }
+    );
+
+
+    viewerPeer.addTransceiver(
+        "audio",
+        {
+            direction:
+                "recvonly"
+        }
+    );
+
+
+    viewerPeer.onicecandidate =
+        event => {
+
+            if (event.candidate) {
+
+                sendSocket({
+                    type: "live_ice",
+                    room_id: liveRoom,
+                    target_id: hostId,
+                    candidate:
+                        event.candidate
+                });
+            }
+        };
+
+
+    viewerPeer.ontrack =
+        event => {
+
+            if (
+                !remoteStream
+            ) {
+
+                remoteStream =
+                    new MediaStream();
+            }
+
+
+            remoteStream.addTrack(
+                event.track
+            );
+
+
+            liveVideo.srcObject =
+                remoteStream;
+
+
+            setStatus(
+                "🔴 پخش زنده در حال اجراست."
+            );
+        };
+
+
+    const offer =
+        await viewerPeer.createOffer();
+
+
+    await viewerPeer.setLocalDescription(
+        offer
+    );
+
+
+    sendSocket({
+        type: "live_offer",
+        room_id: liveRoom,
+        target_id: hostId,
+        offer
+    });
+}
+
+
+async function createHostPeer(
+    viewerId
+) {
+
+    if (!localStream) {
+        return;
+    }
+
+
+    const pc =
+        new RTCPeerConnection(
+            rtcConfiguration
+        );
+
+
+    localStream
+        .getTracks()
+        .forEach(
+            track => {
+
+                pc.addTrack(
+                    track,
+                    localStream
+                );
+            }
+        );
+
+
+    pc.onicecandidate =
+        event => {
+
+            if (event.candidate) {
+
+                sendSocket({
+                    type: "live_ice",
+                    room_id: liveRoom,
+                    target_id: viewerId,
+                    candidate:
+                        event.candidate
+                });
+            }
+        };
+
+
+    pc.onconnectionstatechange =
+        () => {
+
+            if (
+                [
+                    "failed",
+                    "closed",
+                    "disconnected"
+                ].includes(
+                    pc.connectionState
+                )
+            ) {
+
+                viewerPeers.delete(
+                    viewerId
+                );
+
+
+                updateViewerCount(
+                    viewerPeers.size
+                );
+            }
+        };
+
+
+    viewerPeers.set(
+        viewerId,
+        pc
+    );
+
+
+    updateViewerCount(
+        viewerPeers.size
+    );
+
+
+    const offer =
+        await pc.createOffer();
+
+
+    await pc.setLocalDescription(
+        offer
+    );
+
+
+    sendSocket({
+        type: "live_host_offer",
+        room_id: liveRoom,
+        target_id: viewerId,
+        offer
+    });
+}
+
+
+async function handleSocketMessage(
+    raw
+) {
+
+    let data;
+
+    try {
+
+        data =
+            JSON.parse(raw);
+
+    } catch {
+
+        return;
+    }
+
+
+    if (!data) {
+        return;
+    }
+
+
+    switch (data.type) {
+
+        case "live_created":
+
+            isHost =
+                true;
+
+            liveRoom =
+                data.room_id;
+
+
+            streamTitle.textContent =
+                data.title ||
+                "پخش زنده GAPINO";
+
+
+            updateHostUI(true);
+
+            updateViewerCount(0);
+
+            setStatus(
+                "🔴 پخش زنده شما شروع شد."
+            );
+
+
+            await loadStreams();
+
+            break;
+
+
+        case "live_joined":
+
+            await createViewerPeer(
+                data.host_id
+            );
+
+            break;
+
+
+        case "live_viewer_join":
+
+            if (
+                isHost &&
+                data.viewer_id
+            ) {
+
+                await createHostPeer(
+                    Number(
+                        data.viewer_id
+                    )
+                );
+            }
+
+            break;
+
+
+        case "live_offer":
+
+            if (
+                !isHost ||
+                !data.offer
+            ) {
+                break;
+            }
+
+
+            await handleViewerOffer(
+                data
+            );
+
+            break;
+
+
+        case "live_host_offer":
+
+            if (
+                isHost ||
+                !data.offer
+            ) {
+                break;
+            }
+
+
+            if (!viewerPeer) {
+                break;
+            }
+
+
+            await viewerPeer.setRemoteDescription(
+                new RTCSessionDescription(
+                    data.offer
+                )
+            );
+
+
+            const answer =
+                await viewerPeer.createAnswer();
+
+
+            await viewerPeer.setLocalDescription(
+                answer
+            );
+
+
+            sendSocket({
+                type: "live_answer",
+                room_id: liveRoom,
+                target_id:
+                    data.from,
+                answer
+            });
+
+            break;
+
+
+        case "live_answer":
+
+            if (
+                isHost &&
+                data.answer
+            ) {
+
+                const pc =
+                    viewerPeers.get(
+                        Number(
+                            data.from
+                        )
+                    );
+
+
+                if (!pc) {
+                    break;
+                }
+
+
+                await pc.setRemoteDescription(
+                    new RTCSessionDescription(
+                        data.answer
+                    )
+                );
+            }
+
+            break;
+
+
+        case "live_ice":
+
+            await handleIceCandidate(
+                data
+            );
+
+            break;
+
+
+        case "live_stopped":
+
+            if (
+                Number(data.room_id) ===
+                Number(liveRoom)
+            ) {
+
+                liveVideo.srcObject =
+                    null;
+
+                liveRoom =
+                    null;
+
+                isHost =
+                    false;
+
+                updateHostUI(false);
+
+                setStatus(
+                    "این پخش زنده پایان یافت."
+                );
+            }
+
+
+            await loadStreams();
+
+            break;
+
+
+        case "live_viewer_count":
+
+            if (
+                Number(data.room_id) ===
+                Number(liveRoom)
+            ) {
+
+                updateViewerCount(
+                    data.count
+                );
+            }
+
+            break;
+
+
+        default:
+            break;
+    }
+}
+
+
+async function handleViewerOffer(
+    data
+) {
+
+    if (!localStream) {
+        return;
+    }
+
+
+    const viewerId =
+        Number(data.from);
+
+
+    let pc =
+        viewerPeers.get(
+            viewerId
+        );
+
+
+    if (!pc) {
+
+        pc =
+            new RTCPeerConnection(
+                rtcConfiguration
+            );
+
+
+        localStream
+            .getTracks()
+            .forEach(
+                track => {
+
+                    pc.addTrack(
+                        track,
+                        localStream
+                    );
+                }
+            );
+
+
+        pc.onicecandidate =
+            event => {
+
+                if (event.candidate) {
+
+                    sendSocket({
+                        type:
+                            "live_ice",
+                        room_id:
+                            liveRoom,
+                        target_id:
+                            viewerId,
+                        candidate:
+                            event.candidate
+                    });
+                }
+            };
+
+
+        pc.onconnectionstatechange =
+            () => {
+
+                if (
+                    [
+                        "failed",
+                        "closed",
+                        "disconnected"
+                    ].includes(
+                        pc.connectionState
+                    )
+                ) {
+
+                    viewerPeers.delete(
+                        viewerId
+                    );
+
+                    updateViewerCount(
+                        viewerPeers.size
+                    );
+                }
+            };
+
+
+        viewerPeers.set(
+            viewerId,
+            pc
+        );
+    }
+
+
+    await pc.setRemoteDescription(
+        new RTCSessionDescription(
+            data.offer
+        )
+    );
+
+
+    const answer =
+        await pc.createAnswer();
+
+
+    await pc.setLocalDescription(
+        answer
+    );
+
+
+    sendSocket({
+        type:
+            "live_answer",
+        room_id:
+            liveRoom,
+        target_id:
+            viewerId,
+        answer
+    });
+
+
+    updateViewerCount(
+        viewerPeers.size
+    );
+}
+
+
+async function handleIceCandidate(
+    data
+) {
+
+    try {
+
+        if (
+            isHost &&
+            data.from
+        ) {
+
+            const pc =
+                viewerPeers.get(
+                    Number(
+                        data.from
+                    )
+                );
+
+
+            if (pc) {
+
+                await pc.addIceCandidate(
+                    data.candidate
+                );
+            }
+
+        } else if (
+            viewerPeer
+        ) {
+
+            await viewerPeer.addIceCandidate(
+                data.candidate
+            );
+        }
+
+    } catch (error) {
+
+        console.error(
+            "ICE error:",
+            error
+        );
+    }
+}
+
+
+async function loadStreams() {
+
+    try {
+
+        const response =
+            await fetch(
+                `${API_BASE}/api/live`,
+                {
+                    credentials:
+                        "include",
+                    cache:
+                        "no-store"
+                }
+            );
+
+
+        const data =
+            await readJson(response);
+
+
+        if (!response.ok) {
+            throw new Error(
+                data?.detail ||
+                "دریافت پخش‌ها انجام نشد."
+            );
+        }
+
+
+        renderStreams(
+            Array.isArray(data)
+                ? data
+                : []
+        );
+
+    } catch (error) {
+
+        console.error(error);
+
+        streamList.innerHTML = `
+            <div class="empty">
+                دریافت پخش‌ها ناموفق بود.
+            </div>
+        `;
+    }
+}
+
+
+function renderStreams(
+    streams
+) {
+
+    if (!streams.length) {
+
+        streamList.innerHTML = `
+            <div class="empty">
+                هنوز پخش زنده‌ای فعال نیست.
+            </div>
+        `;
+
+        return;
+    }
+
+
+    streamList.innerHTML =
+        streams
+            .map(
+                stream => `
+                    <button
+                        class="stream-item"
+                        data-room-id="${escapeHtml(
+                            stream.room_id
+                        )}"
+                    >
+
+                        <strong>
+                            🔴 ${escapeHtml(
+                                stream.title ||
+                                "پخش زنده"
+                            )}
+                        </strong>
+
+                        <span>
+                            ${
+                                Number(
+                                    stream.viewer_count ||
+                                    0
+                                )
+                            } بیننده
+                        </span>
+
+                    </button>
+                `
+            )
+            .join("");
+
+
+    streamList
+        .querySelectorAll(
+            ".stream-item"
+        )
+        .forEach(
+            button => {
+
+                button.addEventListener(
+                    "click",
+                    () => {
+
+                        const roomId =
+                            button.dataset.roomId;
+
+
+                        const stream =
+                            streams.find(
+                                item =>
+                                    String(
+                                        item.room_id
+                                    ) ===
+                                    String(
+                                        roomId
+                                    )
+                            );
+
+
+                        if (stream) {
+
+                            joinLiveRoom(
+                                stream
+                            );
+                        }
+                    }
+                );
+            }
+        );
+}
+
+
+function escapeHtml(
+    value
+) {
+
+    const div =
+        document.createElement(
+            "div"
+        );
+
+    div.textContent =
+        String(
+            value ??
+            ""
+        );
+
+    return div.innerHTML;
+}
+
+
+startButton.addEventListener(
+    "click",
+    async () => {
+
+        try {
+
+            if (
+                !navigator.mediaDevices ||
+                !navigator.mediaDevices.getUserMedia
+            ) {
+
+                throw new Error(
+                    "مرورگر شما دسترسی دوربین/میکروفون را پشتیبانی نمی‌کند."
+                );
+            }
+
+
+            startButton.disabled =
+                true;
+
+
+            setStatus(
+                "در حال آماده‌سازی دوربین و میکروفون..."
+            );
+
+
+            await getMe();
+
+            await connectSocket();
+
+            await createLiveRoom();
+
+        } catch (error) {
+
+            console.error(
+                error
+            );
+
+            setStatus(
+                error.message ||
+                "شروع پخش ناموفق بود."
+            );
+
+            startButton.disabled =
+                false;
+        }
+    }
+);
+
+
+stopButton.addEventListener(
+    "click",
+    () => {
+
+        stopLiveRoom();
+    }
+);
+
+
+backButton.addEventListener(
+    "click",
+    () => {
+
+        window.location.href =
+            "/chat.html";
+    }
+);
+
+
+window.addEventListener(
+    "beforeunload",
+    () => {
+
+        if (
+            isHost &&
+            liveRoom
+        ) {
+
+            sendSocket({
+                type:
+                    "live_end",
+                room_id:
+                    liveRoom
+            });
+        }
+
+
+        if (
+            localStream
+        ) {
+
+            localStream
+                .getTracks()
+                .forEach(
+                    track =>
+                        track.stop()
+                );
+        }
+
+
+        if (viewerPeer) {
+
+            try {
+                viewerPeer.close();
+            } catch {}
+        }
+
+
+        for (
+            const pc of viewerPeers.values()
+        ) {
+
+            try {
+                pc.close();
+            } catch {}
+        }
+    }
+);
+
+
+(async function init() {
+
+    try {
+
+        await getMe();
+
+        await connectSocket();
+
+        await loadStreams();
+
+        setStatus(
+            "برای شروع پخش زنده آماده‌ای."
+        );
+
+    } catch (error) {
+
+        console.error(
+            error
+        );
+
+        setStatus(
+            error.message ||
+            "ابتدا وارد حساب GAPINO شوید."
+        );
+    }
+
+})();
+</script>
+
+</body>
+</html>
