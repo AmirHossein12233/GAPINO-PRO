@@ -3,6 +3,13 @@
 /* =========================================================
    GAPINO PRO
    app.js
+   نسخه هماهنگ با:
+   https://mygapino.shop
+   ========================================================= */
+
+
+/* =========================================================
+   CONFIG
    ========================================================= */
 
 const API_BASE =
@@ -29,11 +36,13 @@ let users = [];
 let messages = [];
 
 let socket = null;
+
 let socketReconnectTimer = null;
 let socketReconnectAttempts = 0;
 
 let usersRefreshTimer = null;
 let typingTimer = null;
+
 let lastTypingState = false;
 
 let mediaRecorder = null;
@@ -176,26 +185,48 @@ const toast =
    ========================================================= */
 
 function apiUrl(path) {
+
+    if (!path) {
+        return API_BASE;
+    }
+
+    if (path.startsWith("http://") ||
+        path.startsWith("https://")) {
+        return path;
+    }
+
     return `${API_BASE}${path}`;
 }
 
 
 function escapeHtml(value) {
-    const div = document.createElement("div");
-    div.textContent = String(value ?? "");
+
+    const div =
+        document.createElement("div");
+
+    div.textContent =
+        String(value ?? "");
+
     return div.innerHTML;
 }
 
 
 function formatTime(value) {
+
     if (!value) {
         return "";
     }
 
     try {
-        const date = new Date(value);
 
-        if (Number.isNaN(date.getTime())) {
+        const date =
+            new Date(value);
+
+        if (
+            Number.isNaN(
+                date.getTime()
+            )
+        ) {
             return "";
         }
 
@@ -206,34 +237,55 @@ function formatTime(value) {
                 minute: "2-digit"
             }
         );
+
     } catch {
+
         return "";
     }
 }
 
 
 function avatarLetter(user) {
+
     const name =
         user?.display_name ||
         user?.username ||
         "G";
 
-    return String(name)
-        .trim()
-        .charAt(0)
-        .toUpperCase() || "G";
+    return (
+        String(name)
+            .trim()
+            .charAt(0)
+            .toUpperCase()
+        || "G"
+    );
 }
 
 
-function avatarHtml(user, extraClass = "") {
+function avatarUrl(value) {
+
+    if (!value) {
+        return "";
+    }
+
+    return value.startsWith("http")
+        ? value
+        : apiUrl(value);
+}
+
+
+function avatarHtml(
+    user,
+    extraClass = ""
+) {
+
     const avatar =
         user?.avatar || "";
 
     if (avatar) {
+
         const src =
-            avatar.startsWith("http")
-                ? avatar
-                : apiUrl(avatar);
+            avatarUrl(avatar);
 
         return `
             <div class="avatar ${extraClass}">
@@ -249,7 +301,9 @@ function avatarHtml(user, extraClass = "") {
 
     return `
         <div class="avatar ${extraClass}">
-            ${escapeHtml(avatarLetter(user))}
+            ${escapeHtml(
+                avatarLetter(user)
+            )}
         </div>
     `;
 }
@@ -259,6 +313,7 @@ function showToast(
     text,
     type = ""
 ) {
+
     if (!toast) {
         return;
     }
@@ -278,10 +333,15 @@ function showToast(
     );
 
     if (text) {
+
         toastTimer =
             window.setTimeout(
                 () => {
-                    toast.classList.remove("show");
+
+                    toast.classList.remove(
+                        "show"
+                    );
+
                 },
                 3000
             );
@@ -290,19 +350,24 @@ function showToast(
 
 
 async function readJson(response) {
+
     try {
+
         return await response.json();
+
     } catch {
+
         return null;
     }
 }
 
 
 /* =========================================================
-   AUTH / CURRENT USER
+   AUTH
    ========================================================= */
 
 async function getCurrentUser() {
+
     const response =
         await fetch(
             apiUrl("/api/me"),
@@ -313,24 +378,76 @@ async function getCurrentUser() {
             }
         );
 
+    const data =
+        await readJson(response);
+
     if (!response.ok) {
+
         throw new Error(
+            data?.detail ||
             "نشست ورود شما معتبر نیست."
         );
     }
 
-    return await response.json();
+    return data;
+}
+
+
+async function prepareWebSocketSession() {
+
+    try {
+
+        const response =
+            await fetch(
+                apiUrl("/api/me"),
+                {
+                    method: "GET",
+                    credentials: "include",
+                    cache: "no-store"
+                }
+            );
+
+        if (!response.ok) {
+
+            throw new Error(
+                "نشست WebSocket ایجاد نشد."
+            );
+        }
+
+        const data =
+            await readJson(response);
+
+        if (data) {
+            currentUser =
+                data;
+        }
+
+        return true;
+
+    } catch (error) {
+
+        console.error(
+            "WebSocket session preparation failed:",
+            error
+        );
+
+        return false;
+    }
 }
 
 
 async function loadCurrentUser() {
+
     try {
+
         currentUser =
             await getCurrentUser();
 
         localStorage.setItem(
             "gapino_user",
-            JSON.stringify(currentUser)
+            JSON.stringify(
+                currentUser
+            )
         );
 
         renderCurrentUser();
@@ -350,31 +467,37 @@ async function loadCurrentUser() {
 
 
 function renderCurrentUser() {
+
     if (!currentUser) {
         return;
     }
 
     if (currentDisplayName) {
+
         currentDisplayName.textContent =
             currentUser.display_name ||
             currentUser.username ||
             "گپینو";
     }
 
+
     if (currentUsername) {
+
         currentUsername.textContent =
             currentUser.username
                 ? `@${currentUser.username}`
                 : "@user";
     }
 
+
     if (currentAvatar) {
+
         if (currentUser.avatar) {
 
             const src =
-                currentUser.avatar.startsWith("http")
-                    ? currentUser.avatar
-                    : apiUrl(currentUser.avatar);
+                avatarUrl(
+                    currentUser.avatar
+                );
 
             currentAvatar.innerHTML = `
                 <img
@@ -385,8 +508,11 @@ function renderCurrentUser() {
             `;
 
         } else {
+
             currentAvatar.textContent =
-                avatarLetter(currentUser);
+                avatarLetter(
+                    currentUser
+                );
         }
     }
 }
@@ -397,6 +523,7 @@ function renderCurrentUser() {
    ========================================================= */
 
 async function loadUsers() {
+
     try {
 
         const query =
@@ -406,6 +533,7 @@ async function loadUsers() {
             query
                 ? `/api/users?q=${encodeURIComponent(query)}`
                 : "/api/users";
+
 
         const response =
             await fetch(
@@ -417,34 +545,60 @@ async function loadUsers() {
                 }
             );
 
+
         const data =
             await readJson(response);
 
+
         if (!response.ok) {
+
             throw new Error(
                 data?.detail ||
                 "دریافت کاربران انجام نشد."
             );
         }
 
+
         users =
             Array.isArray(data)
                 ? data
                 : [];
 
+
+        if (
+            selectedUser &&
+            !users.some(
+                user =>
+                    Number(user.id) ===
+                    Number(selectedUser.id)
+            )
+        ) {
+
+            users.push(
+                selectedUser
+            );
+        }
+
+
         renderUsers();
+
 
     } catch (error) {
 
         console.error(error);
 
         if (userList) {
+
             userList.innerHTML = `
                 <div class="empty-users">
-                    <div class="empty-icon">⚠️</div>
+                    <div class="empty-icon">
+                        ⚠️
+                    </div>
+
                     <strong>
                         دریافت کاربران ناموفق بود
                     </strong>
+
                     <span>
                         اتصال سرور را بررسی کنید.
                     </span>
@@ -461,22 +615,32 @@ function renderUsers() {
         return;
     }
 
+
     if (userCount) {
+
         userCount.textContent =
             String(users.length);
     }
 
+
     if (!users.length) {
+
+        const searching =
+            Boolean(
+                userSearch?.value.trim()
+            );
+
 
         userList.innerHTML = `
             <div class="empty-users">
+
                 <div class="empty-icon">
-                    ${userSearch?.value.trim() ? "🔎" : "💬"}
+                    ${searching ? "🔎" : "💬"}
                 </div>
 
                 <strong>
                     ${
-                        userSearch?.value.trim()
+                        searching
                             ? "کاربری پیدا نشد"
                             : "هنوز کاربری وجود ندارد"
                     }
@@ -484,11 +648,12 @@ function renderUsers() {
 
                 <span>
                     ${
-                        userSearch?.value.trim()
+                        searching
                             ? "عبارت جستجو را تغییر بده."
                             : "با ثبت‌نام کاربران، آنها اینجا نمایش داده می‌شوند."
                     }
                 </span>
+
             </div>
         `;
 
@@ -509,6 +674,7 @@ function renderUsers() {
                     const online =
                         Boolean(user.online);
 
+
                     return `
                         <button
                             type="button"
@@ -520,12 +686,7 @@ function renderUsers() {
                             data-user-id="${Number(user.id)}"
                         >
 
-                            ${
-                                avatarHtml(
-                                    user,
-                                    ""
-                                )
-                            }
+                            ${avatarHtml(user)}
 
                             <div class="user-item-info">
 
@@ -568,7 +729,7 @@ function renderUsers() {
 
                 button.addEventListener(
                     "click",
-                    () => {
+                    async () => {
 
                         const id =
                             Number(
@@ -578,16 +739,18 @@ function renderUsers() {
                         const user =
                             users.find(
                                 item =>
-                                    Number(item.id) === id
+                                    Number(item.id) ===
+                                    id
                             );
 
                         if (user) {
-                            selectUser(user);
-                        }
 
+                            await selectUser(
+                                user
+                            );
+                        }
                     }
                 );
-
             }
         );
 }
@@ -603,8 +766,10 @@ async function selectUser(user) {
         return;
     }
 
+
     selectedUser =
         user;
+
 
     renderUsers();
 
@@ -614,11 +779,23 @@ async function selectUser(user) {
 
     closeSidebarMobile();
 
+
     await loadMessages();
 
-    connectSocket();
+
+    if (
+        !socket ||
+        socket.readyState !== WebSocket.OPEN
+    ) {
+
+        await prepareWebSocketSession();
+
+        connectSocket();
+    }
+
 
     scrollMessagesToBottom();
+
 
     if (messageInput) {
         messageInput.focus();
@@ -632,32 +809,39 @@ function renderChatHeader() {
         return;
     }
 
+
     if (welcomeScreen) {
         welcomeScreen.hidden =
             true;
     }
+
 
     if (chatView) {
         chatView.hidden =
             false;
     }
 
+
     if (chatContact) {
         chatContact.hidden =
             false;
     }
+
 
     if (chatHeaderEmpty) {
         chatHeaderEmpty.hidden =
             true;
     }
 
+
     if (chatName) {
+
         chatName.textContent =
             selectedUser.display_name ||
             selectedUser.username ||
             "کاربر";
     }
+
 
     if (chatStatus) {
 
@@ -678,14 +862,15 @@ function renderChatHeader() {
         );
     }
 
+
     if (chatAvatar) {
 
         if (selectedUser.avatar) {
 
             const src =
-                selectedUser.avatar.startsWith("http")
-                    ? selectedUser.avatar
-                    : apiUrl(selectedUser.avatar);
+                avatarUrl(
+                    selectedUser.avatar
+                );
 
             chatAvatar.innerHTML = `
                 <img
@@ -698,8 +883,9 @@ function renderChatHeader() {
         } else {
 
             chatAvatar.textContent =
-                avatarLetter(selectedUser);
-
+                avatarLetter(
+                    selectedUser
+                );
         }
     }
 }
@@ -753,6 +939,7 @@ async function loadMessages() {
         return;
     }
 
+
     try {
 
         const response =
@@ -767,24 +954,30 @@ async function loadMessages() {
                 }
             );
 
+
         const data =
             await readJson(response);
 
+
         if (!response.ok) {
+
             throw new Error(
                 data?.detail ||
                 "دریافت پیام‌ها ناموفق بود."
             );
         }
 
+
         messages =
             Array.isArray(data)
                 ? data
                 : [];
 
+
         renderMessages();
 
         scrollMessagesToBottom();
+
 
     } catch (error) {
 
@@ -814,6 +1007,7 @@ function renderMessages() {
         return;
     }
 
+
     if (!messages.length) {
 
         messagesElement.innerHTML = `
@@ -826,27 +1020,42 @@ function renderMessages() {
                     padding:30px;
                 "
             >
-                <div style="font-size:28px;margin-bottom:10px;">
+
+                <div
+                    style="
+                        font-size:28px;
+                        margin-bottom:10px;
+                    "
+                >
                     💬
                 </div>
 
-                <div style="margin-bottom:6px;">
+                <div
+                    style="
+                        margin-bottom:6px;
+                    "
+                >
                     هنوز پیامی وجود ندارد
                 </div>
 
                 <div>
                     اولین پیام را بفرست!
                 </div>
+
             </div>
         `;
 
         return;
     }
 
+
     messagesElement.innerHTML =
         messages
-            .map(renderSingleMessage)
+            .map(
+                renderSingleMessage
+            )
             .join("");
+
 
     attachMessageMenus();
 }
@@ -873,10 +1082,15 @@ function renderSingleMessage(message) {
 
         content = `
             <div class="deleted-message">
-                <span>🚫</span>
+
+                <span>
+                    🚫
+                </span>
+
                 <span>
                     این پیام حذف شده است
                 </span>
+
             </div>
         `;
 
@@ -889,29 +1103,40 @@ function renderSingleMessage(message) {
                     ${escapeHtml(text)}
                 </div>
             `;
-
         }
 
 
         if (message.file_url) {
 
             const url =
-                message.file_url.startsWith("http")
-                    ? message.file_url
-                    : apiUrl(message.file_url);
+                avatarUrl(
+                    message.file_url
+                );
 
             const mime =
-                String(message.mime_type || "")
-                    .toLowerCase();
+                String(
+                    message.mime_type ||
+                    ""
+                ).toLowerCase();
 
             const fileName =
                 message.file_name ||
                 "فایل";
 
-            if (mime.startsWith("image/")) {
+
+            if (
+                mime.startsWith(
+                    "image/"
+                )
+            ) {
 
                 content += `
-                    <div style="margin-top:${text ? "8px" : "0"};">
+                    <div
+                        style="
+                            margin-top:${text ? "8px" : "0"};
+                        "
+                    >
+
                         <img
                             src="${escapeHtml(url)}"
                             class="message-image"
@@ -919,18 +1144,25 @@ function renderSingleMessage(message) {
                             loading="lazy"
                             data-image-url="${escapeHtml(url)}"
                         >
+
                     </div>
                 `;
 
-            } else if (mime.startsWith("audio/")) {
+            } else if (
+                mime.startsWith(
+                    "audio/"
+                )
+            ) {
 
                 content += `
                     <div class="message-audio">
+
                         <audio
                             controls
                             preload="metadata"
                             src="${escapeHtml(url)}"
                         ></audio>
+
                     </div>
                 `;
 
@@ -939,7 +1171,9 @@ function renderSingleMessage(message) {
                 content += `
                     <div
                         class="message-file"
-                        style="margin-top:${text ? "8px" : "0"};"
+                        style="
+                            margin-top:${text ? "8px" : "0"};
+                        "
                     >
 
                         <div class="message-file-icon">
@@ -972,7 +1206,11 @@ function renderSingleMessage(message) {
 
     const editedText =
         edited && !deleted
-            ? `<span class="message-edited">ویرایش‌شده</span>`
+            ? `
+                <span class="message-edited">
+                    ویرایش‌شده
+                </span>
+            `
             : "";
 
 
@@ -1011,7 +1249,9 @@ function renderSingleMessage(message) {
 
                     <span>
                         ${escapeHtml(
-                            formatTime(message.created_at)
+                            formatTime(
+                                message.created_at
+                            )
                         )}
                     </span>
 
@@ -1038,6 +1278,7 @@ function attachMessageMenus() {
         return;
     }
 
+
     messagesElement
         .querySelectorAll(
             '[data-message-menu="true"]'
@@ -1062,13 +1303,14 @@ function attachMessageMenus() {
                         );
                     }
                 );
-
             }
         );
 
 
     messagesElement
-        .querySelectorAll(".message-image")
+        .querySelectorAll(
+            ".message-image"
+        )
         .forEach(
             image => {
 
@@ -1085,10 +1327,8 @@ function attachMessageMenus() {
                             "_blank",
                             "noopener,noreferrer"
                         );
-
                     }
                 );
-
             }
         );
 }
@@ -1116,7 +1356,10 @@ function openMessageMenu(
 
 
     const menu =
-        document.createElement("div");
+        document.createElement(
+            "div"
+        );
+
 
     menu.className =
         "message-menu";
@@ -1130,6 +1373,7 @@ function openMessageMenu(
 
 
     menu.innerHTML = `
+
         <button
             type="button"
             data-action="copy"
@@ -1160,22 +1404,25 @@ function openMessageMenu(
                 `
                 : ""
         }
+
     `;
 
 
     menu.style.position =
         "fixed";
 
+
     menu.style.left =
         `${Math.min(
             event.clientX,
-            window.innerWidth - 140
+            window.innerWidth - 150
         )}px`;
+
 
     menu.style.top =
         `${Math.min(
             event.clientY,
-            window.innerHeight - 130
+            window.innerHeight - 140
         )}px`;
 
 
@@ -1198,20 +1445,37 @@ function openMessageMenu(
 
                     closeMessageMenu();
 
-                    if (action === "copy") {
-                        await copyMessage(message);
+
+                    if (
+                        action ===
+                        "copy"
+                    ) {
+                        await copyMessage(
+                            message
+                        );
                     }
 
-                    if (action === "edit") {
-                        await editMessage(message);
+
+                    if (
+                        action ===
+                        "edit"
+                    ) {
+                        await editMessage(
+                            message
+                        );
                     }
 
-                    if (action === "delete") {
-                        await deleteMessage(message);
+
+                    if (
+                        action ===
+                        "delete"
+                    ) {
+                        await deleteMessage(
+                            message
+                        );
                     }
                 }
             );
-
         }
     );
 
@@ -1234,6 +1498,7 @@ function openMessageMenu(
 
 
 function closeMessageMenuOnce() {
+
     closeMessageMenu();
 }
 
@@ -1251,12 +1516,19 @@ function closeMessageMenu() {
 }
 
 
-async function copyMessage(message) {
+/* =========================================================
+   COPY
+   ========================================================= */
+
+async function copyMessage(
+    message
+) {
 
     const text =
         message.text ||
         message.file_name ||
         "";
+
 
     if (!text) {
 
@@ -1274,6 +1546,7 @@ async function copyMessage(message) {
             text
         );
 
+
         showToast(
             "پیام کپی شد. ✅",
             "success"
@@ -1289,10 +1562,17 @@ async function copyMessage(message) {
 }
 
 
-async function editMessage(message) {
+/* =========================================================
+   EDIT
+   ========================================================= */
+
+async function editMessage(
+    message
+) {
 
     const currentText =
         message.text || "";
+
 
     const nextText =
         window.prompt(
@@ -1329,12 +1609,17 @@ async function editMessage(message) {
                     `/api/messages/${Number(message.id)}/edit`
                 ),
                 {
-                    method: "POST",
-                    credentials: "include",
+                    method:
+                        "POST",
+
+                    credentials:
+                        "include",
+
                     headers: {
                         "Content-Type":
                             "application/json"
                     },
+
                     body:
                         JSON.stringify({
                             text
@@ -1356,12 +1641,16 @@ async function editMessage(message) {
         }
 
 
-        replaceMessage(data);
+        replaceMessage(
+            data
+        );
+
 
         showToast(
             "پیام ویرایش شد. ✅",
             "success"
         );
+
 
     } catch (error) {
 
@@ -1374,7 +1663,13 @@ async function editMessage(message) {
 }
 
 
-async function deleteMessage(message) {
+/* =========================================================
+   DELETE
+   ========================================================= */
+
+async function deleteMessage(
+    message
+) {
 
     const confirmed =
         window.confirm(
@@ -1397,6 +1692,7 @@ async function deleteMessage(message) {
                 {
                     method:
                         "DELETE",
+
                     credentials:
                         "include"
                 }
@@ -1416,12 +1712,16 @@ async function deleteMessage(message) {
         }
 
 
-        replaceMessage(data);
+        replaceMessage(
+            data
+        );
+
 
         showToast(
             "پیام حذف شد.",
             "success"
         );
+
 
     } catch (error) {
 
@@ -1434,7 +1734,9 @@ async function deleteMessage(message) {
 }
 
 
-function replaceMessage(updatedMessage) {
+function replaceMessage(
+    updatedMessage
+) {
 
     const index =
         messages.findIndex(
@@ -1445,9 +1747,12 @@ function replaceMessage(updatedMessage) {
 
 
     if (index >= 0) {
+
         messages[index] =
             updatedMessage;
+
     } else {
+
         messages.push(
             updatedMessage
         );
@@ -1468,7 +1773,7 @@ function replaceMessage(updatedMessage) {
 
 
 /* =========================================================
-   SEND TEXT MESSAGE
+   SEND MESSAGE
    ========================================================= */
 
 async function sendMessage() {
@@ -1476,6 +1781,7 @@ async function sendMessage() {
     if (!currentUser) {
         return;
     }
+
 
     if (!selectedUser) {
 
@@ -1501,13 +1807,17 @@ async function sendMessage() {
 
     try {
 
-        sendButton.disabled =
-            true;
+        if (sendButton) {
+            sendButton.disabled =
+                true;
+        }
 
 
         const response =
             await fetch(
-                apiUrl("/api/messages"),
+                apiUrl(
+                    "/api/messages"
+                ),
                 {
                     method:
                         "POST",
@@ -1523,7 +1833,9 @@ async function sendMessage() {
                     body:
                         JSON.stringify({
                             receiver_id:
-                                Number(selectedUser.id),
+                                Number(
+                                    selectedUser.id
+                                ),
 
                             text
                         })
@@ -1571,10 +1883,14 @@ async function sendMessage() {
             "error"
         );
 
+
     } finally {
 
-        sendButton.disabled =
-            false;
+        if (sendButton) {
+            sendButton.disabled =
+                false;
+        }
+
 
         if (messageInput) {
             messageInput.focus();
@@ -1583,7 +1899,14 @@ async function sendMessage() {
 }
 
 
-function addOrReplaceMessage(message) {
+function addOrReplaceMessage(
+    message
+) {
+
+    if (!message) {
+        return;
+    }
+
 
     const existing =
         messages.findIndex(
@@ -1594,9 +1917,12 @@ function addOrReplaceMessage(message) {
 
 
     if (existing >= 0) {
+
         messages[existing] =
             message;
+
     } else {
+
         messages.push(
             message
         );
@@ -1615,10 +1941,12 @@ function addOrReplaceMessage(message) {
 
 
 /* =========================================================
-   FILE UPLOAD
+   FILES
    ========================================================= */
 
-async function uploadFile(file) {
+async function uploadFile(
+    file
+) {
 
     if (!selectedUser) {
 
@@ -1635,7 +1963,10 @@ async function uploadFile(file) {
     }
 
 
-    if (file.size > 10 * 1024 * 1024) {
+    if (
+        file.size >
+        10 * 1024 * 1024
+    ) {
 
         showToast(
             "حداکثر اندازه فایل ۱۰ مگابایت است.",
@@ -1659,7 +1990,9 @@ async function uploadFile(file) {
 
         formData.append(
             "receiver_id",
-            String(selectedUser.id)
+            String(
+                selectedUser.id
+            )
         );
 
 
@@ -1672,7 +2005,9 @@ async function uploadFile(file) {
 
         const response =
             await fetch(
-                apiUrl("/api/upload"),
+                apiUrl(
+                    "/api/upload"
+                ),
                 {
                     method:
                         "POST",
@@ -1712,6 +2047,7 @@ async function uploadFile(file) {
             "success"
         );
 
+
     } catch (error) {
 
         console.error(error);
@@ -1739,7 +2075,10 @@ async function toggleVoiceRecording() {
     }
 
 
-    if (!navigator.mediaDevices?.getUserMedia) {
+    if (
+        !navigator.mediaDevices ||
+        !navigator.mediaDevices.getUserMedia
+    ) {
 
         showToast(
             "مرورگر شما ضبط صدا را پشتیبانی نمی‌کند.",
@@ -1750,16 +2089,27 @@ async function toggleVoiceRecording() {
     }
 
 
+    if (!selectedUser) {
+
+        showToast(
+            "ابتدا یک کاربر را انتخاب کن."
+        );
+
+        return;
+    }
+
+
     try {
 
         const stream =
-            await navigator.mediaDevices.getUserMedia({
-                audio: true
-            });
+            await navigator.mediaDevices.getUserMedia(
+                {
+                    audio: true
+                }
+            );
 
 
-        audioChunks =
-            [];
+        audioChunks = [];
 
 
         mediaRecorder =
@@ -1775,6 +2125,7 @@ async function toggleVoiceRecording() {
                     event.data &&
                     event.data.size > 0
                 ) {
+
                     audioChunks.push(
                         event.data
                     );
@@ -1785,13 +2136,17 @@ async function toggleVoiceRecording() {
         mediaRecorder.onstop =
             async () => {
 
+                const mimeType =
+                    mediaRecorder.mimeType ||
+                    "audio/webm";
+
+
                 const blob =
                     new Blob(
                         audioChunks,
                         {
                             type:
-                                mediaRecorder.mimeType ||
-                                "audio/webm"
+                                mimeType
                         }
                     );
 
@@ -1807,20 +2162,16 @@ async function toggleVoiceRecording() {
                 mediaRecorder =
                     null;
 
-
                 audioChunks =
                     [];
 
 
                 if (blob.size > 0) {
 
-                    const extension =
-                        "webm";
-
                     const file =
                         new File(
                             [blob],
-                            `voice-${Date.now()}.${extension}`,
+                            `voice-${Date.now()}.webm`,
                             {
                                 type:
                                     blob.type ||
@@ -1848,14 +2199,20 @@ async function toggleVoiceRecording() {
             "ضبط صدا شروع شد 🎙️"
         );
 
+
     } catch (error) {
 
         console.error(error);
+
+        mediaRecorder =
+            null;
 
         showToast(
             "اجازه دسترسی به میکروفون داده نشد.",
             "error"
         );
+
+        updateVoiceButton();
     }
 }
 
@@ -1868,13 +2225,16 @@ function stopVoiceRecording() {
 
 
     try {
+
         mediaRecorder.stop();
 
         showToast(
             "در حال آماده‌سازی پیام صوتی..."
         );
 
+
     } catch {
+
         mediaRecorder =
             null;
 
@@ -1919,13 +2279,15 @@ function updateVoiceButton() {
    WEBSOCKET
    ========================================================= */
 
-function connectSocket() {
+async function connectSocket() {
 
     if (
         socket &&
         (
-            socket.readyState === WebSocket.OPEN ||
-            socket.readyState === WebSocket.CONNECTING
+            socket.readyState ===
+                WebSocket.OPEN ||
+            socket.readyState ===
+                WebSocket.CONNECTING
         )
     ) {
         return;
@@ -1935,6 +2297,18 @@ function connectSocket() {
     disconnectSocket(
         false
     );
+
+
+    const sessionReady =
+        await prepareWebSocketSession();
+
+
+    if (!sessionReady) {
+
+        scheduleSocketReconnect();
+
+        return;
+    }
 
 
     try {
@@ -1952,9 +2326,12 @@ function connectSocket() {
                 socketReconnectAttempts =
                     0;
 
+
                 console.log(
-                    "GAPINO WebSocket connected"
+                    "GAPINO WebSocket connected:",
+                    `${WS_BASE}/ws`
                 );
+
 
                 showToast(
                     "اتصال زنده برقرار شد. ✅",
@@ -1962,22 +2339,23 @@ function connectSocket() {
                 );
 
 
-                /*
-                 * The current backend authenticates the
-                 * WebSocket from the session/ticket cookie.
-                 * No client-side user ID is sent.
-                 */
-
                 try {
 
                     socket.send(
-                        JSON.stringify({
-                            type: "ping"
-                        })
+                        JSON.stringify(
+                            {
+                                type:
+                                    "ping"
+                            }
+                        )
                     );
 
-                } catch {}
+                } catch (error) {
 
+                    console.error(
+                        error
+                    );
+                }
             }
         );
 
@@ -1989,20 +2367,32 @@ function connectSocket() {
                 handleSocketMessage(
                     event.data
                 );
-
             }
         );
 
 
         socket.addEventListener(
             "close",
-            () => {
+            event => {
+
+                console.warn(
+                    "GAPINO WebSocket closed:",
+                    event.code,
+                    event.reason
+                );
+
 
                 socket =
                     null;
 
-                scheduleSocketReconnect();
 
+                if (
+                    document.visibilityState !==
+                    "hidden"
+                ) {
+
+                    scheduleSocketReconnect();
+                }
             }
         );
 
@@ -2012,7 +2402,7 @@ function connectSocket() {
             error => {
 
                 console.error(
-                    "WebSocket error:",
+                    "GAPINO WebSocket error:",
                     error
                 );
             }
@@ -2021,7 +2411,12 @@ function connectSocket() {
 
     } catch (error) {
 
-        console.error(error);
+        console.error(
+            error
+        );
+
+        socket =
+            null;
 
         scheduleSocketReconnect();
     }
@@ -2055,12 +2450,12 @@ function scheduleSocketReconnect() {
 
     socketReconnectTimer =
         window.setTimeout(
-            () => {
+            async () => {
 
                 socketReconnectTimer =
                     null;
 
-                connectSocket();
+                await connectSocket();
 
             },
             delay
@@ -2086,7 +2481,9 @@ function disconnectSocket(
     if (socket) {
 
         try {
+
             socket.close();
+
         } catch {}
 
         socket =
@@ -2095,7 +2492,9 @@ function disconnectSocket(
 }
 
 
-function handleSocketMessage(rawData) {
+function handleSocketMessage(
+    rawData
+) {
 
     let data;
 
@@ -2137,46 +2536,9 @@ function handleSocketMessage(rawData) {
 
             if (data.message) {
 
-                const message =
-                    data.message;
-
-
-                const relevant =
-                    isRelevantMessage(
-                        message
-                    );
-
-
-                addOrReplaceMessage(
-                    message
+                handleIncomingMessage(
+                    data.message
                 );
-
-
-                if (relevant) {
-
-                    if (
-                        Number(message.sender_id) !==
-                        Number(currentUser?.id)
-                    ) {
-
-                        if (
-                            Number(message.sender_id) !==
-                            Number(selectedUser?.id)
-                        ) {
-
-                            showToast(
-                                "پیام جدید دریافت شد 💬"
-                            );
-
-                        } else {
-
-                            scrollMessagesToBottom();
-                        }
-                    }
-                }
-
-
-                refreshUsersSilently();
             }
 
             break;
@@ -2189,7 +2551,6 @@ function handleSocketMessage(rawData) {
                 replaceMessage(
                     data.message
                 );
-
             }
 
             break;
@@ -2204,9 +2565,10 @@ function handleSocketMessage(rawData) {
             ) {
 
                 showTyping(
-                    Boolean(data.value)
+                    Boolean(
+                        data.value
+                    )
                 );
-
             }
 
             break;
@@ -2244,7 +2606,50 @@ function handleSocketMessage(rawData) {
 }
 
 
-function handleSocketReady(data) {
+function handleIncomingMessage(
+    message
+) {
+
+    const relevant =
+        isRelevantMessage(
+            message
+        );
+
+
+    if (!relevant) {
+
+        refreshUsersSilently();
+
+        showToast(
+            "پیام جدید دریافت شد 💬",
+            "success"
+        );
+
+        return;
+    }
+
+
+    addOrReplaceMessage(
+        message
+    );
+
+
+    if (
+        Number(message.sender_id) !==
+        Number(currentUser?.id)
+    ) {
+
+        scrollMessagesToBottom();
+    }
+
+
+    refreshUsersSilently();
+}
+
+
+function handleSocketReady(
+    data
+) {
 
     if (
         data &&
@@ -2265,7 +2670,9 @@ function handleSocketReady(data) {
                     ...user,
                     online:
                         onlineSet.has(
-                            Number(user.id)
+                            Number(
+                                user.id
+                            )
                         )
                 })
             );
@@ -2273,7 +2680,7 @@ function handleSocketReady(data) {
 
         if (selectedUser) {
 
-            const refreshedSelected =
+            const refreshed =
                 users.find(
                     user =>
                         Number(user.id) ===
@@ -2281,12 +2688,12 @@ function handleSocketReady(data) {
                 );
 
 
-            if (refreshedSelected) {
+            if (refreshed) {
 
                 selectedUser =
                     {
                         ...selectedUser,
-                        ...refreshedSelected
+                        ...refreshed
                     };
 
                 renderChatHeader();
@@ -2299,25 +2706,38 @@ function handleSocketReady(data) {
 }
 
 
-function isRelevantMessage(message) {
+function isRelevantMessage(
+    message
+) {
 
-    if (!selectedUser || !currentUser) {
+    if (
+        !selectedUser ||
+        !currentUser
+    ) {
         return false;
     }
 
 
     const sender =
-        Number(message.sender_id);
+        Number(
+            message.sender_id
+        );
 
     const receiver =
-        Number(message.receiver_id);
+        Number(
+            message.receiver_id
+        );
 
 
     const a =
-        Number(currentUser.id);
+        Number(
+            currentUser.id
+        );
 
     const b =
-        Number(selectedUser.id);
+        Number(
+            selectedUser.id
+        );
 
 
     return (
@@ -2388,7 +2808,8 @@ function sendSocketTyping(
 
     if (
         !socket ||
-        socket.readyState !== WebSocket.OPEN ||
+        socket.readyState !==
+            WebSocket.OPEN ||
         !selectedUser
     ) {
         return;
@@ -2398,11 +2819,22 @@ function sendSocketTyping(
     try {
 
         socket.send(
-            JSON.stringify({
-                type: "typing",
-                to: Number(selectedUser.id),
-                value: Boolean(value)
-            })
+            JSON.stringify(
+                {
+                    type:
+                        "typing",
+
+                    to:
+                        Number(
+                            selectedUser.id
+                        ),
+
+                    value:
+                        Boolean(
+                            value
+                        )
+                }
+            )
         );
 
     } catch {}
@@ -2531,6 +2963,7 @@ function closeProfilePanel() {
                     "open"
                 )
             ) {
+
                 profilePanel.hidden =
                     true;
             }
@@ -2541,6 +2974,7 @@ function closeProfilePanel() {
 
 
     if (appOverlay) {
+
         appOverlay.hidden =
             true;
     }
@@ -2576,6 +3010,7 @@ async function loadProfileIntoPanel() {
 
 
         if (profileName) {
+
             profileName.textContent =
                 currentUser.display_name ||
                 currentUser.username ||
@@ -2584,6 +3019,7 @@ async function loadProfileIntoPanel() {
 
 
         if (profileUsername) {
+
             profileUsername.textContent =
                 currentUser.username
                     ? `@${currentUser.username}`
@@ -2595,15 +3031,13 @@ async function loadProfileIntoPanel() {
 
             if (currentUser.avatar) {
 
-                const src =
-                    currentUser.avatar.startsWith("http")
-                        ? currentUser.avatar
-                        : apiUrl(currentUser.avatar);
-
-
                 profileAvatar.innerHTML = `
                     <img
-                        src="${escapeHtml(src)}"
+                        src="${escapeHtml(
+                            avatarUrl(
+                                currentUser.avatar
+                            )
+                        )}"
                         alt=""
                     >
                 `;
@@ -2619,14 +3053,18 @@ async function loadProfileIntoPanel() {
 
 
         if (editDisplayName) {
+
             editDisplayName.value =
-                currentUser.display_name || "";
+                currentUser.display_name ||
+                "";
         }
 
 
         if (editBio) {
+
             editBio.value =
-                currentUser.bio || "";
+                currentUser.bio ||
+                "";
         }
 
 
@@ -2635,8 +3073,7 @@ async function loadProfileIntoPanel() {
             const allowed =
                 Array.from(
                     editStatus.options
-                )
-                .map(
+                ).map(
                     option =>
                         option.value
                 );
@@ -2647,7 +3084,10 @@ async function loadProfileIntoPanel() {
                     currentUser.status
                 )
                     ? currentUser.status
-                    : allowed[0] || "";
+                    : (
+                        allowed[0] ||
+                        ""
+                    );
         }
 
 
@@ -2675,11 +3115,13 @@ async function saveCurrentProfile() {
 
 
     const display =
-        editDisplayName?.value.trim() || "";
+        editDisplayName?.value.trim() ||
+        "";
 
 
     const bio =
-        editBio?.value.trim() || "";
+        editBio?.value.trim() ||
+        "";
 
 
     const status =
@@ -2702,6 +3144,7 @@ async function saveCurrentProfile() {
     try {
 
         if (saveProfile) {
+
             saveProfile.disabled =
                 true;
         }
@@ -2709,7 +3152,9 @@ async function saveCurrentProfile() {
 
         const response =
             await fetch(
-                apiUrl("/api/profile"),
+                apiUrl(
+                    "/api/profile"
+                ),
                 {
                     method:
                         "PUT",
@@ -2748,7 +3193,20 @@ async function saveCurrentProfile() {
         }
 
 
-        await loadCurrentUser();
+        currentUser =
+            data.user ||
+            currentUser;
+
+
+        localStorage.setItem(
+            "gapino_user",
+            JSON.stringify(
+                currentUser
+            )
+        );
+
+
+        renderCurrentUser();
 
 
         showToast(
@@ -2767,9 +3225,11 @@ async function saveCurrentProfile() {
             "error"
         );
 
+
     } finally {
 
         if (saveProfile) {
+
             saveProfile.disabled =
                 false;
         }
@@ -2778,7 +3238,7 @@ async function saveCurrentProfile() {
 
 
 /* =========================================================
-   SIDEBAR / MOBILE
+   SIDEBAR
    ========================================================= */
 
 function openSidebarMobile() {
@@ -2814,9 +3274,12 @@ function closeSidebarMobile() {
 
     if (
         profilePanel &&
-        !profilePanel.classList.contains("open") &&
+        !profilePanel.classList.contains(
+            "open"
+        ) &&
         appOverlay
     ) {
+
         appOverlay.hidden =
             true;
     }
@@ -2837,8 +3300,11 @@ function toggleSidebar() {
 
 
     if (open) {
+
         closeSidebarMobile();
+
     } else {
+
         openSidebarMobile();
     }
 }
@@ -2864,7 +3330,9 @@ async function logout() {
     try {
 
         await fetch(
-            apiUrl("/api/logout"),
+            apiUrl(
+                "/api/logout"
+            ),
             {
                 method:
                     "POST",
@@ -2876,7 +3344,9 @@ async function logout() {
 
     } catch (error) {
 
-        console.error(error);
+        console.error(
+            error
+        );
 
     } finally {
 
@@ -2893,7 +3363,7 @@ async function logout() {
 
 
 /* =========================================================
-   MESSAGE INPUT
+   INPUT
    ========================================================= */
 
 function resizeMessageInput() {
@@ -2915,7 +3385,10 @@ function resizeMessageInput() {
 
 
     messageInput.style.height =
-        `${Math.max(height, 24)}px`;
+        `${Math.max(
+            height,
+            24
+        )}px`;
 }
 
 
@@ -2970,7 +3443,9 @@ function initializeTheme() {
 }
 
 
-function updateThemeButton(theme) {
+function updateThemeButton(
+    theme
+) {
 
     const button =
         document.getElementById(
@@ -3035,7 +3510,7 @@ function toggleTheme() {
 
 
 /* =========================================================
-   EVENT LISTENERS
+   SEARCH
    ========================================================= */
 
 if (userSearch) {
@@ -3045,10 +3520,13 @@ if (userSearch) {
         () => {
 
             const hasText =
-                userSearch.value.trim().length > 0;
+                userSearch.value
+                    .trim()
+                    .length > 0;
 
 
             if (clearSearch) {
+
                 clearSearch.hidden =
                     !hasText;
             }
@@ -3080,19 +3558,27 @@ if (clearSearch) {
         () => {
 
             if (userSearch) {
+
                 userSearch.value =
                     "";
+
                 userSearch.focus();
             }
 
+
             clearSearch.hidden =
                 true;
+
 
             loadUsers();
         }
     );
 }
 
+
+/* =========================================================
+   SEND
+   ========================================================= */
 
 if (sendButton) {
 
@@ -3101,7 +3587,6 @@ if (sendButton) {
         () => {
 
             sendMessage();
-
         }
     );
 }
@@ -3116,9 +3601,10 @@ if (messageInput) {
             resizeMessageInput();
 
             setTyping(
-                messageInput.value.trim().length > 0
+                messageInput.value
+                    .trim()
+                    .length > 0
             );
-
         }
     );
 
@@ -3135,12 +3621,15 @@ if (messageInput) {
                 event.preventDefault();
 
                 sendMessage();
-
             }
         }
     );
 }
 
+
+/* =========================================================
+   FILE BUTTONS
+   ========================================================= */
 
 if (attachButton) {
 
@@ -3151,7 +3640,6 @@ if (attachButton) {
             if (fileInput) {
                 fileInput.click();
             }
-
         }
     );
 }
@@ -3168,7 +3656,10 @@ if (fileInput) {
 
 
             if (file) {
-                await uploadFile(file);
+
+                await uploadFile(
+                    file
+                );
             }
 
 
@@ -3179,6 +3670,10 @@ if (fileInput) {
 }
 
 
+/* =========================================================
+   VOICE BUTTON
+   ========================================================= */
+
 if (voiceButton) {
 
     voiceButton.addEventListener(
@@ -3186,11 +3681,14 @@ if (voiceButton) {
         () => {
 
             toggleVoiceRecording();
-
         }
     );
 }
 
+
+/* =========================================================
+   PROFILE BUTTONS
+   ========================================================= */
 
 if (profileButton) {
 
@@ -3199,7 +3697,6 @@ if (profileButton) {
         () => {
 
             openProfile();
-
         }
     );
 }
@@ -3212,7 +3709,6 @@ if (profileHeaderButton) {
         () => {
 
             openProfile();
-
         }
     );
 }
@@ -3225,7 +3721,6 @@ if (closeProfile) {
         () => {
 
             closeProfilePanel();
-
         }
     );
 }
@@ -3238,7 +3733,6 @@ if (saveProfile) {
         () => {
 
             saveCurrentProfile();
-
         }
     );
 }
@@ -3257,6 +3751,10 @@ if (profilePageButton) {
 }
 
 
+/* =========================================================
+   MENU
+   ========================================================= */
+
 if (menuButton) {
 
     menuButton.addEventListener(
@@ -3264,7 +3762,6 @@ if (menuButton) {
         () => {
 
             toggleSidebar();
-
         }
     );
 }
@@ -3277,7 +3774,6 @@ if (mobileMenuButton) {
         () => {
 
             toggleSidebar();
-
         }
     );
 }
@@ -3292,11 +3788,14 @@ if (appOverlay) {
             closeSidebarMobile();
 
             closeProfilePanel();
-
         }
     );
 }
 
+
+/* =========================================================
+   REFRESH
+   ========================================================= */
 
 if (refreshButton) {
 
@@ -3307,18 +3806,23 @@ if (refreshButton) {
             refreshButton.disabled =
                 true;
 
+
             try {
 
                 await loadUsers();
 
+
                 if (selectedUser) {
+
                     await loadMessages();
                 }
+
 
                 showToast(
                     "اطلاعات به‌روزرسانی شد. ✅",
                     "success"
                 );
+
 
             } finally {
 
@@ -3330,6 +3834,10 @@ if (refreshButton) {
 }
 
 
+/* =========================================================
+   LOGOUT BUTTON
+   ========================================================= */
+
 if (logoutButton) {
 
     logoutButton.addEventListener(
@@ -3337,11 +3845,14 @@ if (logoutButton) {
         () => {
 
             logout();
-
         }
     );
 }
 
+
+/* =========================================================
+   THEME BUTTON
+   ========================================================= */
 
 const themeButton =
     document.getElementById(
@@ -3356,45 +3867,40 @@ if (themeButton) {
         () => {
 
             toggleTheme();
-
         }
     );
 }
 
 
 /* =========================================================
-   PAGE VISIBILITY
+   VISIBILITY
    ========================================================= */
 
 document.addEventListener(
     "visibilitychange",
-    () => {
+    async () => {
 
         if (
             document.visibilityState ===
             "visible"
         ) {
 
-            refreshUsersSilently();
+            await loadUsers();
 
-            if (
-                selectedUser
-            ) {
-                loadMessages()
-                    .catch(
-                        error =>
-                            console.error(
-                                error
-                            )
-                    );
+
+            if (selectedUser) {
+
+                await loadMessages();
             }
+
 
             if (
                 !socket ||
                 socket.readyState !==
-                WebSocket.OPEN
+                    WebSocket.OPEN
             ) {
-                connectSocket();
+
+                await connectSocket();
             }
         }
     }
@@ -3402,7 +3908,7 @@ document.addEventListener(
 
 
 /* =========================================================
-   WINDOW RESIZE
+   RESIZE
    ========================================================= */
 
 window.addEventListener(
@@ -3414,14 +3920,13 @@ window.addEventListener(
         ) {
 
             closeSidebarMobile();
-
         }
     }
 );
 
 
 /* =========================================================
-   STARTUP
+   START APP
    ========================================================= */
 
 async function startApp() {
@@ -3436,10 +3941,16 @@ async function startApp() {
         currentUser =
             await getCurrentUser();
 
-
     } catch (error) {
 
-        console.error(error);
+        console.error(
+            "Authentication failed:",
+            error
+        );
+
+        localStorage.removeItem(
+            "gapino_user"
+        );
 
         window.location.href =
             "/login.html";
@@ -3450,7 +3961,9 @@ async function startApp() {
 
     localStorage.setItem(
         "gapino_user",
-        JSON.stringify(currentUser)
+        JSON.stringify(
+            currentUser
+        )
     );
 
 
@@ -3461,14 +3974,21 @@ async function startApp() {
 
 
     /*
-     * Connect after the authenticated session exists.
+     * Important:
+     * /api/me creates/refreshes the
+     * WebSocket ticket cookie.
      */
-    connectSocket();
+    await prepareWebSocketSession();
 
 
     /*
-     * Refresh users periodically so online/offline
-     * states and newly registered users appear.
+     * Start live connection.
+     */
+    await connectSocket();
+
+
+    /*
+     * Refresh users every 15 seconds.
      */
     usersRefreshTimer =
         window.setInterval(
@@ -3503,16 +4023,18 @@ window.addEventListener(
             usersRefreshTimer
         );
 
+
         window.clearTimeout(
             socketReconnectTimer
         );
+
 
         window.clearTimeout(
             typingTimer
         );
 
-        disconnectSocket();
 
+        disconnectSocket();
     }
 );
 
