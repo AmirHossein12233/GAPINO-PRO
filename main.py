@@ -49,13 +49,19 @@ UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024
 MAX_AVATAR_SIZE = 5 * 1024 * 1024
 
+PBKDF2_ITERATIONS = 210_000
+
 SESSION_SECRET = os.getenv(
     "GAPINO_SESSION_SECRET",
     "CHANGE_THIS_SECRET_IN_PRODUCTION",
 )
 
 COOKIE_SECURE = (
-    os.getenv("GAPINO_COOKIE_SECURE", "false").lower() == "true"
+    os.getenv(
+        "GAPINO_COOKIE_SECURE",
+        "false",
+    ).lower()
+    == "true"
 )
 
 
@@ -83,13 +89,17 @@ app.add_middleware(
 
 app.mount(
     "/static",
-    StaticFiles(directory=str(FRONTEND_DIR)),
+    StaticFiles(
+        directory=str(FRONTEND_DIR),
+    ),
     name="static",
 )
 
 app.mount(
     "/uploads",
-    StaticFiles(directory=str(UPLOADS_DIR)),
+    StaticFiles(
+        directory=str(UPLOADS_DIR),
+    ),
     name="uploads",
 )
 
@@ -112,7 +122,9 @@ def get_db() -> sqlite3.Connection:
         DB_PATH,
         check_same_thread=False,
     )
+
     connection.row_factory = sqlite3.Row
+
     return connection
 
 
@@ -163,7 +175,11 @@ def init_database() -> None:
             message_id INTEGER NOT NULL,
             user_id INTEGER NOT NULL,
             emoji TEXT NOT NULL,
-            PRIMARY KEY (message_id, user_id, emoji)
+            PRIMARY KEY (
+                message_id,
+                user_id,
+                emoji
+            )
         );
         """
     )
@@ -180,7 +196,9 @@ init_database()
 # =========================================================
 
 def now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(
+        timezone.utc
+    ).isoformat()
 
 
 # =========================================================
@@ -194,26 +212,28 @@ def hash_password(password: str) -> str:
         "sha256",
         password.encode("utf-8"),
         salt,
-        210_000,
+        PBKDF2_ITERATIONS,
     )
 
-    return f"$pbkdf2${salt.hex()}${digest.hex()}"
+    return (
+        "$pbkdf2$"
+        + salt.hex()
+        + "$"
+        + digest.hex()
+    )
 
 
-def verify_password(
+def verify_pbkdf2_password(
     password: str,
     stored_password: str,
 ) -> bool:
-    if not stored_password:
-        return False
-
-    if not stored_password.startswith("$pbkdf2$"):
-        return False
-
     try:
         parts = stored_password.split("$")
 
         if len(parts) != 4:
+            return False
+
+        if parts[1] != "pbkdf2":
             return False
 
         salt = bytes.fromhex(parts[2])
@@ -222,7 +242,7 @@ def verify_password(
             "sha256",
             password.encode("utf-8"),
             salt,
-            210_000,
+            PBKDF2_ITERATIONS,
         )
 
         return hmac.compare_digest(
@@ -232,6 +252,130 @@ def verify_password(
 
     except Exception:
         return False
+
+
+def verify_argon2_password(
+    password: str,
+    stored_password: str,
+) -> bool:
+    try:
+        from pwdlib import PasswordHash
+
+        password_hash = PasswordHash()
+
+        return bool(
+            password_hash.verify(
+                password,
+                stored_password,
+            )
+        )
+
+    except Exception:
+        pass
+
+    try:
+        from argon2 import PasswordHasher
+
+        password_hasher = PasswordHasher()
+
+        password_hasher.verify(
+            stored_password,
+            password,
+        )
+
+        return True
+
+    except Exception:
+        return False
+
+
+def verify_bcrypt_password(
+    password: str,
+    stored_password: str,
+) -> bool:
+    try:
+        import bcrypt
+
+        return bool(
+            bcrypt.checkpw(
+                password.encode("utf-8"),
+                stored_password.encode("utf-8"),
+            )
+        )
+
+    except Exception:
+        return False
+
+
+def verify_password(
+    password: str,
+    stored_password: str,
+) -> bool:
+    if not stored_password:
+        return False
+
+    # -----------------------------------------------------
+    # GAPINO PBKDF2
+    # -----------------------------------------------------
+
+    if stored_password.startswith("$pbkdf2$"):
+        return verify_pbkdf2_password(
+            password,
+            stored_password,
+        )
+
+    # -----------------------------------------------------
+    # ARGON2
+    # -----------------------------------------------------
+
+    if stored_password.startswith(
+        "$argon2"
+    ):
+        return verify_argon2_password(
+            password,
+            stored_password,
+        )
+
+    # -----------------------------------------------------
+    # BCRYPT
+    # -----------------------------------------------------
+
+    if stored_password.startswith(
+        (
+            "$2a$",
+            "$2b$",
+            "$2y$",
+        )
+    ):
+        return verify_bcrypt_password(
+            password,
+            stored_password,
+        )
+
+    # -----------------------------------------------------
+    # بعضی نسخه‌های bcrypt قدیمی
+    # -----------------------------------------------------
+
+    if stored_password.startswith(
+        "$2$"
+    ):
+        return verify_bcrypt_password(
+            password,
+            stored_password,
+        )
+
+    return False
+
+
+def password_needs_upgrade(
+    stored_password: str,
+) -> bool:
+    if not stored_password:
+        return False
+
+    return not stored_password.startswith(
+        "$pbkdf2$"
+    )
 
 
 # =========================================================
@@ -258,14 +402,21 @@ def public_user(user: dict) -> dict:
 def get_current_user(
     request: Request,
 ) -> Optional[dict]:
-    raw_id = request.session.get("uid")
+
+    raw_id = request.session.get(
+        "uid"
+    )
 
     if raw_id is None:
         return None
 
     try:
         user_id = int(raw_id)
-    except (TypeError, ValueError):
+
+    except (
+        TypeError,
+        ValueError,
+    ):
         return None
 
     connection = get_db()
@@ -294,8 +445,13 @@ def get_current_user(
     return dict(row)
 
 
-def require_user(request: Request) -> dict:
-    user = get_current_user(request)
+def require_user(
+    request: Request,
+) -> dict:
+
+    user = get_current_user(
+        request
+    )
 
     if not user:
         raise HTTPException(
@@ -310,40 +466,69 @@ def require_user(request: Request) -> dict:
 # WEBSOCKET TICKETS
 # =========================================================
 
-def create_ws_ticket(user_id: int) -> str:
-    ticket = secrets.token_urlsafe(32)
-    websocket_tickets[ticket] = int(user_id)
+def create_ws_ticket(
+    user_id: int,
+) -> str:
+
+    ticket = secrets.token_urlsafe(
+        32
+    )
+
+    websocket_tickets[
+        ticket
+    ] = int(user_id)
+
     return ticket
 
 
 def get_user_from_ticket(
     ticket: str,
 ) -> Optional[int]:
+
     if not ticket:
         return None
 
-    value = websocket_tickets.get(ticket)
+    value = websocket_tickets.get(
+        ticket
+    )
 
     if value is None:
         return None
 
     try:
         return int(value)
-    except (TypeError, ValueError):
+
+    except (
+        TypeError,
+        ValueError,
+    ):
         return None
 
 
-def remove_user_tickets(user_id: int) -> None:
+def remove_user_tickets(
+    user_id: int,
+) -> None:
+
     for ticket, owner_id in list(
         websocket_tickets.items()
     ):
         try:
-            same_user = int(owner_id) == int(user_id)
-        except (TypeError, ValueError):
-            same_user = False
+            if int(owner_id) == int(
+                user_id
+            ):
+                websocket_tickets.pop(
+                    ticket,
+                    None,
+                )
 
-        if same_user:
-            websocket_tickets.pop(ticket, None)
+        except (
+            TypeError,
+            ValueError,
+        ):
+            websocket_tickets.pop(
+                ticket,
+                None,
+            )
 
 
 def cleanup_tickets() -> None:
@@ -385,13 +570,24 @@ FILE_EXTENSIONS = {
 }
 
 
-def safe_filename(filename: str) -> str:
-    cleaned = Path(filename).name
+def safe_filename(
+    filename: str,
+) -> str:
+
+    cleaned = Path(
+        filename
+    ).name
+
     return cleaned or "file"
 
 
-def allowed_upload(filename: str) -> bool:
-    extension = Path(filename).suffix.lower()
+def allowed_upload(
+    filename: str,
+) -> bool:
+
+    extension = Path(
+        filename
+    ).suffix.lower()
 
     return (
         extension in IMAGE_EXTENSIONS
@@ -405,10 +601,14 @@ def allowed_upload(filename: str) -> bool:
 # =========================================================
 
 def live_public_list() -> list[dict]:
+
     result = []
 
     for room_id, room in live_rooms.items():
-        viewers = room.get("viewers", set())
+        viewers = room.get(
+            "viewers",
+            set(),
+        )
 
         result.append(
             {
@@ -418,9 +618,14 @@ def live_public_list() -> list[dict]:
                     "پخش زنده GAPINO",
                 ),
                 "host_id": int(
-                    room.get("host_id", 0)
+                    room.get(
+                        "host_id",
+                        0,
+                    )
                 ),
-                "viewer_count": len(viewers),
+                "viewer_count": len(
+                    viewers
+                ),
             }
         )
 
@@ -431,6 +636,7 @@ async def send_to_user(
     user_id: int,
     payload: dict,
 ) -> None:
+
     sockets = active_connections.get(
         int(user_id),
         set(),
@@ -446,23 +652,35 @@ async def send_to_user(
 
     dead = []
 
-    for websocket in list(sockets):
+    for websocket in list(
+        sockets
+    ):
         try:
-            await websocket.send_text(message)
+            await websocket.send_text(
+                message
+            )
+
         except Exception:
-            dead.append(websocket)
+            dead.append(
+                websocket
+            )
 
     for websocket in dead:
-        sockets.discard(websocket)
+        sockets.discard(
+            websocket
+        )
 
 
 async def broadcast_live_list() -> None:
+
     payload = {
         "type": "live_list",
         "streams": live_public_list(),
     }
 
-    for user_id in list(active_connections.keys()):
+    for user_id in list(
+        active_connections.keys()
+    ):
         await send_to_user(
             int(user_id),
             payload,
@@ -472,17 +690,29 @@ async def broadcast_live_list() -> None:
 async def end_live_room(
     room_id: str,
 ) -> None:
-    room = live_rooms.pop(room_id, None)
+
+    room = live_rooms.pop(
+        room_id,
+        None,
+    )
 
     if not room:
         return
 
     recipients = set(
-        room.get("viewers", set())
+        room.get(
+            "viewers",
+            set(),
+        )
     )
 
     recipients.add(
-        int(room.get("host_id", 0))
+        int(
+            room.get(
+                "host_id",
+                0,
+            )
+        )
     )
 
     payload = {
@@ -500,15 +730,70 @@ async def end_live_room(
 
 
 # =========================================================
+# PROFILE BROADCAST
+# =========================================================
+
+async def broadcast_profile_update(
+    user_id: int,
+) -> None:
+
+    connection = get_db()
+
+    row = connection.execute(
+        """
+        SELECT
+            id,
+            username,
+            display_name,
+            bio,
+            avatar,
+            status
+        FROM users
+        WHERE id = ?
+        """,
+        (int(user_id),),
+    ).fetchone()
+
+    connection.close()
+
+    if row is None:
+        return
+
+    payload = {
+        "type": "profile_updated",
+        "user": dict(row),
+    }
+
+    for target_id in list(
+        active_connections.keys()
+    ):
+        await send_to_user(
+            int(target_id),
+            payload,
+        )
+
+
+# =========================================================
 # HTML PAGES
 # =========================================================
 
-@app.get("/", response_class=HTMLResponse)
-def root(request: Request):
-    user = get_current_user(request)
+@app.get(
+    "/",
+    response_class=HTMLResponse,
+)
+def root(
+    request: Request,
+):
+
+    user = get_current_user(
+        request
+    )
 
     if user:
-        chat = FRONTEND_DIR / "chat.html"
+        chat = (
+            FRONTEND_DIR /
+            "chat.html"
+        )
 
         if chat.exists():
             return FileResponse(
@@ -516,7 +801,10 @@ def root(request: Request):
                 media_type="text/html",
             )
 
-    index = FRONTEND_DIR / "index.html"
+    index = (
+        FRONTEND_DIR /
+        "index.html"
+    )
 
     if index.exists():
         return FileResponse(
@@ -524,7 +812,10 @@ def root(request: Request):
             media_type="text/html",
         )
 
-    login = FRONTEND_DIR / "login.html"
+    login = (
+        FRONTEND_DIR /
+        "login.html"
+    )
 
     if login.exists():
         return FileResponse(
@@ -538,7 +829,8 @@ def root(request: Request):
         <html lang="fa" dir="rtl">
         <head>
             <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width,initial-scale=1">
+            <meta name="viewport"
+                content="width=device-width, initial-scale=1">
             <title>گپینو | GAPINO</title>
         </head>
         <body>
@@ -549,9 +841,16 @@ def root(request: Request):
     )
 
 
-@app.get("/index.html", response_class=HTMLResponse)
+@app.get(
+    "/index.html",
+    response_class=HTMLResponse,
+)
 def index_page():
-    path = FRONTEND_DIR / "index.html"
+
+    path = (
+        FRONTEND_DIR /
+        "index.html"
+    )
 
     if not path.exists():
         raise HTTPException(
@@ -565,9 +864,16 @@ def index_page():
     )
 
 
-@app.get("/login.html", response_class=HTMLResponse)
+@app.get(
+    "/login.html",
+    response_class=HTMLResponse,
+)
 def login_page():
-    path = FRONTEND_DIR / "login.html"
+
+    path = (
+        FRONTEND_DIR /
+        "login.html"
+    )
 
     if not path.exists():
         raise HTTPException(
@@ -581,11 +887,22 @@ def login_page():
     )
 
 
-@app.get("/chat.html", response_class=HTMLResponse)
-def chat_page(request: Request):
-    require_user(request)
+@app.get(
+    "/chat.html",
+    response_class=HTMLResponse,
+)
+def chat_page(
+    request: Request,
+):
 
-    path = FRONTEND_DIR / "chat.html"
+    require_user(
+        request
+    )
+
+    path = (
+        FRONTEND_DIR /
+        "chat.html"
+    )
 
     if not path.exists():
         raise HTTPException(
@@ -599,11 +916,22 @@ def chat_page(request: Request):
     )
 
 
-@app.get("/profile.html", response_class=HTMLResponse)
-def profile_page(request: Request):
-    require_user(request)
+@app.get(
+    "/profile.html",
+    response_class=HTMLResponse,
+)
+def profile_page(
+    request: Request,
+):
 
-    path = FRONTEND_DIR / "profile.html"
+    require_user(
+        request
+    )
+
+    path = (
+        FRONTEND_DIR /
+        "profile.html"
+    )
 
     if not path.exists():
         raise HTTPException(
@@ -617,11 +945,22 @@ def profile_page(request: Request):
     )
 
 
-@app.get("/live.html", response_class=HTMLResponse)
-def live_page(request: Request):
-    require_user(request)
+@app.get(
+    "/live.html",
+    response_class=HTMLResponse,
+)
+def live_page(
+    request: Request,
+):
 
-    path = FRONTEND_DIR / "live.html"
+    require_user(
+        request
+    )
+
+    path = (
+        FRONTEND_DIR /
+        "live.html"
+    )
 
     if not path.exists():
         raise HTTPException(
@@ -639,9 +978,15 @@ def live_page(request: Request):
 # SEO
 # =========================================================
 
-@app.get("/robots.txt")
+@app.get(
+    "/robots.txt"
+)
 def robots_txt():
-    path = FRONTEND_DIR / "robots.txt"
+
+    path = (
+        FRONTEND_DIR /
+        "robots.txt"
+    )
 
     if not path.exists():
         raise HTTPException(
@@ -655,9 +1000,15 @@ def robots_txt():
     )
 
 
-@app.get("/sitemap.xml")
+@app.get(
+    "/sitemap.xml"
+)
 def sitemap_xml():
-    path = FRONTEND_DIR / "sitemap.xml"
+
+    path = (
+        FRONTEND_DIR /
+        "sitemap.xml"
+    )
 
     if not path.exists():
         raise HTTPException(
@@ -675,10 +1026,20 @@ def sitemap_xml():
 # FAVICON
 # =========================================================
 
-@app.get("/favicon.ico")
+@app.get(
+    "/favicon.ico"
+)
 def favicon():
-    ico = FRONTEND_DIR / "favicon.ico"
-    png = FRONTEND_DIR / "favicon.png"
+
+    ico = (
+        FRONTEND_DIR /
+        "favicon.ico"
+    )
+
+    png = (
+        FRONTEND_DIR /
+        "favicon.png"
+    )
 
     if ico.exists():
         return FileResponse(
@@ -693,7 +1054,7 @@ def favicon():
         )
 
     return Response(
-        status_code=204,
+        status_code=204
     )
 
 
@@ -701,15 +1062,22 @@ def favicon():
 # HEALTH
 # =========================================================
 
-@app.get("/health")
+@app.get(
+    "/health"
+)
 def health():
+
     return {
         "ok": True,
         "app": APP_NAME,
         "version": APP_VERSION,
         "time": now_iso(),
-        "users_online": len(active_connections),
-        "live_streams": len(live_rooms),
+        "users_online": len(
+            active_connections
+        ),
+        "live_streams": len(
+            live_rooms
+        ),
     }
 
 
@@ -717,17 +1085,32 @@ def health():
 # REGISTER
 # =========================================================
 
-@app.post("/api/register")
-@app.post("/register")
+@app.post(
+    "/api/register"
+)
+@app.post(
+    "/register"
+)
 def register(
     request: Request,
     username: str = Form(...),
     password: str = Form(...),
     display_name: str = Form(""),
 ):
-    username = username.strip().lower()
+
+    username = (
+        username
+        .strip()
+        .lower()
+    )
+
     password = password.strip()
-    display_name = display_name.strip() or username
+
+    display_name = (
+        display_name
+        .strip()
+        or username
+    )
 
     if len(username) < 3:
         raise HTTPException(
@@ -775,9 +1158,13 @@ def register(
         )
 
         connection.commit()
-        user_id = int(cursor.lastrowid)
+
+        user_id = int(
+            cursor.lastrowid
+        )
 
     except sqlite3.IntegrityError:
+
         connection.rollback()
 
         raise HTTPException(
@@ -790,8 +1177,13 @@ def register(
 
     request.session["uid"] = user_id
 
-    remove_user_tickets(user_id)
-    ticket = create_ws_ticket(user_id)
+    remove_user_tickets(
+        user_id
+    )
+
+    ticket = create_ws_ticket(
+        user_id
+    )
 
     user = {
         "id": user_id,
@@ -805,7 +1197,9 @@ def register(
     response = JSONResponse(
         {
             "ok": True,
-            "user": public_user(user),
+            "user": public_user(
+                user
+            ),
         }
     )
 
@@ -826,14 +1220,23 @@ def register(
 # LOGIN
 # =========================================================
 
-@app.post("/api/login")
-@app.post("/login")
+@app.post(
+    "/api/login"
+)
+@app.post(
+    "/login"
+)
 def login(
     request: Request,
     username: str = Form(...),
     password: str = Form(...),
 ):
-    username = username.strip().lower()
+
+    username = (
+        username
+        .strip()
+        .lower()
+    )
 
     connection = get_db()
 
@@ -843,12 +1246,14 @@ def login(
         FROM users
         WHERE username = ?
         """,
-        (username,),
+        (
+            username,
+        ),
     ).fetchone()
 
-    connection.close()
+    if row is None:
+        connection.close()
 
-    if not row:
         raise HTTPException(
             status_code=401,
             detail="نام کاربری یا رمز عبور نادرست است.",
@@ -856,26 +1261,73 @@ def login(
 
     user = dict(row)
 
-    if not verify_password(
+    stored_password = user.get(
+        "password",
+        "",
+    )
+
+    valid_password = verify_password(
         password,
-        user.get("password", ""),
-    ):
+        stored_password,
+    )
+
+    if not valid_password:
+        connection.close()
+
         raise HTTPException(
             status_code=401,
             detail="نام کاربری یا رمز عبور نادرست است.",
         )
 
-    user_id = int(user["id"])
+    # -----------------------------------------------------
+    # ارتقای خودکار رمزهای قدیمی
+    # -----------------------------------------------------
+
+    if password_needs_upgrade(
+        stored_password
+    ):
+        new_password = hash_password(
+            password
+        )
+
+        connection.execute(
+            """
+            UPDATE users
+            SET password = ?
+            WHERE id = ?
+            """,
+            (
+                new_password,
+                int(user["id"]),
+            ),
+        )
+
+        connection.commit()
+
+        user["password"] = new_password
+
+    connection.close()
+
+    user_id = int(
+        user["id"]
+    )
 
     request.session["uid"] = user_id
 
-    remove_user_tickets(user_id)
-    ticket = create_ws_ticket(user_id)
+    remove_user_tickets(
+        user_id
+    )
+
+    ticket = create_ws_ticket(
+        user_id
+    )
 
     response = JSONResponse(
         {
             "ok": True,
-            "user": public_user(user),
+            "user": public_user(
+                user
+            ),
         }
     )
 
@@ -896,10 +1348,19 @@ def login(
 # LOGOUT
 # =========================================================
 
-@app.post("/api/logout")
-@app.post("/logout")
-async def logout(request: Request):
-    raw_user_id = request.session.get("uid")
+@app.post(
+    "/api/logout"
+)
+@app.post(
+    "/logout"
+)
+async def logout(
+    request: Request,
+):
+
+    raw_user_id = request.session.get(
+        "uid"
+    )
 
     try:
         user_id = (
@@ -907,32 +1368,46 @@ async def logout(request: Request):
             if raw_user_id is not None
             else None
         )
-    except (TypeError, ValueError):
+
+    except (
+        TypeError,
+        ValueError,
+    ):
         user_id = None
 
     request.session.clear()
 
     if user_id is not None:
-        remove_user_tickets(user_id)
+
+        remove_user_tickets(
+            user_id
+        )
 
         for room_id, room in list(
             live_rooms.items()
         ):
-            host_id = int(
-                room.get("host_id", 0)
-            )
+            if int(
+                room.get(
+                    "host_id",
+                    0,
+                )
+            ) == user_id:
 
-            if host_id == user_id:
-                await end_live_room(room_id)
+                await end_live_room(
+                    room_id
+                )
 
         sockets = active_connections.pop(
             user_id,
             set(),
         )
 
-        for websocket in list(sockets):
+        for websocket in list(
+            sockets
+        ):
             try:
                 await websocket.close()
+
             except Exception:
                 pass
 
@@ -948,7 +1423,9 @@ async def logout(request: Request):
             )
 
     response = JSONResponse(
-        {"ok": True}
+        {
+            "ok": True
+        }
     )
 
     response.delete_cookie(
@@ -968,9 +1445,16 @@ async def logout(request: Request):
 # CURRENT USER
 # =========================================================
 
-@app.get("/api/me")
-def me(request: Request):
-    user = require_user(request)
+@app.get(
+    "/api/me"
+)
+def me(
+    request: Request,
+):
+
+    user = require_user(
+        request
+    )
 
     cleanup_tickets()
 
@@ -978,22 +1462,30 @@ def me(request: Request):
         "gapino_ws_ticket"
     )
 
-    current_ticket_user = get_user_from_ticket(
-        current_ticket or ""
+    current_ticket_user = (
+        get_user_from_ticket(
+            current_ticket or ""
+        )
     )
 
-    if current_ticket_user == int(user["id"]):
+    if current_ticket_user == int(
+        user["id"]
+    ):
         ticket = current_ticket
+
     else:
         remove_user_tickets(
             int(user["id"])
         )
+
         ticket = create_ws_ticket(
             int(user["id"])
         )
 
     response = JSONResponse(
-        public_user(user)
+        public_user(
+            user
+        )
     )
 
     response.set_cookie(
@@ -1013,15 +1505,30 @@ def me(request: Request):
 # PROFILE
 # =========================================================
 
-@app.put("/api/profile")
+@app.put(
+    "/api/profile"
+)
 async def update_profile(
     request: Request,
 ):
-    user = require_user(request)
+
+    user = require_user(
+        request
+    )
 
     try:
         data = await request.json()
+
     except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="داده پروفایل نامعتبر است.",
+        )
+
+    if not isinstance(
+        data,
+        dict,
+    ):
         raise HTTPException(
             status_code=400,
             detail="داده پروفایل نامعتبر است.",
@@ -1105,40 +1612,44 @@ async def update_profile(
         FROM users
         WHERE id = ?
         """,
-        (int(user["id"]),),
+        (
+            int(user["id"]),
+        ),
     ).fetchone()
 
     connection.close()
 
-    result = {
+    if row is None:
+        raise HTTPException(
+            status_code=404,
+            detail="کاربر پیدا نشد.",
+        )
+
+    await broadcast_profile_update(
+        int(user["id"])
+    )
+
+    return {
         "ok": True,
         "user": dict(row),
     }
-
-    for other_id in list(
-        active_connections.keys()
-    ):
-        await send_to_user(
-            int(other_id),
-            {
-                "type": "profile_updated",
-                "user": dict(row),
-            },
-        )
-
-    return result
 
 
 # =========================================================
 # AVATAR
 # =========================================================
 
-@app.post("/api/profile/avatar")
+@app.post(
+    "/api/profile/avatar"
+)
 async def upload_avatar(
     request: Request,
     file: UploadFile = File(...),
 ):
-    user = require_user(request)
+
+    user = require_user(
+        request
+    )
 
     filename = safe_filename(
         file.filename or "avatar"
@@ -1168,10 +1679,18 @@ async def upload_avatar(
         f"{extension}"
     )
 
-    path = UPLOADS_DIR / stored_name
-    path.write_bytes(content)
+    path = (
+        UPLOADS_DIR /
+        stored_name
+    )
 
-    avatar_url = f"/uploads/{stored_name}"
+    path.write_bytes(
+        content
+    )
+
+    avatar_url = (
+        f"/uploads/{stored_name}"
+    )
 
     connection = get_db()
 
@@ -1188,7 +1707,6 @@ async def upload_avatar(
     )
 
     connection.commit()
-
     connection.close()
 
     await broadcast_profile_update(
@@ -1201,58 +1719,27 @@ async def upload_avatar(
     }
 
 
-async def broadcast_profile_update(
-    user_id: int,
-) -> None:
-    connection = get_db()
-
-    row = connection.execute(
-        """
-        SELECT
-            id,
-            username,
-            display_name,
-            bio,
-            avatar,
-            status
-        FROM users
-        WHERE id = ?
-        """,
-        (int(user_id),),
-    ).fetchone()
-
-    connection.close()
-
-    if row is None:
-        return
-
-    payload = {
-        "type": "profile_updated",
-        "user": dict(row),
-    }
-
-    for target_id in list(
-        active_connections.keys()
-    ):
-        await send_to_user(
-            int(target_id),
-            payload,
-        )
-
-
 # =========================================================
 # USERS
 # =========================================================
 
-@app.get("/api/users")
+@app.get(
+    "/api/users"
+)
 def users(
     request: Request,
 ):
-    current = require_user(request)
+
+    current = require_user(
+        request
+    )
 
     query = (
         request.query_params
-        .get("q", "")
+        .get(
+            "q",
+            "",
+        )
         .strip()
         .lower()
     )
@@ -1260,6 +1747,7 @@ def users(
     connection = get_db()
 
     if query:
+
         rows = connection.execute(
             """
             SELECT
@@ -1273,7 +1761,8 @@ def users(
             WHERE id != ?
               AND (
                     LOWER(username) LIKE ?
-                    OR LOWER(display_name) LIKE ?
+                    OR
+                    LOWER(display_name) LIKE ?
                   )
             ORDER BY
                 display_name COLLATE NOCASE
@@ -1284,7 +1773,9 @@ def users(
                 f"%{query}%",
             ),
         ).fetchall()
+
     else:
+
         rows = connection.execute(
             """
             SELECT
@@ -1299,7 +1790,9 @@ def users(
             ORDER BY
                 display_name COLLATE NOCASE
             """,
-            (int(current["id"]),),
+            (
+                int(current["id"]),
+            ),
         ).fetchall()
 
     connection.close()
@@ -1311,7 +1804,9 @@ def users(
     return [
         {
             **dict(row),
-            "online": int(row["id"]) in online_ids,
+            "online": int(
+                row["id"]
+            ) in online_ids,
         }
         for row in rows
     ]
@@ -1321,12 +1816,17 @@ def users(
 # MESSAGES
 # =========================================================
 
-@app.get("/api/messages/{other_id}")
+@app.get(
+    "/api/messages/{other_id}"
+)
 def get_messages(
     request: Request,
     other_id: int,
 ):
-    current = require_user(request)
+
+    current = require_user(
+        request
+    )
 
     connection = get_db()
 
@@ -1334,9 +1834,8 @@ def get_messages(
         """
         SELECT *
         FROM messages
-        WHERE (
-            deleted = 0
-            AND (
+        WHERE deleted = 0
+          AND (
                 (
                     sender_id = ?
                     AND receiver_id = ?
@@ -1346,8 +1845,7 @@ def get_messages(
                     sender_id = ?
                     AND receiver_id = ?
                 )
-            )
-        )
+              )
         ORDER BY id ASC
         """,
         (
@@ -1366,15 +1864,30 @@ def get_messages(
     ]
 
 
-@app.post("/api/messages")
+@app.post(
+    "/api/messages"
+)
 async def send_message(
     request: Request,
 ):
-    current = require_user(request)
+
+    current = require_user(
+        request
+    )
 
     try:
         data = await request.json()
+
     except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="داده پیام نامعتبر است.",
+        )
+
+    if not isinstance(
+        data,
+        dict,
+    ):
         raise HTTPException(
             status_code=400,
             detail="داده پیام نامعتبر است.",
@@ -1382,19 +1895,30 @@ async def send_message(
 
     try:
         receiver_id = int(
-            data.get("receiver_id")
+            data.get(
+                "receiver_id"
+            )
         )
-    except (TypeError, ValueError):
+
+    except (
+        TypeError,
+        ValueError,
+    ):
         raise HTTPException(
             status_code=400,
             detail="گیرنده پیام نامعتبر است.",
         )
 
     text = str(
-        data.get("text", "")
+        data.get(
+            "text",
+            "",
+        )
     ).strip()
 
-    if receiver_id == int(current["id"]):
+    if receiver_id == int(
+        current["id"]
+    ):
         raise HTTPException(
             status_code=400,
             detail="نمی‌توانی به خودت پیام بفرستی.",
@@ -1420,10 +1944,13 @@ async def send_message(
         FROM users
         WHERE id = ?
         """,
-        (receiver_id,),
+        (
+            receiver_id,
+        ),
     ).fetchone()
 
     if receiver is None:
+
         connection.close()
 
         raise HTTPException(
@@ -1457,10 +1984,18 @@ async def send_message(
         FROM messages
         WHERE id = ?
         """,
-        (int(cursor.lastrowid),),
+        (
+            int(cursor.lastrowid),
+        ),
     ).fetchone()
 
     connection.close()
+
+    if row is None:
+        raise HTTPException(
+            status_code=500,
+            detail="پیام ذخیره نشد.",
+        )
 
     payload = dict(row)
 
@@ -1479,15 +2014,21 @@ async def send_message(
 # EDIT MESSAGE
 # =========================================================
 
-@app.post("/api/messages/{message_id}/edit")
+@app.post(
+    "/api/messages/{message_id}/edit"
+)
 async def edit_message(
     request: Request,
     message_id: int,
 ):
-    current = require_user(request)
+
+    current = require_user(
+        request
+    )
 
     try:
         data = await request.json()
+
     except Exception:
         raise HTTPException(
             status_code=400,
@@ -1495,7 +2036,10 @@ async def edit_message(
         )
 
     text = str(
-        data.get("text", "")
+        data.get(
+            "text",
+            "",
+        )
     ).strip()
 
     if not text:
@@ -1518,10 +2062,13 @@ async def edit_message(
         FROM messages
         WHERE id = ?
         """,
-        (message_id,),
+        (
+            message_id,
+        ),
     ).fetchone()
 
     if row is None:
+
         connection.close()
 
         raise HTTPException(
@@ -1529,7 +2076,12 @@ async def edit_message(
             detail="پیام پیدا نشد.",
         )
 
-    if int(row["sender_id"]) != int(current["id"]):
+    if int(
+        row["sender_id"]
+    ) != int(
+        current["id"]
+    ):
+
         connection.close()
 
         raise HTTPException(
@@ -1559,16 +2111,25 @@ async def edit_message(
         FROM messages
         WHERE id = ?
         """,
-        (message_id,),
+        (
+            message_id,
+        ),
     ).fetchone()
 
     connection.close()
+
+    if updated is None:
+        raise HTTPException(
+            status_code=500,
+            detail="پیام ویرایش نشد.",
+        )
 
     payload = dict(updated)
 
     receiver_id = row["receiver_id"]
 
     if receiver_id:
+
         await send_to_user(
             int(receiver_id),
             {
@@ -1584,12 +2145,17 @@ async def edit_message(
 # DELETE MESSAGE
 # =========================================================
 
-@app.delete("/api/messages/{message_id}")
+@app.delete(
+    "/api/messages/{message_id}"
+)
 async def delete_message(
     request: Request,
     message_id: int,
 ):
-    current = require_user(request)
+
+    current = require_user(
+        request
+    )
 
     connection = get_db()
 
@@ -1599,10 +2165,13 @@ async def delete_message(
         FROM messages
         WHERE id = ?
         """,
-        (message_id,),
+        (
+            message_id,
+        ),
     ).fetchone()
 
     if row is None:
+
         connection.close()
 
         raise HTTPException(
@@ -1610,7 +2179,12 @@ async def delete_message(
             detail="پیام پیدا نشد.",
         )
 
-    if int(row["sender_id"]) != int(current["id"]):
+    if int(
+        row["sender_id"]
+    ) != int(
+        current["id"]
+    ):
+
         connection.close()
 
         raise HTTPException(
@@ -1629,7 +2203,9 @@ async def delete_message(
             mime_type = ''
         WHERE id = ?
         """,
-        (message_id,),
+        (
+            message_id,
+        ),
     )
 
     connection.commit()
@@ -1640,16 +2216,25 @@ async def delete_message(
         FROM messages
         WHERE id = ?
         """,
-        (message_id,),
+        (
+            message_id,
+        ),
     ).fetchone()
 
     connection.close()
+
+    if updated is None:
+        raise HTTPException(
+            status_code=500,
+            detail="حذف پیام انجام نشد.",
+        )
 
     payload = dict(updated)
 
     receiver_id = row["receiver_id"]
 
     if receiver_id:
+
         await send_to_user(
             int(receiver_id),
             {
@@ -1665,19 +2250,26 @@ async def delete_message(
 # FILE UPLOAD
 # =========================================================
 
-@app.post("/api/upload")
+@app.post(
+    "/api/upload"
+)
 async def upload_file(
     request: Request,
     receiver_id: int = Form(...),
     file: UploadFile = File(...),
 ):
-    current = require_user(request)
+
+    current = require_user(
+        request
+    )
 
     filename = safe_filename(
         file.filename or "file"
     )
 
-    if not allowed_upload(filename):
+    if not allowed_upload(
+        filename
+    ):
         raise HTTPException(
             status_code=400,
             detail="فرمت فایل مجاز نیست.",
@@ -1699,10 +2291,13 @@ async def upload_file(
         FROM users
         WHERE id = ?
         """,
-        (receiver_id,),
+        (
+            receiver_id,
+        ),
     ).fetchone()
 
     if receiver is None:
+
         connection.close()
 
         raise HTTPException(
@@ -1711,17 +2306,28 @@ async def upload_file(
         )
 
     stored_name = (
-        f"{secrets.token_hex(8)}_{filename}"
+        f"{secrets.token_hex(8)}_"
+        f"{filename}"
     )
 
-    path = UPLOADS_DIR / stored_name
-    path.write_bytes(content)
+    path = (
+        UPLOADS_DIR /
+        stored_name
+    )
 
-    file_url = f"/uploads/{stored_name}"
+    path.write_bytes(
+        content
+    )
+
+    file_url = (
+        f"/uploads/{stored_name}"
+    )
 
     mime_type = (
         file.content_type
-        or mimetypes.guess_type(filename)[0]
+        or mimetypes.guess_type(
+            filename
+        )[0]
         or "application/octet-stream"
     )
 
@@ -1757,10 +2363,18 @@ async def upload_file(
         FROM messages
         WHERE id = ?
         """,
-        (int(cursor.lastrowid),),
+        (
+            int(cursor.lastrowid),
+        ),
     ).fetchone()
 
     connection.close()
+
+    if row is None:
+        raise HTTPException(
+            status_code=500,
+            detail="فایل ذخیره نشد.",
+        )
 
     payload = dict(row)
 
@@ -1779,14 +2393,20 @@ async def upload_file(
 # GROUPS
 # =========================================================
 
-@app.post("/api/groups")
+@app.post(
+    "/api/groups"
+)
 async def create_group(
     request: Request,
 ):
-    current = require_user(request)
+
+    current = require_user(
+        request
+    )
 
     try:
         data = await request.json()
+
     except Exception:
         raise HTTPException(
             status_code=400,
@@ -1794,7 +2414,10 @@ async def create_group(
         )
 
     name = str(
-        data.get("name", "")
+        data.get(
+            "name",
+            "",
+        )
     ).strip()
 
     members = data.get(
@@ -1814,7 +2437,10 @@ async def create_group(
             detail="نام گروه بیش از حد طولانی است.",
         )
 
-    if not isinstance(members, list):
+    if not isinstance(
+        members,
+        list,
+    ):
         members = []
 
     db = get_db()
@@ -1835,19 +2461,43 @@ async def create_group(
         ),
     )
 
-    group_id = int(cursor.lastrowid)
+    group_id = int(
+        cursor.lastrowid
+    )
 
     member_ids = {
         int(current["id"])
     }
 
     for item in members:
+
         try:
-            member_ids.add(int(item))
-        except (TypeError, ValueError):
+            member_ids.add(
+                int(item)
+            )
+
+        except (
+            TypeError,
+            ValueError,
+        ):
             pass
 
     for member_id in member_ids:
+
+        exists = db.execute(
+            """
+            SELECT id
+            FROM users
+            WHERE id = ?
+            """,
+            (
+                member_id,
+            ),
+        ).fetchone()
+
+        if exists is None:
+            continue
+
         db.execute(
             """
             INSERT OR IGNORE INTO group_members (
@@ -1869,15 +2519,22 @@ async def create_group(
         "ok": True,
         "id": group_id,
         "name": name,
-        "owner_id": int(current["id"]),
+        "owner_id": int(
+            current["id"]
+        ),
     }
 
 
-@app.get("/api/groups")
+@app.get(
+    "/api/groups"
+)
 def get_groups(
     request: Request,
 ):
-    current = require_user(request)
+
+    current = require_user(
+        request
+    )
 
     db = get_db()
 
@@ -1894,7 +2551,9 @@ def get_groups(
         WHERE gm.user_id = ?
         ORDER BY g.id DESC
         """,
-        (int(current["id"]),),
+        (
+            int(current["id"]),
+        ),
     ).fetchall()
 
     db.close()
@@ -1909,11 +2568,17 @@ def get_groups(
 # LIVE API
 # =========================================================
 
-@app.get("/api/live")
+@app.get(
+    "/api/live"
+)
 def live_api(
     request: Request,
 ):
-    require_user(request)
+
+    require_user(
+        request
+    )
+
     return live_public_list()
 
 
@@ -1921,10 +2586,13 @@ def live_api(
 # WEBSOCKET
 # =========================================================
 
-@app.websocket("/ws")
+@app.websocket(
+    "/ws"
+)
 async def websocket_endpoint(
     websocket: WebSocket,
 ):
+
     await websocket.accept()
 
     ticket = websocket.cookies.get(
@@ -1936,7 +2604,11 @@ async def websocket_endpoint(
     )
 
     if user_id is None:
-        await websocket.close(code=4401)
+
+        await websocket.close(
+            code=4401
+        )
+
         return
 
     connection = get_db()
@@ -1947,13 +2619,19 @@ async def websocket_endpoint(
         FROM users
         WHERE id = ?
         """,
-        (user_id,),
+        (
+            user_id,
+        ),
     ).fetchone()
 
     connection.close()
 
     if row is None:
-        await websocket.close(code=4401)
+
+        await websocket.close(
+            code=4401
+        )
+
         return
 
     user_id = int(user_id)
@@ -1961,21 +2639,31 @@ async def websocket_endpoint(
     active_connections.setdefault(
         user_id,
         set(),
-    ).add(websocket)
+    ).add(
+        websocket
+    )
 
     first_connection = (
-        len(active_connections[user_id]) == 1
+        len(
+            active_connections[
+                user_id
+            ]
+        )
+        == 1
     )
 
     try:
-        # -----------------------------------------------------
+
+        # =====================================================
         # ONLINE
-        # -----------------------------------------------------
+        # =====================================================
 
         if first_connection:
+
             for other_id in list(
                 active_connections.keys()
             ):
+
                 if int(other_id) == user_id:
                     continue
 
@@ -1987,9 +2675,9 @@ async def websocket_endpoint(
                     },
                 )
 
-        # -----------------------------------------------------
+        # =====================================================
         # READY
-        # -----------------------------------------------------
+        # =====================================================
 
         await websocket.send_text(
             json.dumps(
@@ -1997,36 +2685,50 @@ async def websocket_endpoint(
                     "type": "ready",
                     "online": [
                         int(item)
-                        for item in active_connections.keys()
+                        for item in
+                        active_connections.keys()
                     ],
-                    "live_streams": live_public_list(),
+                    "live_streams":
+                        live_public_list(),
                 },
                 ensure_ascii=False,
             )
         )
 
-        # -----------------------------------------------------
+        # =====================================================
         # LOOP
-        # -----------------------------------------------------
+        # =====================================================
 
         while True:
-            raw_data = await websocket.receive_text()
+
+            raw_data = (
+                await websocket.receive_text()
+            )
 
             try:
-                data = json.loads(raw_data)
+                data = json.loads(
+                    raw_data
+                )
+
             except Exception:
                 data = {}
 
-            if not isinstance(data, dict):
+            if not isinstance(
+                data,
+                dict,
+            ):
                 data = {}
 
-            event_type = data.get("type")
+            event_type = data.get(
+                "type"
+            )
 
             # =================================================
             # PING
             # =================================================
 
             if event_type == "ping":
+
                 await websocket.send_text(
                     json.dumps(
                         {
@@ -2041,11 +2743,16 @@ async def websocket_endpoint(
             # =================================================
 
             elif event_type == "typing":
+
                 try:
                     target_id = int(
                         data.get("to")
                     )
-                except (TypeError, ValueError):
+
+                except (
+                    TypeError,
+                    ValueError,
+                ):
                     continue
 
                 await send_to_user(
@@ -2067,6 +2774,7 @@ async def websocket_endpoint(
             # =================================================
 
             elif event_type == "live_create":
+
                 title = str(
                     data.get(
                         "title",
@@ -2080,23 +2788,29 @@ async def websocket_endpoint(
                 if len(title) > 100:
                     title = title[:100]
 
-                # بستن پخش قبلی همین کاربر
+                # بستن Live قبلی همین کاربر
                 for old_room_id, old_room in list(
                     live_rooms.items()
                 ):
+
                     if int(
                         old_room.get(
                             "host_id",
                             0,
                         )
                     ) == user_id:
+
                         await end_live_room(
                             old_room_id
                         )
 
-                room_id = secrets.token_urlsafe(12)
+                room_id = secrets.token_urlsafe(
+                    12
+                )
 
-                live_rooms[room_id] = {
+                live_rooms[
+                    room_id
+                ] = {
                     "room_id": room_id,
                     "title": title,
                     "host_id": user_id,
@@ -2106,9 +2820,12 @@ async def websocket_endpoint(
                 await websocket.send_text(
                     json.dumps(
                         {
-                            "type": "live_created",
-                            "room_id": room_id,
-                            "title": title,
+                            "type":
+                                "live_created",
+                            "room_id":
+                                room_id,
+                            "title":
+                                title,
                         },
                         ensure_ascii=False,
                     )
@@ -2121,6 +2838,7 @@ async def websocket_endpoint(
             # =================================================
 
             elif event_type == "live_join":
+
                 room_id = str(
                     data.get(
                         "room_id",
@@ -2128,18 +2846,24 @@ async def websocket_endpoint(
                     )
                 ).strip()
 
-                room = live_rooms.get(room_id)
+                room = live_rooms.get(
+                    room_id
+                )
 
                 if not room:
+
                     await websocket.send_text(
                         json.dumps(
                             {
-                                "type": "live_error",
-                                "message": "این پخش زنده دیگر فعال نیست.",
+                                "type":
+                                    "live_error",
+                                "message":
+                                    "این پخش زنده دیگر فعال نیست.",
                             },
                             ensure_ascii=False,
                         )
                     )
+
                     continue
 
                 host_id = int(
@@ -2149,15 +2873,21 @@ async def websocket_endpoint(
                 if host_id == user_id:
                     continue
 
-                room["viewers"].add(user_id)
+                room["viewers"].add(
+                    user_id
+                )
 
                 await websocket.send_text(
                     json.dumps(
                         {
-                            "type": "live_joined",
-                            "room_id": room_id,
-                            "host_id": host_id,
-                            "title": room["title"],
+                            "type":
+                                "live_joined",
+                            "room_id":
+                                room_id,
+                            "host_id":
+                                host_id,
+                            "title":
+                                room["title"],
                         },
                         ensure_ascii=False,
                     )
@@ -2166,26 +2896,38 @@ async def websocket_endpoint(
                 await send_to_user(
                     host_id,
                     {
-                        "type": "live_viewer_join",
-                        "room_id": room_id,
-                        "viewer_id": user_id,
+                        "type":
+                            "live_viewer_join",
+                        "room_id":
+                            room_id,
+                        "viewer_id":
+                            user_id,
                     },
                 )
 
                 recipients = set(
                     room["viewers"]
                 )
-                recipients.add(host_id)
+
+                recipients.add(
+                    host_id
+                )
 
                 for member_id in recipients:
+
                     await send_to_user(
                         int(member_id),
                         {
-                            "type": "live_viewer_count",
-                            "room_id": room_id,
-                            "count": len(
-                                room["viewers"]
-                            ),
+                            "type":
+                                "live_viewer_count",
+                            "room_id":
+                                room_id,
+                            "count":
+                                len(
+                                    room[
+                                        "viewers"
+                                    ]
+                                ),
                         },
                     )
 
@@ -2196,6 +2938,7 @@ async def websocket_endpoint(
             # =================================================
 
             elif event_type == "live_leave":
+
                 room_id = str(
                     data.get(
                         "room_id",
@@ -2203,12 +2946,16 @@ async def websocket_endpoint(
                     )
                 ).strip()
 
-                room = live_rooms.get(room_id)
+                room = live_rooms.get(
+                    room_id
+                )
 
                 if not room:
                     continue
 
-                room["viewers"].discard(
+                room[
+                    "viewers"
+                ].discard(
                     user_id
                 )
 
@@ -2219,17 +2966,26 @@ async def websocket_endpoint(
                 recipients = set(
                     room["viewers"]
                 )
-                recipients.add(host_id)
+
+                recipients.add(
+                    host_id
+                )
 
                 for member_id in recipients:
+
                     await send_to_user(
                         int(member_id),
                         {
-                            "type": "live_viewer_count",
-                            "room_id": room_id,
-                            "count": len(
-                                room["viewers"]
-                            ),
+                            "type":
+                                "live_viewer_count",
+                            "room_id":
+                                room_id,
+                            "count":
+                                len(
+                                    room[
+                                        "viewers"
+                                    ]
+                                ),
                         },
                     )
 
@@ -2240,6 +2996,7 @@ async def websocket_endpoint(
             # =================================================
 
             elif event_type == "live_end":
+
                 room_id = str(
                     data.get(
                         "room_id",
@@ -2247,7 +3004,9 @@ async def websocket_endpoint(
                     )
                 ).strip()
 
-                room = live_rooms.get(room_id)
+                room = live_rooms.get(
+                    room_id
+                )
 
                 if not room:
                     continue
@@ -2265,24 +3024,34 @@ async def websocket_endpoint(
                 )
 
             # =================================================
-            # LIVE OFFER / HOST OFFER
+            # LIVE OFFER
             # =================================================
 
             elif event_type in (
                 "live_offer",
                 "live_host_offer",
             ):
+
                 try:
                     target_id = int(
                         data.get(
                             "target_id"
                         )
                     )
-                except (TypeError, ValueError):
+
+                except (
+                    TypeError,
+                    ValueError,
+                ):
                     continue
 
-                outgoing = dict(data)
-                outgoing["from"] = user_id
+                outgoing = dict(
+                    data
+                )
+
+                outgoing[
+                    "from"
+                ] = user_id
 
                 await send_to_user(
                     target_id,
@@ -2294,17 +3063,27 @@ async def websocket_endpoint(
             # =================================================
 
             elif event_type == "live_answer":
+
                 try:
                     target_id = int(
                         data.get(
                             "target_id"
                         )
                     )
-                except (TypeError, ValueError):
+
+                except (
+                    TypeError,
+                    ValueError,
+                ):
                     continue
 
-                outgoing = dict(data)
-                outgoing["from"] = user_id
+                outgoing = dict(
+                    data
+                )
+
+                outgoing[
+                    "from"
+                ] = user_id
 
                 await send_to_user(
                     target_id,
@@ -2316,17 +3095,27 @@ async def websocket_endpoint(
             # =================================================
 
             elif event_type == "live_ice":
+
                 try:
                     target_id = int(
                         data.get(
                             "target_id"
                         )
                     )
-                except (TypeError, ValueError):
+
+                except (
+                    TypeError,
+                    ValueError,
+                ):
                     continue
 
-                outgoing = dict(data)
-                outgoing["from"] = user_id
+                outgoing = dict(
+                    data
+                )
+
+                outgoing[
+                    "from"
+                ] = user_id
 
                 await send_to_user(
                     target_id,
@@ -2334,15 +3123,22 @@ async def websocket_endpoint(
                 )
 
             # =================================================
-            # MESSAGE SEND THROUGH SOCKET
+            # MESSAGE THROUGH WEBSOCKET
             # =================================================
 
             elif event_type == "message":
+
                 try:
                     target_id = int(
-                        data.get("to")
+                        data.get(
+                            "to"
+                        )
                     )
-                except (TypeError, ValueError):
+
+                except (
+                    TypeError,
+                    ValueError,
+                ):
                     continue
 
                 text = str(
@@ -2369,11 +3165,15 @@ async def websocket_endpoint(
                     FROM users
                     WHERE id = ?
                     """,
-                    (target_id,),
+                    (
+                        target_id,
+                    ),
                 ).fetchone()
 
                 if receiver is None:
+
                     connection.close()
+
                     continue
 
                 cursor = connection.execute(
@@ -2402,25 +3202,38 @@ async def websocket_endpoint(
                     FROM messages
                     WHERE id = ?
                     """,
-                    (int(cursor.lastrowid),),
+                    (
+                        int(
+                            cursor.lastrowid
+                        ),
+                    ),
                 ).fetchone()
 
                 connection.close()
 
                 if message_row is not None:
+
+                    message_payload = dict(
+                        message_row
+                    )
+
                     await send_to_user(
                         target_id,
                         {
-                            "type": "message",
-                            "message": dict(message_row),
+                            "type":
+                                "message",
+                            "message":
+                                message_payload,
                         },
                     )
 
                     await websocket.send_text(
                         json.dumps(
                             {
-                                "type": "message_sent",
-                                "message": dict(message_row),
+                                "type":
+                                    "message_sent",
+                                "message":
+                                    message_payload,
                             },
                             ensure_ascii=False,
                         )
@@ -2430,32 +3243,38 @@ async def websocket_endpoint(
         pass
 
     except Exception as error:
+
         print(
             "WebSocket error:",
             error,
         )
 
     finally:
+
         sockets = active_connections.get(
             user_id,
             set(),
         )
 
-        sockets.discard(websocket)
+        sockets.discard(
+            websocket
+        )
 
         if not sockets:
+
             active_connections.pop(
                 user_id,
                 None,
             )
 
-            # -------------------------------------------------
+            # ---------------------------------------------
             # LIVE CLEANUP
-            # -------------------------------------------------
+            # ---------------------------------------------
 
             for room_id, room in list(
                 live_rooms.items()
             ):
+
                 host_id = int(
                     room.get(
                         "host_id",
@@ -2464,6 +3283,7 @@ async def websocket_endpoint(
                 )
 
                 if host_id == user_id:
+
                     await end_live_room(
                         room_id
                     )
@@ -2472,42 +3292,57 @@ async def websocket_endpoint(
                     "viewers",
                     set(),
                 ):
-                    room["viewers"].discard(
+
+                    room[
+                        "viewers"
+                    ].discard(
                         user_id
                     )
 
                     recipients = set(
-                        room["viewers"]
+                        room[
+                            "viewers"
+                        ]
                     )
-                    recipients.add(host_id)
+
+                    recipients.add(
+                        host_id
+                    )
 
                     for member_id in recipients:
+
                         await send_to_user(
                             int(member_id),
                             {
-                                "type": "live_viewer_count",
-                                "room_id": room_id,
-                                "count": len(
-                                    room["viewers"]
-                                ),
+                                "type":
+                                    "live_viewer_count",
+                                "room_id":
+                                    room_id,
+                                "count":
+                                    len(
+                                        room[
+                                            "viewers"
+                                        ]
+                                    ),
                             },
                         )
 
-            # -------------------------------------------------
+            # ---------------------------------------------
             # OFFLINE
-            # -------------------------------------------------
+            # ---------------------------------------------
 
             for other_id in list(
                 active_connections.keys()
             ):
+
                 await send_to_user(
                     int(other_id),
                     {
-                        "type": "user_offline",
-                        "user_id": user_id,
+                        "type":
+                            "user_offline",
+                        "user_id":
+                            user_id,
                     },
                 )
 
             await broadcast_live_list()
-
-

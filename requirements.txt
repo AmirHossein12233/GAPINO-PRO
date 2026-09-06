@@ -1,5 +1,5 @@
 fastapi
 uvicorn[standard]
 python-multipart
-passlib
-itsdangerous
+pwdlib[argon2]
+bcrypt
