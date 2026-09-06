@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <meta
+        name="theme-color"
+        content="#0b1020"
+    >
+
+    <title>پروفایل | گپینو</title>
+
+    <link
+        rel="stylesheet"
+        href="/static/style.css"
+    >
+
+    <style>
+        .profile-page {
+            min-height: 100vh;
+            overflow-y: auto;
+            background:
+                radial-gradient(
+                    circle at 20% 10%,
+                    rgba(99, 102, 241, .14),
+                    transparent 30%
+                ),
+                radial-gradient(
+                    circle at 90% 90%,
+                    rgba(139, 92, 246, .12),
+                    transparent 30%
+                ),
+                var(--bg);
+        }
+
+        .profile-topbar {
+            height: 72px;
+            padding: 0 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+            background: rgba(8, 13, 26, .75);
+            backdrop-filter: blur(18px);
+        }
+
+        .profile-topbar-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .profile-topbar-title strong {
+            font-size: 15px;
+        }
+
+        .profile-topbar-title span {
+            color: var(--muted);
+            font-size: 9px;
+        }
+
+        .back-button {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            padding: 10px 13px;
+            border-radius: 11px;
+            background: var(--surface);
+            color: var(--text);
+            cursor: pointer;
+            font-size: 10px;
+            border: 1px solid var(--border);
+        }
+
+        .profile-container {
+            width: min(100%, 760px);
+            margin: 35px auto;
+            padding: 0 18px 40px;
+        }
+
+        .profile-card {
+            overflow: hidden;
+            border: 1px solid var(--border);
+            border-radius: 25px;
+            background: var(--surface);
+            box-shadow: var(--shadow);
+        }
+
+        .profile-cover {
+            height: 155px;
+            position: relative;
+            background:
+                radial-gradient(
+                    circle at 20% 20%,
+                    rgba(255,255,255,.16),
+                    transparent 25%
+                ),
+                linear-gradient(
+                    135deg,
+                    var(--primary),
+                    var(--primary-2)
+                );
+        }
+
+        .profile-cover::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(
+                    circle at 80% 30%,
+                    rgba(255,255,255,.12),
+                    transparent 20%
+                );
+        }
+
+        .profile-avatar-area {
+            position: relative;
+            margin-top: -58px;
+            padding: 0 28px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+        }
+
+        .profile-avatar-large {
+            width: 115px;
+            height: 115px;
+            border-radius: 31px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            background:
+                linear-gradient(
+                    135deg,
+                    var(--primary),
+                    var(--primary-2)
+                );
+            border: 5px solid var(--surface);
+            color: white;
+            font-size: 39px;
+            font-weight: 900;
+            box-shadow: 0 15px 40px rgba(0,0,0,.22);
+        }
+
+        .profile-avatar-large img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .avatar-upload-button {
+            position: absolute;
+            bottom: 7px;
+            right: 108px;
+            width: 34px;
+            height: 34px;
+            border-radius: 11px;
+            border: 3px solid var(--surface);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--primary);
+            color: white;
+            cursor: pointer;
+        }
+
+        .profile-main-info {
+            padding: 15px 28px 25px;
+        }
+
+        .profile-main-info h1 {
+            margin: 0;
+            font-size: 21px;
+        }
+
+        .profile-main-info .username {
+            display: block;
+            margin-top: 5px;
+            color: var(--muted);
+            font-size: 10px;
+        }
+
+        .profile-main-info .created {
+            margin-top: 7px;
+            color: var(--muted-2);
+            font-size: 8px;
+        }
+
+        .profile-form {
+            padding: 25px 28px 30px;
+            border-top: 1px solid var(--border);
+        }
+
+        .profile-section-title {
+            margin-bottom: 17px;
+        }
+
+        .profile-section-title strong {
+            display: block;
+            font-size: 13px;
+        }
+
+        .profile-section-title span {
+            display: block;
+            margin-top: 4px;
+            color: var(--muted);
+            font-size: 9px;
+        }
+
+        .profile-field {
+            margin-bottom: 16px;
+        }
+
+        .profile-field label {
+            display: block;
+            margin-bottom: 7px;
+            color: var(--muted);
+            font-size: 9px;
+        }
+
+        .profile-input,
+        .profile-textarea,
+        .profile-select {
+            width: 100%;
+            border: 1px solid var(--border);
+            outline: none;
+            border-radius: 13px;
+            background: rgba(255,255,255,.02);
+            color: var(--text);
+            padding: 12px;
+            font-size: 10px;
+        }
+
+        .profile-input:focus,
+        .profile-textarea:focus,
+        .profile-select:focus {
+            border-color: rgba(99,102,241,.7);
+            box-shadow:
+                0 0 0 4px
+                rgba(99,102,241,.07);
+        }
+
+        .profile-textarea {
+            min-height: 110px;
+            resize: vertical;
+            line-height: 1.8;
+        }
+
+        .profile-actions {
+            margin-top: 22px;
+            display: flex;
+            justify-content: flex-start;
+            gap: 8px;
+        }
+
+        .profile-save-button {
+            min-width: 150px;
+            height: 48px;
+            border-radius: 13px;
+            border: 0;
+            color: white;
+            background:
+                linear-gradient(
+                    135deg,
+                    var(--primary),
+                    var(--primary-2)
+                );
+            cursor: pointer;
+            font-size: 10px;
+            font-weight: 700;
+        }
+
+        .profile-cancel-button {
+            height: 48px;
+            padding: 0 17px;
+            border-radius: 13px;
+            color: var(--muted);
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            cursor: pointer;
+            font-size: 10px;
+        }
+
+        .profile-message {
+            min-height: 20px;
+            margin-top: 14px;
+            text-align: center;
+            font-size: 9px;
+        }
+
+        .profile-message.success {
+            color: #86efac;
+        }
+
+        .profile-message.error {
+            color: #fca5a5;
+        }
+
+        .avatar-file-name {
+            margin-top: 6px;
+            color: var(--muted-2);
+            font-size: 8px;
+        }
+
+        @media (max-width: 600px) {
+            .profile-topbar {
+                padding: 0 12px;
+            }
+
+            .profile-container {
+                margin-top: 18px;
+                padding: 0 10px 25px;
+            }
+
+            .profile-cover {
+                height: 125px;
+            }
+
+            .profile-avatar-area {
+                padding: 0 17px;
+            }
+
+            .profile-avatar-large {
+                width: 95px;
+                height: 95px;
+                border-radius: 26px;
+            }
+
+            .avatar-upload-button {
+                right: 88px;
+            }
+
+            .profile-main-info,
+            .profile-form {
+                padding-left: 18px;
+                padding-right: 18px;
+            }
+
+            .profile-actions {
+                flex-direction: column;
+            }
+
+            .profile-save-button,
+            .profile-cancel-button {
+                width: 100%;
+            }
+        }
+    </style>
+
+</head>
+
+<body class="profile-page">
+
+<header class="profile-topbar">
+
+    <div class="profile-topbar-title">
+        <strong>
+            پروفایل من
+        </strong>
+
+        <span>
+            GAPINO
+        </span>
+    </div>
+
+    <button
+        class="back-button"
+        type="button"
+        onclick="window.location.href='/chat.html'"
+    >
+        ← بازگشت به چت
+    </button>
+
+</header>
+
+
+<main class="profile-container">
+
+    <section class="profile-card">
+
+        <div class="profile-cover"></div>
+
+        <div class="profile-avatar-area">
+
+            <div
+                id="avatarPreview"
+                class="profile-avatar-large"
+            >
+                G
+            </div>
+
+            <button
+                id="avatarUploadButton"
+                class="avatar-upload-button"
+                type="button"
+                title="تغییر عکس"
+            >
+                📷
+            </button>
+
+            <input
+                id="avatarInput"
+                type="file"
+                accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"
+                hidden
+            >
+
+        </div>
+
+
+        <div class="profile-main-info">
+
+            <h1 id="headerName">
+                کاربر
+            </h1>
+
+            <span
+                id="headerUsername"
+                class="username"
+            >
+                @username
+            </span>
+
+            <div
+                id="headerCreated"
+                class="created"
+            >
+            </div>
+
+            <div
+                id="avatarFileName"
+                class="avatar-file-name"
+            ></div>
+
+        </div>
+
+
+        <div class="profile-form">
+
+            <div class="profile-section-title">
+
+                <strong>
+                    اطلاعات حساب
+                </strong>
+
+                <span>
+                    اطلاعات پروفایل خودت را ویرایش کن.
+                </span>
+
+            </div>
+
+
+            <div class="profile-field">
+
+                <label for="displayName">
+                    نام نمایشی
+                </label>
+
+                <input
+                    id="displayName"
+                    class="profile-input"
+                    maxlength="60"
+                    placeholder="نام نمایشی"
+                >
+
+            </div>
+
+
+            <div class="profile-field">
+
+                <label for="username">
+                    نام کاربری
+                </label>
+
+                <input
+                    id="username"
+                    class="profile-input"
+                    disabled
+                >
+
+            </div>
+
+
+            <div class="profile-field">
+
+                <label for="status">
+                    وضعیت
+                </label>
+
+                <select
+                    id="status"
+                    class="profile-select"
+                >
+                    <option value="در دسترس">
+                        🟢 در دسترس
+                    </option>
+
+                    <option value="مشغول">
+                        🔴 مشغول
+                    </option>
+
+                    <option value="غیرفعال">
+                        ⚪ غیرفعال
+                    </option>
+
+                    <option value="در جلسه">
+                        🟡 در جلسه
+                    </option>
+
+                    <option value="برمی‌گردم">
+                        🔵 برمی‌گردم
+                    </option>
+                </select>
+
+            </div>
+
+
+            <div class="profile-field">
+
+                <label for="bio">
+                    بیوگرافی
+                </label>
+
+                <textarea
+                    id="bio"
+                    class="profile-textarea"
+                    maxlength="250"
+                    placeholder="کمی درباره خودت بنویس..."
+                ></textarea>
+
+            </div>
+
+
+            <div class="profile-actions">
+
+                <button
+                    id="saveButton"
+                    class="profile-save-button"
+                    type="button"
+                >
+                    ذخیره تغییرات
+                </button>
+
+                <button
+                    class="profile-cancel-button"
+                    type="button"
+                    onclick="window.location.href='/chat.html'"
+                >
+                    انصراف
+                </button>
+
+            </div>
+
+
+            <div
+                id="profileMessage"
+                class="profile-message"
+            ></div>
+
+        </div>
+
+    </section>
+
+</main>
+
+
+<script>
+"use strict";
+
+const API_BASE =
+    window.GAPINO_API_BASE ||
+    window.location.origin;
+
+const avatarPreview =
+    document.getElementById(
+        "avatarPreview"
+    );
+
+const avatarInput =
+    document.getElementById(
+        "avatarInput"
+    );
+
+const avatarUploadButton =
+    document.getElementById(
+        "avatarUploadButton"
+    );
+
+const avatarFileName =
+    document.getElementById(
+        "avatarFileName"
+    );
+
+const headerName =
+    document.getElementById(
+        "headerName"
+    );
+
+const headerUsername =
+    document.getElementById(
+        "headerUsername"
+    );
+
+const headerCreated =
+    document.getElementById(
+        "headerCreated"
+    );
+
+const displayName =
+    document.getElementById(
+        "displayName"
+    );
+
+const username =
+    document.getElementById(
+        "username"
+    );
+
+const status =
+    document.getElementById(
+        "status"
+    );
+
+const bio =
+    document.getElementById(
+        "bio"
+    );
+
+const saveButton =
+    document.getElementById(
+        "saveButton"
+    );
+
+const profileMessage =
+    document.getElementById(
+        "profileMessage"
+    );
+
+let currentUser = null;
+
+
+function showMessage(
+    text,
+    type = ""
+) {
+    profileMessage.textContent =
+        text;
+
+    profileMessage.className =
+        `profile-message ${type}`;
+}
+
+
+async function api(
+    path,
+    options = {}
+) {
+    const response =
+        await fetch(
+            `${API_BASE}${path}`,
+            {
+                credentials:
+                    "include",
+
+                ...options
+            }
+        );
+
+    let data = null;
+
+    try {
+        data =
+            await response.json();
+    } catch {}
+
+    if (!response.ok) {
+        throw new Error(
+            data?.detail ||
+            "عملیات انجام نشد."
+        );
+    }
+
+    return data;
+}
+
+
+function getInitials(
+    name
+) {
+    return String(
+        name ||
+        "G"
+    )
+        .trim()
+        .slice(0, 2)
+        .toUpperCase();
+}
+
+
+function renderUser(
+    user
+) {
+    currentUser = user;
+
+    const name =
+        user.display_name ||
+        user.username ||
+        "کاربر";
+
+    headerName.textContent =
+        name;
+
+    headerUsername.textContent =
+        user.username
+            ? `@${user.username}`
+            : "";
+
+    username.value =
+        user.username ||
+        "";
+
+    displayName.value =
+        user.display_name ||
+        "";
+
+    bio.value =
+        user.bio ||
+        "";
+
+    status.value =
+        user.status ||
+        "در دسترس";
+
+    if (user.created_at) {
+        const date =
+            new Date(
+                user.created_at
+            );
+
+        if (!Number.isNaN(
+            date.getTime()
+        )) {
+            headerCreated.textContent =
+                `عضویت: ${date.toLocaleDateString("fa-IR")}`;
+        }
+    }
+
+    if (user.avatar) {
+        avatarPreview.innerHTML =
+            `<img src="${user.avatar}" alt="">`;
+    } else {
+        avatarPreview.textContent =
+            getInitials(name);
+    }
+}
+
+
+async function loadProfile() {
+    try {
+        const user =
+            await api(
+                "/api/me"
+            );
+
+        renderUser(
+            user
+        );
+
+    } catch (error) {
+
+        showMessage(
+            error.message ||
+            "دریافت پروفایل انجام نشد.",
+            "error"
+        );
+
+        setTimeout(
+            () => {
+                window.location.href =
+                    "/login.html";
+            },
+            700
+        );
+    }
+}
+
+
+avatarUploadButton.addEventListener(
+    "click",
+    () => {
+        avatarInput.click();
+    }
+);
+
+
+avatarInput.addEventListener(
+    "change",
+    async () => {
+
+        const file =
+            avatarInput.files?.[0];
+
+        if (!file) {
+            return;
+        }
+
+        const allowed = [
+            "image/png",
+            "image/jpeg",
+            "image/webp"
+        ];
+
+        if (
+            !allowed.includes(
+                file.type
+            )
+        ) {
+            showMessage(
+                "فقط PNG، JPG و WEBP مجاز است.",
+                "error"
+            );
+
+            avatarInput.value =
+                "";
+
+            return;
+        }
+
+        if (
+            file.size >
+            5 * 1024 * 1024
+        ) {
+            showMessage(
+                "حجم عکس نباید بیشتر از ۵ مگابایت باشد.",
+                "error"
+            );
+
+            avatarInput.value =
+                "";
+
+            return;
+        }
+
+        try {
+
+            showMessage(
+                "در حال آپلود عکس...",
+                ""
+            );
+
+            const formData =
+                new FormData();
+
+            formData.append(
+                "file",
+                file
+            );
+
+            const response =
+                await fetch(
+                    `${API_BASE}/api/profile/avatar`,
+                    {
+                        method:
+                            "POST",
+
+                        credentials:
+                            "include",
+
+                        body:
+                            formData
+                    }
+                );
+
+            let data = null;
+
+            try {
+                data =
+                    await response.json();
+            } catch {}
+
+            if (!response.ok) {
+                throw new Error(
+                    data?.detail ||
+                    "آپلود عکس انجام نشد."
+                );
+            }
+
+            if (data?.avatar) {
+                currentUser.avatar =
+                    data.avatar;
+
+                avatarPreview.innerHTML =
+                    `<img src="${data.avatar}" alt="">`;
+            }
+
+            avatarFileName.textContent =
+                file.name;
+
+            showMessage(
+                "عکس پروفایل با موفقیت تغییر کرد.",
+                "success"
+            );
+
+        } catch (error) {
+
+            console.error(
+                error
+            );
+
+            showMessage(
+                error.message ||
+                "آپلود عکس ناموفق بود.",
+                "error"
+            );
+        }
+    }
+);
+
+
+saveButton.addEventListener(
+    "click",
+    async () => {
+
+        const name =
+            displayName.value
+                .trim();
+
+        const bioText =
+            bio.value
+                .trim();
+
+        const statusValue =
+            status.value
+                .trim();
+
+        if (!name) {
+            showMessage(
+                "نام نمایشی نمی‌تواند خالی باشد.",
+                "error"
+            );
+
+            return;
+        }
+
+        saveButton.disabled =
+            true;
+
+        saveButton.textContent =
+            "در حال ذخیره...";
+
+        try {
+
+            await api(
+                "/api/profile",
+                {
+                    method:
+                        "PUT",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body:
+                        JSON.stringify({
+                            display_name:
+                                name,
+
+                            bio:
+                                bioText,
+
+                            status:
+                                statusValue
+                        })
+                }
+            );
+
+            currentUser.display_name =
+                name;
+
+            currentUser.bio =
+                bioText;
+
+            currentUser.status =
+                statusValue;
+
+            localStorage.setItem(
+                "gapino_user",
+                JSON.stringify(
+                    currentUser
+                )
+            );
+
+            headerName.textContent =
+                name;
+
+            showMessage(
+                "تغییرات با موفقیت ذخیره شد. ✅",
+                "success"
+            );
+
+        } catch (error) {
+
+            console.error(
+                error
+            );
+
+            showMessage(
+                error.message ||
+                "ذخیره تغییرات انجام نشد.",
+                "error"
+            );
+
+        } finally {
+
+            saveButton.disabled =
+                false;
+
+            saveButton.textContent =
+                "ذخیره تغییرات";
+        }
+    }
+);
+
+
+loadProfile();
+</script>
+
+</body>
+</html>

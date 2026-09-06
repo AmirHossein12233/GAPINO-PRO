@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <meta
+        name="theme-color"
+        content="#080d1a"
+    >
+
+    <title>گپینو | چت</title>
+
+    <link
+        rel="stylesheet"
+        href="/static/style.css?v=300"
+    >
+</head>
+
+<body>
+
+<div class="app-shell" id="appShell">
+
+    <!-- =====================================================
+         SIDEBAR
+         ===================================================== -->
+
+    <aside
+        class="sidebar"
+        id="sidebar"
+    >
+
+        <!-- ================= HEADER ================= -->
+
+        <div class="sidebar-header">
+
+            <div class="sidebar-brand">
+
+                <div class="sidebar-logo">
+                    G
+                </div>
+
+                <div>
+
+                    <h1>
+                        گپینو
+                    </h1>
+
+                    <span>
+                        پیام‌رسان شما
+                    </span>
+
+                </div>
+
+            </div>
+
+
+            <button
+                id="menuButton"
+                class="icon-button"
+                type="button"
+                aria-label="بستن منو"
+                title="بستن منو"
+            >
+                ☰
+            </button>
+
+        </div>
+
+
+        <!-- =================================================
+             CURRENT USER
+             ================================================= -->
+
+        <div class="current-user-card">
+
+            <button
+                id="profileButton"
+                class="current-user-main"
+                type="button"
+            >
+
+                <div
+                    id="currentAvatar"
+                    class="avatar avatar-large"
+                >
+                    G
+                </div>
+
+                <div class="current-user-info">
+
+                    <strong id="currentDisplayName">
+                        گپینو
+                    </strong>
+
+                    <span id="currentUsername">
+                        @user
+                    </span>
+
+                </div>
+
+            </button>
+
+
+            <span
+                class="online-dot"
+                title="آنلاین"
+            ></span>
+
+        </div>
+
+
+        <!-- =================================================
+             SEARCH
+             ================================================= -->
+
+        <div class="search-box">
+
+            <span class="search-icon">
+                🔎
+            </span>
+
+            <input
+                id="userSearch"
+                type="search"
+                placeholder="جستجوی کاربران..."
+                autocomplete="off"
+            >
+
+            <button
+                id="clearSearch"
+                class="search-clear"
+                type="button"
+                hidden
+                aria-label="پاک کردن جستجو"
+            >
+                ×
+            </button>
+
+        </div>
+
+
+        <!-- =================================================
+             LIST HEADER
+             ================================================= -->
+
+        <div class="list-header">
+
+            <span>
+                کاربران
+            </span>
+
+            <span id="userCount">
+                0
+            </span>
+
+        </div>
+
+
+        <!-- =================================================
+             USER LIST
+             ================================================= -->
+
+        <div
+            id="userList"
+            class="user-list"
+        >
+
+            <div class="empty-users">
+
+                <div class="empty-icon">
+                    💬
+                </div>
+
+                <strong>
+                    هنوز کاربری پیدا نشده
+                </strong>
+
+                <span>
+                    برای شروع گفتگو، کاربر موردنظر خودت را انتخاب کن.
+                </span>
+
+            </div>
+
+        </div>
+
+
+        <!-- =================================================
+             SIDEBAR FOOTER
+             ================================================= -->
+
+        <div class="sidebar-footer">
+
+            <!-- THEME -->
+
+            <button
+                id="themeButton"
+                class="sidebar-action"
+                type="button"
+            >
+                🌙
+                <span>
+                    حالت تیره
+                </span>
+            </button>
+
+
+            <!-- LOGOUT -->
+
+            <button
+                id="logoutButton"
+                class="sidebar-action danger"
+                type="button"
+            >
+                🚪
+                <span>
+                    خروج از حساب
+                </span>
+            </button>
+
+        </div>
+
+    </aside>
+
+
+    <!-- =====================================================
+         MAIN CHAT
+         ===================================================== -->
+
+    <main class="chat-main">
+
+        <!-- =================================================
+             HEADER
+             ================================================= -->
+
+        <header
+            id="chatHeader"
+            class="chat-header"
+        >
+
+            <!-- MOBILE MENU -->
+
+            <button
+                id="mobileMenuButton"
+                class="icon-button mobile-only"
+                type="button"
+                aria-label="باز کردن منو"
+                title="کاربران"
+            >
+                ☰
+            </button>
+
+
+            <!-- CONTACT -->
+
+            <div
+                id="chatContact"
+                class="chat-contact"
+                hidden
+            >
+
+                <div
+                    id="chatAvatar"
+                    class="avatar"
+                >
+                    G
+                </div>
+
+
+                <div class="chat-contact-info">
+
+                    <strong id="chatName">
+                        کاربر
+                    </strong>
+
+                    <span id="chatStatus">
+                        آفلاین
+                    </span>
+
+                </div>
+
+            </div>
+
+
+            <!-- EMPTY HEADER -->
+
+            <div
+                id="chatHeaderEmpty"
+                class="chat-header-empty"
+            >
+
+                <strong>
+                    گپینو
+                </strong>
+
+                <span>
+                    گفتگوی خودت را انتخاب کن
+                </span>
+
+            </div>
+
+
+            <!-- HEADER ACTIONS -->
+
+            <div class="chat-header-actions">
+
+                <button
+                    id="refreshButton"
+                    class="icon-button"
+                    type="button"
+                    title="به‌روزرسانی"
+                    aria-label="به‌روزرسانی"
+                >
+                    ↻
+                </button>
+
+
+                <button
+                    id="profileHeaderButton"
+                    class="icon-button"
+                    type="button"
+                    title="پروفایل"
+                    aria-label="پروفایل"
+                >
+                    👤
+                </button>
+
+            </div>
+
+        </header>
+
+
+        <!-- =================================================
+             WELCOME SCREEN
+             ================================================= -->
+
+        <section
+            id="welcomeScreen"
+            class="welcome-screen"
+        >
+
+            <div class="welcome-card">
+
+                <div class="welcome-logo">
+                    G
+                </div>
+
+
+                <h2>
+                    به گپینو خوش آمدی 👋
+                </h2>
+
+
+                <p>
+                    یک کاربر را از فهرست سمت راست انتخاب کن
+                    تا گفتگوی خودت را شروع کنی.
+                </p>
+
+
+                <div class="welcome-features">
+
+                    <div>
+
+                        <span>
+                            ⚡
+                        </span>
+
+                        <small>
+                            گفتگوی سریع
+                        </small>
+
+                    </div>
+
+
+                    <div>
+
+                        <span>
+                            🔒
+                        </span>
+
+                        <small>
+                            محیط امن
+                        </small>
+
+                    </div>
+
+
+                    <div>
+
+                        <span>
+                            📎
+                        </span>
+
+                        <small>
+                            ارسال فایل
+                        </small>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- =================================================
+             CHAT VIEW
+             ================================================= -->
+
+        <section
+            id="chatView"
+            class="chat-view"
+            hidden
+        >
+
+            <!-- =================================================
+                 MESSAGES
+                 ================================================= -->
+
+            <div
+                id="messages"
+                class="messages"
+            ></div>
+
+
+            <!-- =================================================
+                 TYPING
+                 ================================================= -->
+
+            <div
+                id="typingArea"
+                class="typing-area"
+                hidden
+            >
+
+                <div class="typing-dots">
+
+                    <span></span>
+                    <span></span>
+                    <span></span>
+
+                </div>
+
+                <span>
+                    در حال نوشتن...
+                </span>
+
+            </div>
+
+
+            <!-- =================================================
+                 COMPOSER
+                 ================================================= -->
+
+            <div class="composer">
+
+                <input
+                    id="fileInput"
+                    type="file"
+                    hidden
+                >
+
+
+                <!-- ATTACH -->
+
+                <button
+                    id="attachButton"
+                    class="composer-button"
+                    type="button"
+                    title="ارسال فایل"
+                    aria-label="ارسال فایل"
+                >
+                    📎
+                </button>
+
+
+                <!-- VOICE -->
+
+                <button
+                    id="voiceButton"
+                    class="composer-button"
+                    type="button"
+                    title="ضبط پیام صوتی"
+                    aria-label="ضبط پیام صوتی"
+                >
+                    🎙️
+                </button>
+
+
+                <!-- INPUT -->
+
+                <div class="message-input-wrapper">
+
+                    <textarea
+                        id="messageInput"
+                        rows="1"
+                        maxlength="5000"
+                        placeholder="پیامت را بنویس..."
+                        autocomplete="off"
+                    ></textarea>
+
+                </div>
+
+
+                <!-- SEND -->
+
+                <button
+                    id="sendButton"
+                    class="send-button"
+                    type="button"
+                    title="ارسال پیام"
+                    aria-label="ارسال پیام"
+                >
+                    ➤
+                </button>
+
+            </div>
+
+        </section>
+
+    </main>
+
+
+    <!-- =====================================================
+         PROFILE PANEL
+         ===================================================== -->
+
+    <aside
+        id="profilePanel"
+        class="profile-panel"
+        hidden
+    >
+
+        <div class="profile-panel-header">
+
+            <strong>
+                پروفایل
+            </strong>
+
+
+            <button
+                id="closeProfile"
+                class="icon-button"
+                type="button"
+                title="بستن"
+                aria-label="بستن"
+            >
+                ×
+            </button>
+
+        </div>
+
+
+        <div class="profile-content">
+
+            <!-- AVATAR -->
+
+            <div
+                id="profileAvatar"
+                class="profile-avatar-large"
+            >
+                G
+            </div>
+
+
+            <!-- NAME -->
+
+            <div
+                id="profileName"
+                class="profile-name"
+            >
+                گپینو
+            </div>
+
+
+            <!-- USERNAME -->
+
+            <div
+                id="profileUsername"
+                class="profile-username"
+            >
+                @user
+            </div>
+
+
+            <!-- DISPLAY NAME -->
+
+            <div class="profile-section">
+
+                <label for="editDisplayName">
+                    نام نمایشی
+                </label>
+
+                <input
+                    id="editDisplayName"
+                    type="text"
+                    maxlength="60"
+                    placeholder="نام نمایشی"
+                    autocomplete="name"
+                >
+
+            </div>
+
+
+            <!-- BIO -->
+
+            <div class="profile-section">
+
+                <label for="editBio">
+                    درباره من
+                </label>
+
+                <textarea
+                    id="editBio"
+                    maxlength="300"
+                    rows="4"
+                    placeholder="چند کلمه درباره خودت..."
+                ></textarea>
+
+            </div>
+
+
+            <!-- STATUS -->
+
+            <div class="profile-section">
+
+                <label for="editStatus">
+                    وضعیت
+                </label>
+
+                <select id="editStatus">
+
+                    <option value="در دسترس">
+                        🟢 در دسترس
+                    </option>
+
+                    <option value="مشغول">
+                        🔴 مشغول
+                    </option>
+
+                    <option value="غیرفعال">
+                        🟡 غیرفعال
+                    </option>
+
+                    <option value="نامرئی">
+                        ⚫ نامرئی
+                    </option>
+
+                </select>
+
+            </div>
+
+
+            <!-- SAVE -->
+
+            <button
+                id="saveProfile"
+                class="primary-button"
+                type="button"
+            >
+                ذخیره تغییرات
+            </button>
+
+
+            <!-- FULL PROFILE -->
+
+            <button
+                id="profilePageButton"
+                class="secondary-button"
+                type="button"
+            >
+                صفحه کامل پروفایل
+            </button>
+
+        </div>
+
+    </aside>
+
+
+    <!-- =====================================================
+         OVERLAY
+         ===================================================== -->
+
+    <div
+        id="appOverlay"
+        class="app-overlay"
+        hidden
+    ></div>
+
+
+    <!-- =====================================================
+         TOAST
+         ===================================================== -->
+
+    <div
+        id="toast"
+        class="toast"
+        aria-live="polite"
+    ></div>
+
+</div>
+
+
+<!-- =========================================================
+     THEME SYSTEM
+     ========================================================= -->
+
+<script>
+"use strict";
+
+(function () {
+
+    const themeButton =
+        document.getElementById("themeButton");
+
+    function updateThemeButton(theme) {
+
+        if (!themeButton) {
+            return;
+        }
+
+        if (theme === "light") {
+
+            themeButton.innerHTML =
+                "🌙 <span>حالت تیره</span>";
+
+            themeButton.setAttribute(
+                "title",
+                "فعال کردن حالت تیره"
+            );
+
+        } else {
+
+            themeButton.innerHTML =
+                "☀️ <span>حالت روشن</span>";
+
+            themeButton.setAttribute(
+                "title",
+                "فعال کردن حالت روشن"
+            );
+
+        }
+    }
+
+
+    function applyTheme() {
+
+        const saved =
+            localStorage.getItem(
+                "gapino_theme"
+            );
+
+        const theme =
+            saved === "light"
+                ? "light"
+                : "dark";
+
+        document.documentElement.setAttribute(
+            "data-theme",
+            theme
+        );
+
+        updateThemeButton(theme);
+    }
+
+
+    applyTheme();
+
+
+    if (themeButton) {
+
+        themeButton.addEventListener(
+            "click",
+            function () {
+
+                const current =
+                    document.documentElement.getAttribute(
+                        "data-theme"
+                    ) || "dark";
+
+
+                const next =
+                    current === "dark"
+                        ? "light"
+                        : "dark";
+
+
+                document.documentElement.setAttribute(
+                    "data-theme",
+                    next
+                );
+
+
+                localStorage.setItem(
+                    "gapino_theme",
+                    next
+                );
+
+
+                updateThemeButton(
+                    next
+                );
+
+            }
+        );
+
+    }
+
+})();
+</script>
+
+
+<!-- =========================================================
+     MAIN APP
+     ========================================================= -->
+
+<script src="/static/app.js?v=300"></script>
+
+
+</body>
+</html>
