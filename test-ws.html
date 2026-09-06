@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>GAPINO WebSocket Test</title>
+</head>
+<body>
+
+<h2>تست WebSocket گپینو</h2>
+
+<button id="test">
+    تست اتصال
+</button>
+
+<pre id="result"></pre>
+
+<script>
+const result = document.getElementById("result");
+const button = document.getElementById("test");
+
+button.onclick = () => {
+    result.textContent = "در حال اتصال...\n";
+
+    const protocol =
+        location.protocol === "https:"
+            ? "wss:"
+            : "ws:";
+
+    const ws =
+        new WebSocket(
+            `${protocol}//${location.host}/ws`
+        );
+
+    ws.onopen = () => {
+        result.textContent +=
+            "✅ WebSocket وصل شد\n";
+
+        ws.send(
+            JSON.stringify({
+                type: "ping"
+            })
+        );
+    };
+
+    ws.onmessage = event => {
+        result.textContent +=
+            "📩 " + event.data + "\n";
+    };
+
+    ws.onerror = () => {
+        result.textContent +=
+            "❌ خطا در WebSocket\n";
+    };
+
+    ws.onclose = event => {
+        result.textContent +=
+            `🔴 اتصال بسته شد: ${event.code}\n`;
+    };
+};
+</script>
+
+</body>
+</html>

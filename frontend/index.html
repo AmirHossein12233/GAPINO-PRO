@@ -1,0 +1,1475 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <meta
+        name="theme-color"
+        content="#080d1a"
+    >
+
+    <meta
+        name="description"
+        content="گپینو؛ یک پیام‌رسان سریع و مدرن برای گفتگو، ارسال فایل و ارتباط با دوستان."
+    >
+
+    <meta
+        name="keywords"
+        content="گپینو, GAPINO, پیام رسان, چت آنلاین, پیام‌رسان ایرانی"
+    >
+
+    <meta
+        name="robots"
+        content="index, follow"
+    >
+
+    <meta
+        property="og:type"
+        content="website"
+    >
+
+    <meta
+        property="og:title"
+        content="گپینو | پیام‌رسان شما"
+    >
+
+    <meta
+        property="og:description"
+        content="با گپینو سریع و ساده با دوستانت گفتگو کن."
+    >
+
+    <meta
+        property="og:url"
+        content="https://mygapino.shop/"
+    >
+
+    <link
+        rel="canonical"
+        href="https://mygapino.shop/"
+    >
+
+    <title>گپینو | پیام‌رسان شما</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            margin: 0;
+
+            font-family:
+                Tahoma,
+                Arial,
+                "Segoe UI",
+                sans-serif;
+
+            direction: rtl;
+
+            color: #f8fafc;
+
+            background:
+                radial-gradient(
+                    circle at 10% 10%,
+                    rgba(99,102,241,.18),
+                    transparent 30%
+                ),
+                radial-gradient(
+                    circle at 90% 30%,
+                    rgba(139,92,246,.12),
+                    transparent 30%
+                ),
+                #070b16;
+
+            min-height: 100vh;
+        }
+
+        a {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        button {
+            font: inherit;
+        }
+
+        /* =================================================
+           NAVBAR
+           ================================================= */
+
+        .navbar {
+            width: 100%;
+
+            padding:
+                18px 6vw;
+
+            display: flex;
+
+            align-items: center;
+            justify-content: space-between;
+
+            position: fixed;
+
+            top: 0;
+            right: 0;
+
+            z-index: 100;
+
+            border-bottom:
+                1px solid
+                rgba(255,255,255,.07);
+
+            background:
+                rgba(7,11,22,.70);
+
+            backdrop-filter:
+                blur(22px);
+
+            -webkit-backdrop-filter:
+                blur(22px);
+        }
+
+        .brand {
+            display: flex;
+
+            align-items: center;
+
+            gap: 12px;
+        }
+
+        .brand-logo {
+            width: 44px;
+            height: 44px;
+
+            display: flex;
+
+            align-items: center;
+            justify-content: center;
+
+            border-radius: 14px;
+
+            color: white;
+
+            font-size: 20px;
+
+            font-weight: 900;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #6366f1,
+                    #8b5cf6
+                );
+
+            box-shadow:
+                0 10px 30px
+                rgba(99,102,241,.28);
+        }
+
+        .brand-text strong {
+            display: block;
+
+            font-size: 16px;
+        }
+
+        .brand-text span {
+            display: block;
+
+            margin-top: 3px;
+
+            color: #94a3b8;
+
+            font-size: 8px;
+        }
+
+        .nav-button {
+            padding:
+                11px 18px;
+
+            border-radius: 12px;
+
+            color: white;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #6366f1,
+                    #8b5cf6
+                );
+
+            font-size: 9px;
+
+            font-weight: 700;
+
+            box-shadow:
+                0 10px 25px
+                rgba(99,102,241,.18);
+
+            transition:
+                transform .2s ease,
+                box-shadow .2s ease;
+        }
+
+        .nav-button:hover {
+            transform:
+                translateY(-2px);
+
+            box-shadow:
+                0 15px 34px
+                rgba(99,102,241,.28);
+        }
+
+        /* =================================================
+           HERO
+           ================================================= */
+
+        .hero {
+            min-height: 100vh;
+
+            padding:
+                145px 6vw 90px;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            position: relative;
+
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: "";
+
+            position: absolute;
+
+            width: 500px;
+            height: 500px;
+
+            top: 7%;
+            right: -220px;
+
+            border-radius: 50%;
+
+            background:
+                rgba(99,102,241,.12);
+
+            filter:
+                blur(100px);
+        }
+
+        .hero::after {
+            content: "";
+
+            position: absolute;
+
+            width: 420px;
+            height: 420px;
+
+            left: -180px;
+            bottom: -100px;
+
+            border-radius: 50%;
+
+            background:
+                rgba(139,92,246,.10);
+
+            filter:
+                blur(100px);
+        }
+
+        .hero-content {
+            width:
+                min(1100px, 100%);
+
+            display: grid;
+
+            grid-template-columns:
+                1.05fr .95fr;
+
+            align-items: center;
+
+            gap: 70px;
+
+            position: relative;
+
+            z-index: 2;
+        }
+
+        .hero-text h1 {
+            margin:
+                0 0 18px;
+
+            font-size:
+                clamp(34px, 5vw, 62px);
+
+            line-height:
+                1.25;
+
+            letter-spacing:
+                -1px;
+        }
+
+        .hero-text h1 span {
+            background:
+                linear-gradient(
+                    135deg,
+                    #818cf8,
+                    #c4b5fd
+                );
+
+            -webkit-background-clip:
+                text;
+
+            background-clip:
+                text;
+
+            color:
+                transparent;
+        }
+
+        .hero-text p {
+            max-width: 610px;
+
+            margin:
+                0;
+
+            color:
+                #94a3b8;
+
+            font-size:
+                clamp(12px, 1.5vw, 15px);
+
+            line-height:
+                2.2;
+        }
+
+        .hero-actions {
+            margin-top:
+                30px;
+
+            display:
+                flex;
+
+            flex-wrap:
+                wrap;
+
+            gap:
+                10px;
+        }
+
+        .primary-button,
+        .secondary-button {
+            min-height:
+                52px;
+
+            padding:
+                0 23px;
+
+            display:
+                inline-flex;
+
+            align-items:
+                center;
+
+            justify-content:
+                center;
+
+            border-radius:
+                14px;
+
+            font-size:
+                10px;
+
+            font-weight:
+                700;
+
+            transition:
+                transform .2s ease,
+                box-shadow .2s ease,
+                background .2s ease;
+        }
+
+        .primary-button {
+            color: white;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #6366f1,
+                    #8b5cf6
+                );
+
+            box-shadow:
+                0 14px 35px
+                rgba(99,102,241,.23);
+        }
+
+        .primary-button:hover {
+            transform:
+                translateY(-2px);
+
+            box-shadow:
+                0 20px 45px
+                rgba(99,102,241,.32);
+        }
+
+        .secondary-button {
+            color:
+                #cbd5e1;
+
+            border:
+                1px solid
+                rgba(255,255,255,.09);
+
+            background:
+                rgba(255,255,255,.025);
+        }
+
+        .secondary-button:hover {
+            transform:
+                translateY(-2px);
+
+            background:
+                rgba(255,255,255,.05);
+        }
+
+        .hero-note {
+            margin-top:
+                17px;
+
+            color:
+                #64748b;
+
+            font-size:
+                8px;
+        }
+
+        /* =================================================
+           HERO PREVIEW
+           ================================================= */
+
+        .preview {
+            padding:
+                12px;
+
+            border-radius:
+                30px;
+
+            background:
+                rgba(255,255,255,.035);
+
+            border:
+                1px solid
+                rgba(255,255,255,.09);
+
+            box-shadow:
+                0 35px 100px
+                rgba(0,0,0,.38);
+
+            transform:
+                perspective(1200px)
+                rotateY(-5deg)
+                rotateX(2deg);
+        }
+
+        .preview-window {
+            overflow:
+                hidden;
+
+            border-radius:
+                22px;
+
+            border:
+                1px solid
+                rgba(255,255,255,.08);
+
+            background:
+                #0d1424;
+        }
+
+        .preview-top {
+            height:
+                58px;
+
+            padding:
+                0 15px;
+
+            display:
+                flex;
+
+            align-items:
+                center;
+
+            gap:
+                9px;
+
+            border-bottom:
+                1px solid
+                rgba(255,255,255,.07);
+        }
+
+        .preview-avatar {
+            width:
+                34px;
+
+            height:
+                34px;
+
+            display:
+                flex;
+
+            align-items:
+                center;
+
+            justify-content:
+                center;
+
+            border-radius:
+                10px;
+
+            color:
+                white;
+
+            font-size:
+                12px;
+
+            font-weight:
+                800;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #6366f1,
+                    #8b5cf6
+                );
+        }
+
+        .preview-user strong {
+            display:
+                block;
+
+            font-size:
+                8px;
+        }
+
+        .preview-user span {
+            color:
+                #22c55e;
+
+            font-size:
+                6px;
+        }
+
+        .preview-body {
+            min-height:
+                390px;
+
+            padding:
+                20px;
+
+            display:
+                flex;
+
+            flex-direction:
+                column;
+
+            justify-content:
+                flex-end;
+
+            gap:
+                8px;
+
+            background:
+                radial-gradient(
+                    circle at 50% 0%,
+                    rgba(99,102,241,.07),
+                    transparent 48%
+                );
+        }
+
+        .bubble {
+            max-width:
+                72%;
+
+            padding:
+                9px 11px;
+
+            border-radius:
+                14px;
+
+            font-size:
+                7px;
+
+            line-height:
+                1.8;
+        }
+
+        .bubble.left {
+            align-self:
+                flex-start;
+
+            background:
+                #172137;
+
+            border-bottom-left-radius:
+                4px;
+        }
+
+        .bubble.right {
+            align-self:
+                flex-end;
+
+            color:
+                white;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #6366f1,
+                    #7c3aed
+                );
+
+            border-bottom-right-radius:
+                4px;
+        }
+
+        .preview-input {
+            min-height:
+                50px;
+
+            padding:
+                8px 11px;
+
+            display:
+                flex;
+
+            align-items:
+                center;
+
+            gap:
+                8px;
+
+            border-top:
+                1px solid
+                rgba(255,255,255,.07);
+        }
+
+        .preview-input-line {
+            height:
+                32px;
+
+            flex:
+                1;
+
+            border-radius:
+                10px;
+
+            background:
+                rgba(255,255,255,.045);
+        }
+
+        .preview-send {
+            width:
+                33px;
+
+            height:
+                33px;
+
+            display:
+                flex;
+
+            align-items:
+                center;
+
+            justify-content:
+                center;
+
+            border-radius:
+                10px;
+
+            color:
+                white;
+
+            background:
+                #6366f1;
+
+            font-size:
+                11px;
+        }
+
+        /* =================================================
+           FEATURES
+           ================================================= */
+
+        .features {
+            padding:
+                95px 6vw;
+
+            background:
+                rgba(255,255,255,.012);
+        }
+
+        .section {
+            width:
+                min(1100px, 100%);
+
+            margin:
+                0 auto;
+        }
+
+        .section-heading {
+            text-align:
+                center;
+
+            margin-bottom:
+                42px;
+        }
+
+        .section-heading span {
+            color:
+                #a5b4fc;
+
+            font-size:
+                9px;
+
+            font-weight:
+                700;
+        }
+
+        .section-heading h2 {
+            margin:
+                9px 0 8px;
+
+            font-size:
+                clamp(23px, 3vw, 34px);
+        }
+
+        .section-heading p {
+            max-width:
+                520px;
+
+            margin:
+                0 auto;
+
+            color:
+                #64748b;
+
+            font-size:
+                8px;
+
+            line-height:
+                2;
+        }
+
+        .feature-grid {
+            display:
+                grid;
+
+            grid-template-columns:
+                repeat(3, 1fr);
+
+            gap:
+                14px;
+        }
+
+        .feature {
+            padding:
+                25px 20px;
+
+            border:
+                1px solid
+                rgba(255,255,255,.07);
+
+            border-radius:
+                20px;
+
+            background:
+                rgba(255,255,255,.022);
+
+            transition:
+                transform .2s ease,
+                border-color .2s ease,
+                background .2s ease;
+        }
+
+        .feature:hover {
+            transform:
+                translateY(-5px);
+
+            border-color:
+                rgba(99,102,241,.22);
+
+            background:
+                rgba(99,102,241,.045);
+        }
+
+        .feature-icon {
+            width:
+                48px;
+
+            height:
+                48px;
+
+            display:
+                flex;
+
+            align-items:
+                center;
+
+            justify-content:
+                center;
+
+            border-radius:
+                15px;
+
+            background:
+                rgba(99,102,241,.10);
+
+            font-size:
+                19px;
+
+            margin-bottom:
+                16px;
+        }
+
+        .feature h3 {
+            margin:
+                0 0 7px;
+
+            font-size:
+                11px;
+        }
+
+        .feature p {
+            margin:
+                0;
+
+            color:
+                #64748b;
+
+            font-size:
+                8px;
+
+            line-height:
+                2;
+        }
+
+        /* =================================================
+           CTA
+           ================================================= */
+
+        .cta {
+            padding:
+                30px 6vw 90px;
+        }
+
+        .cta-box {
+            width:
+                min(1100px, 100%);
+
+            margin:
+                0 auto;
+
+            padding:
+                45px 30px;
+
+            text-align:
+                center;
+
+            border:
+                1px solid
+                rgba(99,102,241,.16);
+
+            border-radius:
+                28px;
+
+            background:
+                radial-gradient(
+                    circle at 50% 0%,
+                    rgba(99,102,241,.11),
+                    transparent 55%
+                ),
+                rgba(255,255,255,.02);
+        }
+
+        .cta-box h2 {
+            margin:
+                0 0 10px;
+
+            font-size:
+                clamp(23px, 3vw, 32px);
+        }
+
+        .cta-box p {
+            margin:
+                0 auto 23px;
+
+            color:
+                #94a3b8;
+
+            font-size:
+                8px;
+
+            line-height:
+                2;
+        }
+
+        /* =================================================
+           FOOTER
+           ================================================= */
+
+        footer {
+            padding:
+                28px 6vw;
+
+            border-top:
+                1px solid
+                rgba(255,255,255,.06);
+
+            background:
+                rgba(0,0,0,.12);
+        }
+
+        .footer-inner {
+            width:
+                min(1100px, 100%);
+
+            margin:
+                0 auto;
+
+            display:
+                flex;
+
+            align-items:
+                center;
+
+            justify-content:
+                space-between;
+
+            gap:
+                15px;
+        }
+
+        .footer-brand {
+            color:
+                #94a3b8;
+
+            font-size:
+                8px;
+        }
+
+        .footer-copy {
+            color:
+                #475569;
+
+            font-size:
+                7px;
+        }
+
+        /* =================================================
+           MOBILE
+           ================================================= */
+
+        @media (max-width: 850px) {
+
+            .hero-content {
+                grid-template-columns:
+                    1fr;
+
+                gap:
+                    40px;
+            }
+
+            .hero-text {
+                text-align:
+                    center;
+            }
+
+            .hero-text p {
+                margin:
+                    0 auto;
+            }
+
+            .hero-actions {
+                justify-content:
+                    center;
+            }
+
+            .preview {
+                max-width:
+                    600px;
+
+                width:
+                    100%;
+
+                margin:
+                    0 auto;
+
+                transform:
+                    none;
+            }
+
+            .feature-grid {
+                grid-template-columns:
+                    1fr;
+            }
+
+        }
+
+        @media (max-width: 600px) {
+
+            .navbar {
+                padding:
+                    12px 16px;
+            }
+
+            .brand-logo {
+                width:
+                    40px;
+
+                height:
+                    40px;
+
+                flex:
+                    0 0 40px;
+
+                font-size:
+                    18px;
+            }
+
+            .brand-text strong {
+                font-size:
+                    14px;
+            }
+
+            .brand-text span {
+                font-size:
+                    7px;
+            }
+
+            .nav-button {
+                padding:
+                    9px 13px;
+
+                font-size:
+                    8px;
+            }
+
+            .hero {
+                padding:
+                    120px 16px 60px;
+            }
+
+            .hero-text h1 {
+                font-size:
+                    36px;
+            }
+
+            .hero-text p {
+                font-size:
+                    10px;
+
+                line-height:
+                    2;
+            }
+
+            .primary-button,
+            .secondary-button {
+                width:
+                    100%;
+            }
+
+            .preview-body {
+                min-height:
+                    320px;
+            }
+
+            .features {
+                padding:
+                    65px 16px;
+            }
+
+            .cta {
+                padding:
+                    20px 16px 60px;
+            }
+
+            .cta-box {
+                padding:
+                    35px 18px;
+            }
+
+            .footer-inner {
+                flex-direction:
+                    column;
+
+                text-align:
+                    center;
+            }
+
+        }
+    </style>
+</head>
+
+<body>
+
+<!-- ======================================================
+     NAVBAR
+     ====================================================== -->
+
+<nav class="navbar">
+
+    <a
+        href="/"
+        class="brand"
+    >
+
+        <div class="brand-logo">
+            G
+        </div>
+
+        <div class="brand-text">
+
+            <strong>
+                گپینو
+            </strong>
+
+            <span>
+                پیام‌رسان شما
+            </span>
+
+        </div>
+
+    </a>
+
+
+    <a
+        href="/login.html"
+        class="nav-button"
+    >
+        ورود / ثبت‌نام
+    </a>
+
+</nav>
+
+
+<!-- ======================================================
+     HERO
+     ====================================================== -->
+
+<section class="hero">
+
+    <div class="hero-content">
+
+        <div class="hero-text">
+
+            <h1>
+                گفتگوهایت را
+                <br>
+                با <span>گپینو</span>
+                شروع کن.
+            </h1>
+
+            <p>
+                گپینو یک پیام‌رسان مدرن برای گفتگوی سریع،
+                ارسال فایل، پیام صوتی و ارتباط ساده با دوستانت است.
+                هرجا که باشی، گفتگوهایت همیشه در دسترس تو هستند.
+            </p>
+
+
+            <div class="hero-actions">
+
+                <a
+                    href="/login.html"
+                    class="primary-button"
+                >
+                    شروع استفاده از گپینو
+                </a>
+
+                <a
+                    href="#features"
+                    class="secondary-button"
+                >
+                    امکانات گپینو
+                </a>
+
+            </div>
+
+
+            <div class="hero-note">
+                سریع • ساده • مدرن
+            </div>
+
+        </div>
+
+
+        <!-- PREVIEW -->
+
+        <div class="preview">
+
+            <div class="preview-window">
+
+                <div class="preview-top">
+
+                    <div class="preview-avatar">
+                        G
+                    </div>
+
+                    <div class="preview-user">
+
+                        <strong>
+                            گپینو
+                        </strong>
+
+                        <span>
+                            آنلاین
+                        </span>
+
+                    </div>
+
+                </div>
+
+
+                <div class="preview-body">
+
+                    <div class="bubble left">
+                        سلام! 👋
+                    </div>
+
+                    <div class="bubble right">
+                        سلام، به گپینو خوش اومدی ✨
+                    </div>
+
+                    <div class="bubble left">
+                        خیلی سریع و قشنگه!
+                    </div>
+
+                    <div class="bubble right">
+                        آماده‌ای گفتگوت رو شروع کنی؟ 🚀
+                    </div>
+
+                </div>
+
+
+                <div class="preview-input">
+
+                    <div class="preview-input-line"></div>
+
+                    <div class="preview-send">
+                        ➤
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</section>
+
+
+<!-- ======================================================
+     FEATURES
+     ====================================================== -->
+
+<section
+    class="features"
+    id="features"
+>
+
+    <div class="section">
+
+        <div class="section-heading">
+
+            <span>
+                GAPINO PRO
+            </span>
+
+            <h2>
+                همه‌چیز برای یک گفتگوی خوب
+            </h2>
+
+            <p>
+                گپینو برای ارتباط سریع و راحت طراحی شده است.
+            </p>
+
+        </div>
+
+
+        <div class="feature-grid">
+
+            <article class="feature">
+
+                <div class="feature-icon">
+                    💬
+                </div>
+
+                <h3>
+                    چت سریع
+                </h3>
+
+                <p>
+                    با دوستان و کاربران دیگر در یک محیط ساده
+                    و سریع گفتگو کن.
+                </p>
+
+            </article>
+
+
+            <article class="feature">
+
+                <div class="feature-icon">
+                    📎
+                </div>
+
+                <h3>
+                    ارسال فایل
+                </h3>
+
+                <p>
+                    فایل‌ها و تصاویر موردنیازت را مستقیماً
+                    در گفتگو ارسال کن.
+                </p>
+
+            </article>
+
+
+            <article class="feature">
+
+                <div class="feature-icon">
+                    🎙️
+                </div>
+
+                <h3>
+                    پیام صوتی
+                </h3>
+
+                <p>
+                    پیام‌های صوتی خودت را ضبط کن و برای دوستانت بفرست.
+                </p>
+
+            </article>
+
+
+            <article class="feature">
+
+                <div class="feature-icon">
+                    🔎
+                </div>
+
+                <h3>
+                    جستجوی کاربران
+                </h3>
+
+                <p>
+                    کاربران گپینو را سریع پیدا کن و گفتگو را شروع کن.
+                </p>
+
+            </article>
+
+
+            <article class="feature">
+
+                <div class="feature-icon">
+                    🌙
+                </div>
+
+                <h3>
+                    حالت روشن و تیره
+                </h3>
+
+                <p>
+                    ظاهر گپینو را مطابق سلیقه خودت تغییر بده.
+                </p>
+
+            </article>
+
+
+            <article class="feature">
+
+                <div class="feature-icon">
+                    📱
+                </div>
+
+                <h3>
+                    مناسب موبایل
+                </h3>
+
+                <p>
+                    گپینو روی گوشی، تبلت و کامپیوتر قابل استفاده است.
+                </p>
+
+            </article>
+
+        </div>
+
+    </div>
+
+</section>
+
+
+<!-- ======================================================
+     CTA
+     ====================================================== -->
+
+<section class="cta">
+
+    <div class="cta-box">
+
+        <h2>
+            آماده‌ای وارد گپینو شوی؟ 🚀
+        </h2>
+
+        <p>
+            همین حالا حساب خودت را بساز و گفتگویت را شروع کن.
+        </p>
+
+        <a
+            href="/login.html"
+            class="primary-button"
+        >
+            ورود به گپینو
+        </a>
+
+    </div>
+
+</section>
+
+
+<!-- ======================================================
+     FOOTER
+     ====================================================== -->
+
+<footer>
+
+    <div class="footer-inner">
+
+        <div class="footer-brand">
+            GAPINO • پیام‌رسان شما
+        </div>
+
+        <div class="footer-copy">
+            © 2026 GAPINO Pro
+        </div>
+
+    </div>
+
+</footer>
+
+</body>
+</html>
