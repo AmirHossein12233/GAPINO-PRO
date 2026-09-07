@@ -23,7 +23,11 @@ from fastapi import (
     WebSocket,
     WebSocketDisconnect,
 )
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+)
 from fastapi.staticfiles import StaticFiles
 from passlib.context import CryptContext
 from starlette.middleware.sessions import SessionMiddleware
@@ -40,9 +44,20 @@ FRONTEND_DIR = BASE_DIR / "frontend"
 UPLOADS_DIR = DATA_DIR / "uploads"
 DB_PATH = DATA_DIR / "gapino.db"
 
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-FRONTEND_DIR.mkdir(parents=True, exist_ok=True)
-UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+DATA_DIR.mkdir(
+    parents=True,
+    exist_ok=True,
+)
+
+FRONTEND_DIR.mkdir(
+    parents=True,
+    exist_ok=True,
+)
+
+UPLOADS_DIR.mkdir(
+    parents=True,
+    exist_ok=True,
+)
 
 
 # =========================================================
@@ -67,42 +82,49 @@ WS_TICKET_TTL = 10 * 60
 app = FastAPI(
     title="GAPINO Pro",
     version="1.1.0",
-    description="GAPINO Messenger API + Live",
+    description="GAPINO Messenger + Live",
 )
 
 
 # =========================================================
-# MIDDLEWARE
+# SESSION
 # =========================================================
 
 app.add_middleware(
     SessionMiddleware,
     secret_key=SESSION_SECRET,
     session_cookie="gapino_session",
+    max_age=60 * 60 * 24 * 30,
     same_site="lax",
     https_only=True,
 )
 
 
 # =========================================================
-# STATIC
+# STATIC FILES
 # =========================================================
 
 app.mount(
     "/frontend",
-    StaticFiles(directory=FRONTEND_DIR),
+    StaticFiles(
+        directory=FRONTEND_DIR
+    ),
     name="frontend",
 )
 
 app.mount(
     "/static",
-    StaticFiles(directory=FRONTEND_DIR),
+    StaticFiles(
+        directory=FRONTEND_DIR
+    ),
     name="static",
 )
 
 app.mount(
     "/uploads",
-    StaticFiles(directory=UPLOADS_DIR),
+    StaticFiles(
+        directory=UPLOADS_DIR
+    ),
     name="uploads",
 )
 
@@ -118,17 +140,23 @@ pwd = CryptContext(
 
 
 # =========================================================
-# NORMAL WS CONNECTIONS
+# NORMAL WEBSOCKET CONNECTIONS
 # =========================================================
 
-connections: dict[int, set[WebSocket]] = {}
+connections: dict[
+    int,
+    set[WebSocket]
+] = {}
 
 
 # =========================================================
-# WS TICKETS
+# WEBSOCKET TICKETS
 # =========================================================
 
-ws_tickets: dict[str, dict[str, Any]] = {}
+ws_tickets: dict[
+    str,
+    dict[str, Any]
+] = {}
 
 
 # =========================================================
@@ -136,20 +164,25 @@ ws_tickets: dict[str, dict[str, Any]] = {}
 # =========================================================
 
 # room_id -> {
-#     "room_id": str,
-#     "host_uid": int,
-#     "host_peer_id": str,
-#     "active": bool,
-#     "created_at": float,
-#     "peers": {
+#     room_id,
+#     host_uid,
+#     host_peer_id,
+#     active,
+#     created_at,
+#     peers: {
 #         peer_id: uid
 #     }
 # }
 
-live_rooms: dict[str, dict[str, Any]] = {}
+live_rooms: dict[
+    str,
+    dict[str, Any]
+] = {}
 
 
-# websocket -> {(room_id, peer_id), ...}
+# websocket ->
+# {(room_id, peer_id), ...}
+
 live_socket_peers: dict[
     WebSocket,
     set[tuple[str, str]]
@@ -161,7 +194,9 @@ live_socket_peers: dict[
 # =========================================================
 
 def now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(
+        timezone.utc
+    ).isoformat()
 
 
 # =========================================================
@@ -184,6 +219,7 @@ def db() -> sqlite3.Connection:
 
 
 def init_db() -> None:
+
     conn = db()
 
     conn.executescript(
@@ -245,7 +281,11 @@ def init_db() -> None:
             message_id INTEGER NOT NULL,
             user_id INTEGER NOT NULL,
             emoji TEXT NOT NULL,
-            PRIMARY KEY(message_id, user_id, emoji),
+            PRIMARY KEY(
+                message_id,
+                user_id,
+                emoji
+            ),
             FOREIGN KEY(message_id)
                 REFERENCES messages(id)
                 ON DELETE CASCADE,
@@ -268,6 +308,7 @@ init_db()
 # =========================================================
 
 def ensure_recovery_column() -> None:
+
     conn = db()
 
     columns = {
@@ -278,6 +319,7 @@ def ensure_recovery_column() -> None:
     }
 
     if "recovery_code" not in columns:
+
         conn.execute(
             """
             ALTER TABLE users
@@ -297,8 +339,12 @@ ensure_recovery_column()
 # PASSWORD HELPERS
 # =========================================================
 
-def hash_password(password: str) -> str:
-    return pwd.hash(password)
+def hash_password(
+    password: str,
+) -> str:
+    return pwd.hash(
+        password
+    )
 
 
 def verify_password(
@@ -306,30 +352,43 @@ def verify_password(
     stored_hash: str,
 ) -> bool:
 
-    if not password or not stored_hash:
+    if (
+        not password
+        or not stored_hash
+    ):
         return False
 
     stored_hash = str(
         stored_hash
     ).strip()
 
+    # Old custom PBKDF2 format
     if (
-        stored_hash.startswith("$pbkdf2$")
+        stored_hash.startswith(
+            "$pbkdf2$"
+        )
         and not stored_hash.startswith(
             "$pbkdf2-sha256$"
         )
     ):
 
-        parts = stored_hash.split("$")
+        parts = stored_hash.split(
+            "$"
+        )
 
         if len(parts) != 4:
             return False
 
         try:
+
             digest = hashlib.pbkdf2_hmac(
                 "sha256",
-                password.encode("utf-8"),
-                parts[2].encode("utf-8"),
+                password.encode(
+                    "utf-8"
+                ),
+                parts[2].encode(
+                    "utf-8"
+                ),
                 120_000,
             ).hex()
 
@@ -339,9 +398,11 @@ def verify_password(
             )
 
         except Exception:
+
             return False
 
     try:
+
         return bool(
             pwd.verify(
                 password,
@@ -350,41 +411,63 @@ def verify_password(
         )
 
     except Exception:
+
         pass
 
-    for scheme_name, prefix in (
-        ("argon2", "$argon2"),
+    # Compatibility with old hashes
+    for scheme_name, prefixes in (
+        (
+            "argon2",
+            ("$argon2"),
+        ),
         (
             "bcrypt",
-            ("$2a$", "$2b$", "$2y$"),
+            (
+                "$2a$",
+                "$2b$",
+                "$2y$",
+            ),
         ),
     ):
 
-        if (
-            stored_hash.startswith(prefix)
-            if isinstance(prefix, str)
-            else stored_hash.startswith(prefix)
-        ):
+        try:
 
-            try:
-
-                scheme = getattr(
-                    __import__(
-                        "passlib.hash",
-                        fromlist=[scheme_name],
-                    ),
-                    scheme_name,
+            matches = (
+                stored_hash.startswith(
+                    prefixes
                 )
-
-                return bool(
-                    scheme.verify(
-                        password,
-                        stored_hash,
-                    )
+                if isinstance(
+                    prefixes,
+                    tuple,
                 )
+                else stored_hash.startswith(
+                    prefixes
+                )
+            )
 
-            except Exception:
-                return False
+            if not matches:
+                continue
+
+            scheme = getattr(
+                __import__(
+                    "passlib.hash",
+                    fromlist=[
+                        scheme_name
+                    ],
+                ),
+                scheme_name,
+            )
+
+            return bool(
+                scheme.verify(
+                    password,
+                    stored_hash,
+                )
+            )
+
+        except Exception:
+
+            return False
 
     return False
 
@@ -399,14 +482,22 @@ def needs_password_upgrade(
 
     return (
         (
-            value.startswith("$pbkdf2$")
+            value.startswith(
+                "$pbkdf2$"
+            )
             and not value.startswith(
                 "$pbkdf2-sha256$"
             )
         )
-        or value.startswith("$argon2")
         or value.startswith(
-            ("$2a$", "$2b$", "$2y$")
+            "$argon2"
+        )
+        or value.startswith(
+            (
+                "$2a$",
+                "$2b$",
+                "$2y$",
+            )
         )
     )
 
@@ -434,7 +525,9 @@ def user_by_id(
         FROM users
         WHERE id = ?
         """,
-        (user_id,),
+        (
+            user_id,
+        ),
     ).fetchone()
 
     conn.close()
@@ -463,7 +556,8 @@ def user_by_username(
             status,
             created_at
         FROM users
-        WHERE LOWER(username) = LOWER(?)
+        WHERE LOWER(username)
+            = LOWER(?)
         """,
         (
             str(
@@ -488,24 +582,43 @@ def public_user(
 ) -> dict[str, Any]:
 
     return {
-        "id": user["id"],
-        "username": user["username"],
-        "display_name": user["display_name"],
-        "bio": user.get("bio", ""),
-        "avatar": user.get("avatar", ""),
-        "status": user.get(
-            "status",
-            "در دسترس",
-        ),
-        "created_at": user.get(
-            "created_at",
-            "",
-        ),
+        "id":
+            user["id"],
+
+        "username":
+            user["username"],
+
+        "display_name":
+            user["display_name"],
+
+        "bio":
+            user.get(
+                "bio",
+                "",
+            ),
+
+        "avatar":
+            user.get(
+                "avatar",
+                "",
+            ),
+
+        "status":
+            user.get(
+                "status",
+                "در دسترس",
+            ),
+
+        "created_at":
+            user.get(
+                "created_at",
+                "",
+            ),
     }
 
 
 # =========================================================
-# AUTH
+# AUTH HELPERS
 # =========================================================
 
 def current_user(
@@ -516,14 +629,13 @@ def current_user(
         "uid"
     )
 
+    if uid is None:
+        return None
+
     try:
 
-        return (
-            user_by_id(
-                int(uid)
-            )
-            if uid is not None
-            else None
+        return user_by_id(
+            int(uid)
         )
 
     except (
@@ -543,6 +655,7 @@ def require_user(
     )
 
     if not user:
+
         raise HTTPException(
             status_code=401,
             detail="نیاز به ورود دارید",
@@ -552,23 +665,30 @@ def require_user(
 
 
 # =========================================================
-# WS TICKETS
+# WS TICKET
 # =========================================================
 
 def cleanup_tickets() -> None:
 
-    now_ts = time.time()
+    current = time.time()
 
     for ticket in list(
         ws_tickets
     ):
 
+        info = ws_tickets.get(
+            ticket
+        )
+
+        if not info:
+            continue
+
         if float(
-            ws_tickets[ticket].get(
+            info.get(
                 "expires",
                 0,
             )
-        ) <= now_ts:
+        ) <= current:
 
             ws_tickets.pop(
                 ticket,
@@ -586,10 +706,14 @@ def make_ws_ticket(
         32
     )
 
-    ws_tickets[ticket] = {
-        "uid": int(user_id),
-        "expires": time.time()
-        + WS_TICKET_TTL,
+    ws_tickets[
+        ticket
+    ] = {
+        "uid":
+            int(user_id),
+        "expires":
+            time.time()
+            + WS_TICKET_TTL,
     }
 
     return ticket
@@ -606,16 +730,16 @@ def consume_ws_ticket(
         None,
     )
 
-    if (
-        not info
-        or float(
-            info.get(
-                "expires",
-                0,
-            )
+    if not info:
+        return None
+
+    if float(
+        info.get(
+            "expires",
+            0,
         )
-        <= time.time()
-    ):
+    ) <= time.time():
+
         return None
 
     try:
@@ -640,7 +764,9 @@ def set_ws_cookie(
 
     response.set_cookie(
         "gapino_ws_ticket",
-        make_ws_ticket(user_id),
+        make_ws_ticket(
+            user_id
+        ),
         max_age=WS_TICKET_TTL,
         httponly=True,
         samesite="lax",
@@ -650,8 +776,27 @@ def set_ws_cookie(
 
 
 # =========================================================
-# GENERAL BROADCAST
+# GENERAL WS BROADCAST
 # =========================================================
+
+async def send_ws(
+    websocket: WebSocket,
+    payload: dict[str, Any],
+) -> None:
+
+    try:
+
+        await websocket.send_text(
+            json.dumps(
+                payload,
+                ensure_ascii=False,
+            )
+        )
+
+    except Exception:
+
+        pass
+
 
 async def broadcast(
     user_id: int,
@@ -671,7 +816,7 @@ async def broadcast(
         ensure_ascii=False,
     )
 
-    dead: list[WebSocket] = []
+    dead = []
 
     for websocket in list(
         sockets
@@ -690,33 +835,17 @@ async def broadcast(
             )
 
     for websocket in dead:
+
         sockets.discard(
             websocket
         )
 
     if not sockets:
+
         connections.pop(
             int(user_id),
             None,
         )
-
-
-async def send_ws(
-    websocket: WebSocket,
-    payload: dict[str, Any],
-) -> None:
-
-    try:
-
-        await websocket.send_text(
-            json.dumps(
-                payload,
-                ensure_ascii=False,
-            )
-        )
-
-    except Exception:
-        pass
 
 
 # =========================================================
@@ -764,14 +893,39 @@ def live_peer_count(
     room: dict[str, Any],
 ) -> int:
 
-    peers = room.get(
-        "peers",
-        {},
-    )
-
     return max(
         0,
-        len(peers),
+        len(
+            room.get(
+                "peers",
+                {},
+            )
+        ),
+    )
+
+
+def live_host_user(
+    room: dict[str, Any],
+) -> dict[str, Any] | None:
+
+    try:
+
+        host_uid = int(
+            room[
+                "host_uid"
+            ]
+        )
+
+    except (
+        KeyError,
+        TypeError,
+        ValueError,
+    ):
+
+        return None
+
+    return user_by_id(
+        host_uid
     )
 
 
@@ -797,30 +951,39 @@ async def broadcast_live_room(
         {},
     )
 
-    sent_uids: set[int] = set()
+    sent_users: set[int] = set()
 
-    for peer_id, uid in list(
+    for (
+        peer_id,
+        uid,
+    ) in list(
         peers.items()
     ):
 
         if (
             exclude_peer_id
-            and peer_id == exclude_peer_id
+            and peer_id
+            == exclude_peer_id
         ):
             continue
 
         try:
-            uid_int = int(uid)
+
+            uid_int = int(
+                uid
+            )
+
         except (
             TypeError,
             ValueError,
         ):
+
             continue
 
-        if uid_int in sent_uids:
+        if uid_int in sent_users:
             continue
 
-        sent_uids.add(
+        sent_users.add(
             uid_int
         )
 
@@ -830,29 +993,6 @@ async def broadcast_live_room(
         )
 
 
-def live_host_user(
-    room: dict[str, Any],
-) -> dict[str, Any] | None:
-
-    try:
-
-        uid = int(
-            room["host_uid"]
-        )
-
-    except (
-        KeyError,
-        TypeError,
-        ValueError,
-    ):
-
-        return None
-
-    return user_by_id(
-        uid
-    )
-
-
 async def send_live_viewer_count(
     room: dict[str, Any],
 ) -> None:
@@ -860,11 +1000,16 @@ async def send_live_viewer_count(
     await broadcast_live_room(
         room,
         {
-            "type": "live_viewers",
-            "room_id": room["room_id"],
-            "count": live_peer_count(
-                room
-            ),
+            "type":
+                "live_viewers",
+
+            "room_id":
+                room["room_id"],
+
+            "count":
+                live_peer_count(
+                    room
+                ),
         },
     )
 
@@ -887,20 +1032,21 @@ async def remove_live_peer(
         {},
     )
 
-    removed_uid = peers.pop(
+    uid = peers.pop(
         peer_id,
         None,
     )
 
-    if removed_uid is None:
+    if uid is None:
         return
 
-    is_host = (
-        int(removed_uid)
-        == int(room["host_uid"])
-    )
-
-    if is_host:
+    # Host left
+    if (
+        int(uid)
+        == int(
+            room["host_uid"]
+        )
+    ):
 
         if notify:
 
@@ -909,18 +1055,15 @@ async def remove_live_peer(
                 {
                     "type":
                         "live_stopped",
+
                     "room_id":
                         room_id,
+
                     "reason":
                         "host_left",
                 },
+                exclude_peer_id=peer_id,
             )
-
-        for peer_data in list(
-            peers
-        ):
-
-            pass
 
         live_rooms.pop(
             room_id,
@@ -929,6 +1072,7 @@ async def remove_live_peer(
 
         return
 
+    # Viewer left
     if notify:
 
         await broadcast_live_room(
@@ -936,8 +1080,10 @@ async def remove_live_peer(
             {
                 "type":
                     "live_peer_left",
+
                 "room_id":
                     room_id,
+
                 "peer_id":
                     peer_id,
             },
@@ -948,6 +1094,7 @@ async def remove_live_peer(
         )
 
     if not peers:
+
         live_rooms.pop(
             room_id,
             None,
@@ -962,11 +1109,15 @@ async def remove_live_peer(
     "/",
     response_class=HTMLResponse,
 )
-def root(request: Request):
+def root(
+    request: Request,
+):
 
     filename = (
         "chat.html"
-        if current_user(request)
+        if current_user(
+            request
+        )
         else "login.html"
     )
 
@@ -1008,7 +1159,38 @@ def login_page():
 
         raise HTTPException(
             status_code=404,
-            detail="login.html پیدا نشد",
+            detail=(
+                "login.html پیدا نشد"
+            ),
+        )
+
+    return FileResponse(
+        path,
+        media_type=(
+            "text/html; "
+            "charset=utf-8"
+        ),
+    )
+
+
+@app.get(
+    "/register.html",
+    response_class=HTMLResponse,
+)
+def register_page():
+
+    path = (
+        FRONTEND_DIR
+        / "register.html"
+    )
+
+    if not path.exists():
+
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "register.html پیدا نشد"
+            ),
         )
 
     return FileResponse(
@@ -1035,7 +1217,9 @@ def chat_page():
 
         raise HTTPException(
             status_code=404,
-            detail="chat.html پیدا نشد",
+            detail=(
+                "chat.html پیدا نشد"
+            ),
         )
 
     return FileResponse(
@@ -1062,7 +1246,9 @@ def live_page():
 
         raise HTTPException(
             status_code=404,
-            detail="live.html پیدا نشد",
+            detail=(
+                "live.html پیدا نشد"
+            ),
         )
 
     return FileResponse(
@@ -1089,7 +1275,9 @@ def profile_page():
 
         raise HTTPException(
             status_code=404,
-            detail="profile.html پیدا نشد",
+            detail=(
+                "profile.html پیدا نشد"
+            ),
         )
 
     return FileResponse(
@@ -1116,7 +1304,9 @@ def recovery_page():
 
         raise HTTPException(
             status_code=404,
-            detail="recovery.html پیدا نشد",
+            detail=(
+                "recovery.html پیدا نشد"
+            ),
         )
 
     return FileResponse(
@@ -1136,23 +1326,46 @@ def recovery_page():
 def health():
 
     return {
-        "ok": True,
-        "app": "GAPINO Pro",
-        "version": "1.1.0",
-        "time": now(),
-        "database": DB_PATH.exists(),
-        "frontend": FRONTEND_DIR.exists(),
-        "live_rooms": len(
-            live_rooms
-        ),
+        "ok":
+            True,
+
+        "status":
+            "ok",
+
+        "app":
+            "GAPINO Pro",
+
+        "version":
+            "1.1.0",
+
+        "time":
+            now(),
+
+        "database":
+            DB_PATH.exists(),
+
+        "frontend":
+            FRONTEND_DIR.exists(),
+
+        "online_users":
+            len(
+                connections
+            ),
+
+        "live_rooms":
+            len(
+                live_rooms
+            ),
     }
 
 
 # =========================================================
-# AUTH
+# REGISTER
 # =========================================================
 
-@app.post("/api/register")
+@app.post(
+    "/api/register"
+)
 def register(
     request: Request,
     username: str = Form(...),
@@ -1167,7 +1380,8 @@ def register(
     )
 
     display_name = (
-        display_name.strip()
+        display_name
+        .strip()
         or username
     )
 
@@ -1203,7 +1417,8 @@ def register(
         raise HTTPException(
             status_code=400,
             detail=(
-                "رمز عبور حداقل ۶ کاراکتر باشد"
+                "رمز عبور حداقل "
+                "۶ کاراکتر باشد"
             ),
         )
 
@@ -1216,9 +1431,11 @@ def register(
             ),
         )
 
-    recovery_code = secrets.token_hex(
-        8
-    ).upper()
+    recovery_code = (
+        secrets.token_hex(
+            8
+        ).upper()
+    )
 
     conn = db()
 
@@ -1243,7 +1460,9 @@ def register(
             """,
             (
                 username,
-                hash_password(password),
+                hash_password(
+                    password
+                ),
                 display_name,
                 now(),
                 recovery_code,
@@ -1269,11 +1488,14 @@ def register(
         )
 
     finally:
+
         conn.close()
 
     request.session.clear()
 
-    request.session["uid"] = user_id
+    request.session["uid"] = (
+        user_id
+    )
 
     user = user_by_id(
         user_id
@@ -1281,11 +1503,17 @@ def register(
 
     response = JSONResponse(
         {
-            "ok": True,
-            "success": True,
-            "user": public_user(
-                user
-            ),
+            "ok":
+                True,
+
+            "success":
+                True,
+
+            "user":
+                public_user(
+                    user
+                ),
+
             "recovery_code":
                 recovery_code,
         }
@@ -1299,7 +1527,13 @@ def register(
     return response
 
 
-@app.post("/api/login")
+# =========================================================
+# LOGIN
+# =========================================================
+
+@app.post(
+    "/api/login"
+)
 def login(
     request: Request,
     username: str = Form(...),
@@ -1318,7 +1552,8 @@ def login(
         """
         SELECT *
         FROM users
-        WHERE LOWER(username) = LOWER(?)
+        WHERE LOWER(username)
+            = LOWER(?)
         """,
         (
             username,
@@ -1372,7 +1607,9 @@ def login(
 
     request.session.clear()
 
-    request.session["uid"] = user_id
+    request.session["uid"] = (
+        user_id
+    )
 
     user = user_by_id(
         user_id
@@ -1380,11 +1617,16 @@ def login(
 
     response = JSONResponse(
         {
-            "ok": True,
-            "success": True,
-            "user": public_user(
-                user
-            ),
+            "ok":
+                True,
+
+            "success":
+                True,
+
+            "user":
+                public_user(
+                    user
+                ),
         }
     )
 
@@ -1396,7 +1638,13 @@ def login(
     return response
 
 
-@app.post("/api/logout")
+# =========================================================
+# LOGOUT
+# =========================================================
+
+@app.post(
+    "/api/logout"
+)
 def logout(
     request: Request,
 ):
@@ -1434,8 +1682,11 @@ def logout(
 
     response = JSONResponse(
         {
-            "ok": True,
-            "success": True,
+            "ok":
+                True,
+
+            "success":
+                True,
         }
     )
 
@@ -1452,7 +1703,13 @@ def logout(
     return response
 
 
-@app.get("/api/me")
+# =========================================================
+# ME
+# =========================================================
+
+@app.get(
+    "/api/me"
+)
 def me(
     request: Request,
 ):
@@ -1468,7 +1725,9 @@ def me(
     )
 
     set_ws_cookie(
-        int(user["id"]),
+        int(
+            user["id"]
+        ),
         response,
     )
 
@@ -1494,7 +1753,9 @@ def normalize_recovery_code(
     )
 
 
-@app.post("/api/recover/username")
+@app.post(
+    "/api/recover/username"
+)
 async def recover_username(
     request: Request,
 ):
@@ -1569,8 +1830,12 @@ async def recover_username(
         ):
 
             return {
-                "ok": True,
-                "success": True,
+                "ok":
+                    True,
+
+                "success":
+                    True,
+
                 "username":
                     row["username"],
             }
@@ -1583,7 +1848,9 @@ async def recover_username(
     )
 
 
-@app.post("/api/recover/password")
+@app.post(
+    "/api/recover/password"
+)
 async def recover_password(
     request: Request,
 ):
@@ -1703,7 +1970,9 @@ async def recover_password(
             hash_password(
                 new_password
             ),
-            int(row["id"]),
+            int(
+                row["id"]
+            ),
         ),
     )
 
@@ -1711,14 +1980,20 @@ async def recover_password(
     conn.close()
 
     return {
-        "ok": True,
-        "success": True,
+        "ok":
+            True,
+
+        "success":
+            True,
+
         "message":
             "رمز عبور با موفقیت تغییر کرد.",
     }
 
 
-@app.post("/api/account/recovery-code")
+@app.post(
+    "/api/account/recovery-code"
+)
 def create_recovery_code(
     request: Request,
 ):
@@ -1727,11 +2002,9 @@ def create_recovery_code(
         request
     )
 
-    new_code = (
-        secrets.token_hex(
-            8
-        ).upper()
-    )
+    code = secrets.token_hex(
+        8
+    ).upper()
 
     conn = db()
 
@@ -1742,8 +2015,10 @@ def create_recovery_code(
         WHERE id = ?
         """,
         (
-            new_code,
-            int(user["id"]),
+            code,
+            int(
+                user["id"]
+            ),
         ),
     )
 
@@ -1751,10 +2026,14 @@ def create_recovery_code(
     conn.close()
 
     return {
-        "ok": True,
-        "success": True,
+        "ok":
+            True,
+
+        "success":
+            True,
+
         "recovery_code":
-            new_code,
+            code,
     }
 
 
@@ -1762,7 +2041,9 @@ def create_recovery_code(
 # PROFILE
 # =========================================================
 
-@app.put("/api/profile")
+@app.put(
+    "/api/profile"
+)
 async def update_profile(
     request: Request,
 ):
@@ -1813,7 +2094,8 @@ async def update_profile(
         raise HTTPException(
             status_code=400,
             detail=(
-                "نام نمایشی نمی‌تواند خالی باشد"
+                "نام نمایشی نمی‌تواند "
+                "خالی باشد"
             ),
         )
 
@@ -1860,7 +2142,9 @@ async def update_profile(
             display_name,
             bio,
             status,
-            int(user["id"]),
+            int(
+                user["id"]
+            ),
         ),
     )
 
@@ -1868,18 +2152,25 @@ async def update_profile(
     conn.close()
 
     updated = user_by_id(
-        int(user["id"])
+        int(
+            user["id"]
+        )
     )
 
     return {
-        "ok": True,
-        "user": public_user(
-            updated
-        ),
+        "ok":
+            True,
+
+        "user":
+            public_user(
+                updated
+            ),
     }
 
 
-@app.put("/api/account/security")
+@app.put(
+    "/api/account/security"
+)
 async def update_account_security(
     request: Request,
 ):
@@ -2016,7 +2307,7 @@ async def update_account_security(
                 ),
             )
 
-    hashed_password: str | None = None
+    hashed_password = None
 
     if password_changed:
 
@@ -2059,7 +2350,9 @@ async def update_account_security(
             WHERE id = ?
             """,
             (
-                int(user["id"]),
+                int(
+                    user["id"]
+                ),
             ),
         ).fetchone()
 
@@ -2080,8 +2373,10 @@ async def update_account_security(
                 ),
             )
 
-        hashed_password = hash_password(
-            new_password_value
+        hashed_password = (
+            hash_password(
+                new_password_value
+            )
         )
 
     conn = db()
@@ -2101,7 +2396,9 @@ async def update_account_security(
                 (
                     new_username,
                     hashed_password,
-                    int(user["id"]),
+                    int(
+                        user["id"]
+                    ),
                 ),
             )
 
@@ -2115,7 +2412,9 @@ async def update_account_security(
                 """,
                 (
                     new_username,
-                    int(user["id"]),
+                    int(
+                        user["id"]
+                    ),
                 ),
             )
 
@@ -2138,21 +2437,31 @@ async def update_account_security(
         conn.close()
 
     updated = user_by_id(
-        int(user["id"])
+        int(
+            user["id"]
+        )
     )
 
     return {
-        "ok": True,
-        "success": True,
+        "ok":
+            True,
+
+        "success":
+            True,
+
         "message":
             "اطلاعات امنیتی با موفقیت تغییر کرد.",
-        "user": public_user(
-            updated
-        ),
+
+        "user":
+            public_user(
+                updated
+            ),
     }
 
 
-@app.post("/api/profile/avatar")
+@app.post(
+    "/api/profile/avatar"
+)
 async def update_avatar(
     request: Request,
     file: UploadFile = File(...),
@@ -2224,7 +2533,9 @@ async def update_avatar(
         """,
         (
             avatar_url,
-            int(user["id"]),
+            int(
+                user["id"]
+            ),
         ),
     )
 
@@ -2232,15 +2543,22 @@ async def update_avatar(
     conn.close()
 
     updated = user_by_id(
-        int(user["id"])
+        int(
+            user["id"]
+        )
     )
 
     return {
-        "ok": True,
-        "avatar": avatar_url,
-        "user": public_user(
-            updated
-        ),
+        "ok":
+            True,
+
+        "avatar":
+            avatar_url,
+
+        "user":
+            public_user(
+                updated
+            ),
     }
 
 
@@ -2248,7 +2566,9 @@ async def update_avatar(
 # USERS
 # =========================================================
 
-@app.get("/api/users")
+@app.get(
+    "/api/users"
+)
 def users(
     request: Request,
 ):
@@ -2300,7 +2620,9 @@ def users(
                 COLLATE NOCASE
             """,
             (
-                int(user["id"]),
+                int(
+                    user["id"]
+                ),
                 pattern,
                 pattern,
             ),
@@ -2325,7 +2647,9 @@ def users(
                 COLLATE NOCASE
             """,
             (
-                int(user["id"]),
+                int(
+                    user["id"]
+                ),
             ),
         ).fetchall()
 
@@ -2339,10 +2663,16 @@ def users(
 
     for row in rows:
 
-        item = dict(row)
+        item = dict(
+            row
+        )
 
-        item["online"] = (
-            int(row["id"])
+        item[
+            "online"
+        ] = (
+            int(
+                row["id"]
+            )
             in online_ids
         )
 
@@ -2371,7 +2701,9 @@ def get_messages(
 
     if (
         other_id
-        == int(user["id"])
+        == int(
+            user["id"]
+        )
     ):
 
         raise HTTPException(
@@ -2410,10 +2742,14 @@ def get_messages(
         ORDER BY id ASC
         """,
         (
-            int(user["id"]),
+            int(
+                user["id"]
+            ),
             other_id,
             other_id,
-            int(user["id"]),
+            int(
+                user["id"]
+            ),
         ),
     ).fetchall()
 
@@ -2425,7 +2761,9 @@ def get_messages(
     ]
 
 
-@app.post("/api/messages")
+@app.post(
+    "/api/messages"
+)
 async def create_message(
     request: Request,
 ):
@@ -2484,7 +2822,9 @@ async def create_message(
 
     if (
         receiver_id
-        == int(user["id"])
+        == int(
+            user["id"]
+        )
     ):
 
         raise HTTPException(
@@ -2524,7 +2864,9 @@ async def create_message(
         )
         """,
         (
-            int(user["id"]),
+            int(
+                user["id"]
+            ),
             receiver_id,
             text,
             now(),
@@ -2548,16 +2890,19 @@ async def create_message(
 
     conn.close()
 
-    payload = dict(row)
-
-    outgoing = {
-        "type": "message",
-        "message": payload,
-    }
+    payload = dict(
+        row
+    )
 
     await broadcast(
         receiver_id,
-        outgoing,
+        {
+            "type":
+                "message",
+
+            "message":
+                payload,
+        },
     )
 
     return payload
@@ -2636,8 +2981,12 @@ async def edit_message(
         )
 
     if (
-        int(row["sender_id"])
-        != int(user["id"])
+        int(
+            row["sender_id"]
+        )
+        != int(
+            user["id"]
+        )
     ):
 
         conn.close()
@@ -2651,7 +3000,8 @@ async def edit_message(
         )
 
     if int(
-        row["deleted"] or 0
+        row["deleted"]
+        or 0
     ) == 1:
 
         conn.close()
@@ -2704,10 +3054,13 @@ async def edit_message(
     if receiver_id is not None:
 
         await broadcast(
-            int(receiver_id),
+            int(
+                receiver_id
+            ),
             {
                 "type":
                     "message:update",
+
                 "message":
                     payload,
             },
@@ -2751,8 +3104,12 @@ async def delete_message(
         )
 
     if (
-        int(row["sender_id"])
-        != int(user["id"])
+        int(
+            row["sender_id"]
+        )
+        != int(
+            user["id"]
+        )
     ):
 
         conn.close()
@@ -2806,10 +3163,13 @@ async def delete_message(
     if receiver_id is not None:
 
         await broadcast(
-            int(receiver_id),
+            int(
+                receiver_id
+            ),
             {
                 "type":
                     "message:update",
+
                 "message":
                     payload,
             },
@@ -2819,10 +3179,12 @@ async def delete_message(
 
 
 # =========================================================
-# FILE UPLOAD
+# UPLOAD
 # =========================================================
 
-@app.post("/api/upload")
+@app.post(
+    "/api/upload"
+)
 async def upload(
     request: Request,
     receiver_id: int = Form(...),
@@ -2835,7 +3197,9 @@ async def upload(
 
     if (
         receiver_id
-        == int(user["id"])
+        == int(
+            user["id"]
+        )
     ):
 
         raise HTTPException(
@@ -2970,7 +3334,9 @@ async def upload(
         )
         """,
         (
-            int(user["id"]),
+            int(
+                user["id"]
+            ),
             receiver_id,
             "",
             original_name,
@@ -3004,7 +3370,9 @@ async def upload(
     await broadcast(
         receiver_id,
         {
-            "type": "message",
+            "type":
+                "message",
+
             "message":
                 payload,
         },
@@ -3014,10 +3382,12 @@ async def upload(
 
 
 # =========================================================
-# GROUPS
+# GROUP
 # =========================================================
 
-@app.post("/api/groups")
+@app.post(
+    "/api/groups"
+)
 async def create_group(
     request: Request,
 ):
@@ -3094,7 +3464,9 @@ async def create_group(
 
             if (
                 member_id
-                != int(user["id"])
+                != int(
+                    user["id"]
+                )
             ):
 
                 members.add(
@@ -3118,7 +3490,9 @@ async def create_group(
         """,
         (
             name,
-            int(user["id"]),
+            int(
+                user["id"]
+            ),
             now(),
         ),
     )
@@ -3141,7 +3515,9 @@ async def create_group(
         """,
         (
             group_id,
-            int(user["id"]),
+            int(
+                user["id"]
+            ),
         ),
     )
 
@@ -3180,9 +3556,14 @@ async def create_group(
     conn.close()
 
     return {
-        "ok": True,
-        "id": group_id,
-        "name": name,
+        "ok":
+            True,
+
+        "id":
+            group_id,
+
+        "name":
+            name,
     }
 
 
@@ -3190,7 +3571,9 @@ async def create_group(
 # WEBSOCKET
 # =========================================================
 
-@app.websocket("/ws")
+@app.websocket(
+    "/ws"
+)
 async def websocket_endpoint(
     websocket: WebSocket,
 ):
@@ -3218,7 +3601,9 @@ async def websocket_endpoint(
 
     if (
         uid is None
-        or not user_by_id(uid)
+        or not user_by_id(
+            uid
+        )
     ):
 
         await websocket.close(
@@ -3247,7 +3632,9 @@ async def websocket_endpoint(
         await send_ws(
             websocket,
             {
-                "type": "ready",
+                "type":
+                    "ready",
+
                 "online":
                     list(
                         connections.keys()
@@ -3255,12 +3642,15 @@ async def websocket_endpoint(
             },
         )
 
+        # Notify others
         for other_uid in list(
             connections.keys()
         ):
 
             if (
-                int(other_uid)
+                int(
+                    other_uid
+                )
                 != int(uid)
             ):
 
@@ -3269,10 +3659,16 @@ async def websocket_endpoint(
                     {
                         "type":
                             "user_online",
+
                         "user_id":
                             uid,
                     },
                 )
+
+
+        # =====================================================
+        # MESSAGE LOOP
+        # =====================================================
 
         while True:
 
@@ -3368,6 +3764,7 @@ async def websocket_endpoint(
                         {
                             "type":
                                 "error",
+
                             "message":
                                 "اطلاعات اتاق Live ناقص است",
                         },
@@ -3376,9 +3773,9 @@ async def websocket_endpoint(
                     continue
 
 
-                # ---------------------------------------------
-                # HOST
-                # ---------------------------------------------
+                # -------------------------------------------------
+                # HOST JOIN
+                # -------------------------------------------------
 
                 if is_host:
 
@@ -3391,14 +3788,19 @@ async def websocket_endpoint(
                         room = {
                             "room_id":
                                 room_id,
+
                             "host_uid":
                                 int(uid),
+
                             "host_peer_id":
                                 peer_id,
+
                             "active":
                                 False,
+
                             "created_at":
                                 time.time(),
+
                             "peers": {
                                 peer_id:
                                     int(uid)
@@ -3413,7 +3815,9 @@ async def websocket_endpoint(
 
                         if (
                             int(
-                                room["host_uid"]
+                                room[
+                                    "host_uid"
+                                ]
                             )
                             != int(uid)
                         ):
@@ -3423,6 +3827,7 @@ async def websocket_endpoint(
                                 {
                                     "type":
                                         "error",
+
                                     "message":
                                         "این اتاق متعلق به کاربر دیگری است",
                                 },
@@ -3454,12 +3859,16 @@ async def websocket_endpoint(
                         {
                             "type":
                                 "live_room_ready",
+
                             "room_id":
                                 room_id,
+
                             "peer_id":
                                 peer_id,
+
                             "host":
                                 True,
+
                             "count":
                                 live_peer_count(
                                     room
@@ -3474,9 +3883,9 @@ async def websocket_endpoint(
                     continue
 
 
-                # ---------------------------------------------
-                # VIEWER
-                # ---------------------------------------------
+                # -------------------------------------------------
+                # VIEWER JOIN
+                # -------------------------------------------------
 
                 room = live_rooms.get(
                     room_id
@@ -3495,6 +3904,7 @@ async def websocket_endpoint(
                         {
                             "type":
                                 "error",
+
                             "message":
                                 "این پخش زنده وجود ندارد یا پایان یافته است",
                         },
@@ -3528,10 +3938,13 @@ async def websocket_endpoint(
                     {
                         "type":
                             "live_started",
+
                         "room_id":
                             room_id,
+
                         "host":
                             True,
+
                         "host_user":
                             (
                                 public_user(
@@ -3540,6 +3953,7 @@ async def websocket_endpoint(
                                 if host_user
                                 else None
                             ),
+
                         "count":
                             live_peer_count(
                                 room
@@ -3547,19 +3961,23 @@ async def websocket_endpoint(
                     },
                 )
 
-                # به Host اطلاع می‌دهیم
-                # که یک Peer جدید وارد شده
+                # Notify host about new viewer
                 await send_live_to_uid(
                     int(
-                        room["host_uid"]
+                        room[
+                            "host_uid"
+                        ]
                     ),
                     {
                         "type":
                             "live_peer_join",
+
                         "room_id":
                             room_id,
+
                         "peer_id":
                             peer_id,
+
                         "user_id":
                             int(uid),
                     },
@@ -3597,6 +4015,12 @@ async def websocket_endpoint(
                     or ""
                 ).strip()
 
+                if (
+                    not room_id
+                    or not peer_id
+                ):
+                    continue
+
                 room = live_rooms.get(
                     room_id
                 )
@@ -3606,14 +4030,19 @@ async def websocket_endpoint(
                     room = {
                         "room_id":
                             room_id,
+
                         "host_uid":
                             int(uid),
+
                         "host_peer_id":
                             peer_id,
+
                         "active":
                             True,
+
                         "created_at":
                             time.time(),
+
                         "peers": {
                             peer_id:
                                 int(uid)
@@ -3626,14 +4055,18 @@ async def websocket_endpoint(
 
                 if (
                     int(
-                        room["host_uid"]
+                        room[
+                            "host_uid"
+                        ]
                     )
                     != int(uid)
                 ):
 
                     continue
 
-                room["active"] = True
+                room[
+                    "active"
+                ] = True
 
                 room[
                     "host_peer_id"
@@ -3654,10 +4087,13 @@ async def websocket_endpoint(
                     {
                         "type":
                             "live_started",
+
                         "room_id":
                             room_id,
+
                         "host":
                             True,
+
                         "host_user":
                             (
                                 public_user(
@@ -3666,6 +4102,7 @@ async def websocket_endpoint(
                                 if user
                                 else None
                             ),
+
                         "count":
                             live_peer_count(
                                 room
@@ -3701,12 +4138,14 @@ async def websocket_endpoint(
                     room_id
                 )
 
-                if room is None:
+                if not room:
                     continue
 
                 if (
                     int(
-                        room["host_uid"]
+                        room[
+                            "host_uid"
+                        ]
                     )
                     != int(uid)
                 ):
@@ -3718,8 +4157,10 @@ async def websocket_endpoint(
                     {
                         "type":
                             "live_stopped",
+
                         "room_id":
                             room_id,
+
                         "reason":
                             "host_stopped",
                     },
@@ -3730,28 +4171,30 @@ async def websocket_endpoint(
                     None,
                 )
 
-                # تمام Peerهای این اتاق
-                # از وضعیت اتاق خارج می‌شوند
-                for ws, peer_set in list(
+                # Remove room references
+                for (
+                    ws,
+                    peer_set,
+                ) in list(
                     live_socket_peers.items()
                 ):
 
-                    peer_set_copy = set(
-                        peer_set
-                    )
+                    filtered = {
+                        item
+                        for item
+                        in peer_set
+                        if item[0]
+                        != room_id
+                    }
 
-                    for item in peer_set_copy:
+                    if filtered:
 
-                        if (
-                            item[0]
-                            == room_id
-                        ):
+                        live_socket_peers[
+                            ws
+                        ] = filtered
 
-                            peer_set.discard(
-                                item
-                            )
+                    else:
 
-                    if not peer_set:
                         live_socket_peers.pop(
                             ws,
                             None,
@@ -3846,12 +4289,21 @@ async def websocket_endpoint(
                     room_id
                 )
 
+                if not room:
+
+                    continue
+
                 if (
-                    not room
-                    or peer_id not in room[
+                    peer_id not in
+                    room[
                         "peers"
                     ]
-                    or target_peer_id
+                ):
+
+                    continue
+
+                if (
+                    target_peer_id
                     not in room[
                         "peers"
                     ]
@@ -3859,25 +4311,21 @@ async def websocket_endpoint(
 
                     continue
 
-                sender_peer_uid = (
-                    live_peer_uid(
-                        room,
-                        peer_id,
-                    )
+                sender_uid = live_peer_uid(
+                    room,
+                    peer_id,
                 )
 
                 if (
-                    sender_peer_uid
+                    sender_uid
                     != int(uid)
                 ):
 
                     continue
 
-                receiver_uid = (
-                    live_peer_uid(
-                        room,
-                        target_peer_id,
-                    )
+                receiver_uid = live_peer_uid(
+                    room,
+                    target_peer_id,
                 )
 
                 if receiver_uid is None:
@@ -3936,12 +4384,20 @@ async def websocket_endpoint(
                     room_id
                 )
 
+                if not room:
+                    continue
+
                 if (
-                    not room
-                    or peer_id not in room[
+                    peer_id not in
+                    room[
                         "peers"
                     ]
-                    or target_peer_id
+                ):
+
+                    continue
+
+                if (
+                    target_peer_id
                     not in room[
                         "peers"
                     ]
@@ -3949,25 +4405,21 @@ async def websocket_endpoint(
 
                     continue
 
-                sender_peer_uid = (
-                    live_peer_uid(
-                        room,
-                        peer_id,
-                    )
+                sender_uid = live_peer_uid(
+                    room,
+                    peer_id,
                 )
 
                 if (
-                    sender_peer_uid
+                    sender_uid
                     != int(uid)
                 ):
 
                     continue
 
-                receiver_uid = (
-                    live_peer_uid(
-                        room,
-                        target_peer_id,
-                    )
+                receiver_uid = live_peer_uid(
+                    room,
+                    target_peer_id,
                 )
 
                 if receiver_uid is None:
@@ -4025,16 +4477,11 @@ async def websocket_endpoint(
                 if not message:
                     continue
 
-                if (
-                    len(message)
-                    > MAX_LIVE_CHAT_LENGTH
-                ):
+                if len(message) > MAX_LIVE_CHAT_LENGTH:
 
-                    message = (
-                        message[
-                            :MAX_LIVE_CHAT_LENGTH
-                        ]
-                    )
+                    message = message[
+                        :MAX_LIVE_CHAT_LENGTH
+                    ]
 
                 room = live_rooms.get(
                     room_id
@@ -4052,11 +4499,13 @@ async def websocket_endpoint(
 
                     continue
 
+                sender_uid = live_peer_uid(
+                    room,
+                    peer_id,
+                )
+
                 if (
-                    live_peer_uid(
-                        room,
-                        peer_id,
-                    )
+                    sender_uid
                     != int(uid)
                 ):
 
@@ -4071,12 +4520,16 @@ async def websocket_endpoint(
                     {
                         "type":
                             "live_chat",
+
                         "room_id":
                             room_id,
+
                         "peer_id":
                             peer_id,
+
                         "user_id":
                             int(uid),
+
                         "username":
                             (
                                 user[
@@ -4085,6 +4538,7 @@ async def websocket_endpoint(
                                 if user
                                 else "کاربر"
                             ),
+
                         "avatar":
                             (
                                 user[
@@ -4093,8 +4547,10 @@ async def websocket_endpoint(
                                 if user
                                 else ""
                             ),
+
                         "message":
                             message,
+
                         "created_at":
                             now(),
                     },
@@ -4137,42 +4593,50 @@ async def websocket_endpoint(
 
                 if (
                     peer_id not in
-                    room["peers"]
+                    room[
+                        "peers"
+                    ]
                 ):
+
                     continue
+
+                sender_uid = live_peer_uid(
+                    room,
+                    peer_id,
+                )
 
                 if (
-                    live_peer_uid(
-                        room,
-                        peer_id,
-                    )
+                    sender_uid
                     != int(uid)
                 ):
-                    continue
 
-                payload = {
-                    "type":
-                        "live_media_state",
-                    "room_id":
-                        room_id,
-                    "peer_id":
-                        peer_id,
-                    "media":
-                        data.get(
-                            "media"
-                        ),
-                    "enabled":
-                        bool(
-                            data.get(
-                                "enabled",
-                                False,
-                            )
-                        ),
-                }
+                    continue
 
                 await broadcast_live_room(
                     room,
-                    payload,
+                    {
+                        "type":
+                            "live_media_state",
+
+                        "room_id":
+                            room_id,
+
+                        "peer_id":
+                            peer_id,
+
+                        "media":
+                            data.get(
+                                "media"
+                            ),
+
+                        "enabled":
+                            bool(
+                                data.get(
+                                    "enabled",
+                                    False,
+                                )
+                            ),
+                    },
                     exclude_peer_id=peer_id,
                 )
 
@@ -4272,10 +4736,13 @@ async def websocket_endpoint(
                     {
                         "type":
                             "typing",
+
                         "from":
                             uid,
+
                         "sender_id":
                             uid,
+
                         "value":
                             bool(
                                 data.get(
@@ -4383,8 +4850,11 @@ async def websocket_endpoint(
                     outgoing = {
                         "type":
                             "message",
+
                         "message":
-                            dict(row),
+                            dict(
+                                row
+                            ),
                     }
 
                     await broadcast(
@@ -4414,6 +4884,7 @@ async def websocket_endpoint(
                     {
                         "type":
                             "ready",
+
                         "online":
                             list(
                                 connections.keys()
@@ -4437,9 +4908,9 @@ async def websocket_endpoint(
 
     finally:
 
-        # ---------------------------------------------
-        # Remove this socket from normal connections
-        # ---------------------------------------------
+        # -------------------------------------------------
+        # Normal WebSocket cleanup
+        # -------------------------------------------------
 
         sockets = connections.get(
             uid,
@@ -4458,9 +4929,9 @@ async def websocket_endpoint(
             )
 
 
-        # ---------------------------------------------
-        # Cleanup Live peers of this socket
-        # ---------------------------------------------
+        # -------------------------------------------------
+        # Live cleanup
+        # -------------------------------------------------
 
         live_items = list(
             live_socket_peers.get(
@@ -4469,7 +4940,10 @@ async def websocket_endpoint(
             )
         )
 
-        for room_id, peer_id in live_items:
+        for (
+            room_id,
+            peer_id,
+        ) in live_items:
 
             try:
 
@@ -4492,9 +4966,9 @@ async def websocket_endpoint(
         )
 
 
-        # ---------------------------------------------
-        # Notify normal users
-        # ---------------------------------------------
+        # -------------------------------------------------
+        # Offline notification
+        # -------------------------------------------------
 
         if uid not in connections:
 
@@ -4509,10 +4983,12 @@ async def websocket_endpoint(
                         {
                             "type":
                                 "user_offline",
+
                             "user_id":
                                 uid,
                         },
                     )
 
                 except Exception:
+
                     pass
