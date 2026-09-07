@@ -1,0 +1,1351 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    >
+
+    <meta
+        name="theme-color"
+        content="#0f172a"
+    >
+
+    <title>گپینو | ثبت‌نام</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html,
+        body {
+            width: 100%;
+            min-height: 100%;
+            font-family:
+                Tahoma,
+                Arial,
+                sans-serif;
+            background:
+                linear-gradient(
+                    135deg,
+                    #0f172a 0%,
+                    #111827 45%,
+                    #1e3a8a 100%
+                );
+            color: #fff;
+        }
+
+        body {
+            min-height: 100vh;
+            min-height: 100dvh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        .background {
+            position: fixed;
+            inset: 0;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(65px);
+            opacity: 0.34;
+        }
+
+        .orb.one {
+            width: 320px;
+            height: 320px;
+            background: #2563eb;
+            top: -130px;
+            right: -120px;
+        }
+
+        .orb.two {
+            width: 280px;
+            height: 280px;
+            background: #06b6d4;
+            bottom: -120px;
+            left: -90px;
+        }
+
+        .register-page {
+            width: 100%;
+            max-width: 450px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .register-card {
+            width: 100%;
+            padding: 34px 28px 28px;
+            border-radius: 28px;
+            background:
+                rgba(15, 23, 42, 0.84);
+            border: 1px solid
+                rgba(255, 255, 255, 0.12);
+            box-shadow:
+                0 25px 80px
+                rgba(0, 0, 0, 0.38);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+
+        .brand {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+
+        .brand-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 15px;
+            border-radius: 23px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 38px;
+            background:
+                linear-gradient(
+                    135deg,
+                    #38bdf8,
+                    #2563eb
+                );
+            box-shadow:
+                0 15px 40px
+                rgba(37, 99, 235, 0.38);
+        }
+
+        .brand h1 {
+            font-size: 27px;
+            font-weight: 900;
+        }
+
+        .brand p {
+            margin-top: 8px;
+            color: #94a3b8;
+            font-size: 14px;
+        }
+
+        .field {
+            margin-bottom: 15px;
+        }
+
+        .field label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: #cbd5e1;
+            font-weight: 700;
+        }
+
+        .input {
+            width: 100%;
+            height: 53px;
+            border-radius: 16px;
+            border: 1px solid
+                rgba(148, 163, 184, 0.24);
+            outline: none;
+            background:
+                rgba(255, 255, 255, 0.06);
+            color: #fff;
+            padding: 0 16px;
+            font-size: 15px;
+            transition:
+                border-color 0.2s,
+                background 0.2s,
+                box-shadow 0.2s;
+        }
+
+        .input::placeholder {
+            color: #64748b;
+        }
+
+        .input:focus {
+            border-color: #38bdf8;
+            background:
+                rgba(255, 255, 255, 0.09);
+            box-shadow:
+                0 0 0 4px
+                rgba(56, 189, 248, 0.10);
+        }
+
+        .password-wrap {
+            position: relative;
+        }
+
+        .password-wrap .input {
+            padding-left: 52px;
+        }
+
+        .toggle-password {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 38px;
+            height: 38px;
+            border: 0;
+            border-radius: 12px;
+            background: transparent;
+            color: #cbd5e1;
+            cursor: pointer;
+            font-size: 18px;
+        }
+
+        .toggle-password:hover {
+            background:
+                rgba(255, 255, 255, 0.08);
+        }
+
+        .hint {
+            margin-top: 7px;
+            color: #64748b;
+            font-size: 11px;
+            line-height: 1.8;
+        }
+
+        .message {
+            min-height: 23px;
+            margin:
+                3px 0 12px;
+            text-align: center;
+            font-size: 13px;
+            line-height: 1.7;
+        }
+
+        .message.error {
+            color: #fca5a5;
+        }
+
+        .message.success {
+            color: #86efac;
+        }
+
+        .message.info {
+            color: #93c5fd;
+        }
+
+        .register-button {
+            width: 100%;
+            height: 55px;
+            border: 0;
+            border-radius: 17px;
+            background:
+                linear-gradient(
+                    135deg,
+                    #38bdf8,
+                    #2563eb
+                );
+            color: #fff;
+            font-size: 16px;
+            font-weight: 900;
+            cursor: pointer;
+            box-shadow:
+                0 15px 35px
+                rgba(37, 99, 235, 0.28);
+            transition:
+                transform 0.18s,
+                opacity 0.18s;
+        }
+
+        .register-button:hover {
+            transform: translateY(-1px);
+        }
+
+        .register-button:disabled {
+            opacity: 0.65;
+            cursor: wait;
+            transform: none;
+        }
+
+        .bottom-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .secondary-button {
+            height: 48px;
+            border-radius: 15px;
+            border: 1px solid
+                rgba(148, 163, 184, 0.18);
+            background:
+                rgba(255, 255, 255, 0.04);
+            color: #e2e8f0;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition:
+                background 0.18s,
+                transform 0.18s;
+        }
+
+        .secondary-button:hover {
+            background:
+                rgba(255, 255, 255, 0.08);
+            transform: translateY(-1px);
+        }
+
+        .recovery-box {
+            display: none;
+            margin-top: 16px;
+            padding: 16px;
+            border-radius: 18px;
+            background:
+                rgba(34, 197, 94, 0.09);
+            border: 1px solid
+                rgba(74, 222, 128, 0.18);
+        }
+
+        .recovery-title {
+            color: #86efac;
+            font-size: 14px;
+            font-weight: 900;
+            margin-bottom: 8px;
+        }
+
+        .recovery-text {
+            color: #cbd5e1;
+            font-size: 12px;
+            line-height: 1.8;
+        }
+
+        .recovery-code {
+            margin-top: 11px;
+            padding: 12px;
+            border-radius: 13px;
+            background:
+                rgba(0, 0, 0, 0.24);
+            color: #fff;
+            font-family:
+                Consolas,
+                monospace;
+            font-size: 14px;
+            text-align: center;
+            direction: ltr;
+            user-select: all;
+            word-break: break-all;
+        }
+
+        .copy-code {
+            width: 100%;
+            height: 40px;
+            margin-top: 10px;
+            border: 0;
+            border-radius: 12px;
+            background:
+                rgba(255, 255, 255, 0.08);
+            color: #e2e8f0;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 18px;
+            color: #64748b;
+            font-size: 12px;
+        }
+
+        @media (max-width: 520px) {
+            body {
+                padding: 14px;
+            }
+
+            .register-card {
+                padding:
+                    27px 18px 21px;
+                border-radius: 24px;
+            }
+
+            .brand-icon {
+                width: 72px;
+                height: 72px;
+                border-radius: 21px;
+                font-size: 34px;
+            }
+
+            .brand h1 {
+                font-size: 25px;
+            }
+
+            .input {
+                height: 52px;
+            }
+
+            .register-button {
+                height: 53px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="background">
+        <div class="orb one"></div>
+        <div class="orb two"></div>
+    </div>
+
+
+    <main class="register-page">
+
+        <section class="register-card">
+
+            <div class="brand">
+
+                <div class="brand-icon">
+                    ✨
+                </div>
+
+                <h1>
+                    ساخت حساب گپینو
+                </h1>
+
+                <p>
+                    برای شروع، حساب کاربری خودت را بساز
+                </p>
+
+            </div>
+
+
+            <form
+                id="registerForm"
+                novalidate
+            >
+
+                <div class="field">
+
+                    <label for="displayName">
+                        نام نمایشی
+                    </label>
+
+                    <input
+                        id="displayName"
+                        name="display_name"
+                        class="input"
+                        type="text"
+                        maxlength="60"
+                        autocomplete="name"
+                        placeholder="مثلاً امیر حسین"
+                        required
+                    >
+
+                </div>
+
+
+                <div class="field">
+
+                    <label for="username">
+                        نام کاربری
+                    </label>
+
+                    <input
+                        id="username"
+                        name="username"
+                        class="input"
+                        type="text"
+                        maxlength="32"
+                        autocomplete="username"
+                        placeholder="مثلاً amirhossein"
+                        required
+                    >
+
+                    <div class="hint">
+                        فقط حروف انگلیسی، عدد، نقطه، خط تیره و زیرخط
+                    </div>
+
+                </div>
+
+
+                <div class="field">
+
+                    <label for="password">
+                        رمز عبور
+                    </label>
+
+                    <div class="password-wrap">
+
+                        <input
+                            id="password"
+                            name="password"
+                            class="input"
+                            type="password"
+                            autocomplete="new-password"
+                            placeholder="حداقل ۶ کاراکتر"
+                            required
+                        >
+
+                        <button
+                            id="togglePassword"
+                            class="toggle-password"
+                            type="button"
+                            aria-label="نمایش رمز"
+                        >
+                            👁️
+                        </button>
+
+                    </div>
+
+                </div>
+
+
+                <div class="field">
+
+                    <label for="passwordConfirm">
+                        تکرار رمز عبور
+                    </label>
+
+                    <div class="password-wrap">
+
+                        <input
+                            id="passwordConfirm"
+                            class="input"
+                            type="password"
+                            autocomplete="new-password"
+                            placeholder="رمز عبور را دوباره وارد کنید"
+                            required
+                        >
+
+                        <button
+                            id="togglePasswordConfirm"
+                            class="toggle-password"
+                            type="button"
+                            aria-label="نمایش رمز"
+                        >
+                            👁️
+                        </button>
+
+                    </div>
+
+                </div>
+
+
+                <div
+                    id="registerMessage"
+                    class="message"
+                    aria-live="polite"
+                ></div>
+
+
+                <button
+                    id="registerButton"
+                    class="register-button"
+                    type="submit"
+                >
+                    ساخت حساب
+                </button>
+
+
+                <div class="bottom-row">
+
+                    <button
+                        id="loginButton"
+                        class="secondary-button"
+                        type="button"
+                    >
+                        ورود
+                    </button>
+
+                    <button
+                        id="backButton"
+                        class="secondary-button"
+                        type="button"
+                    >
+                        ← بازگشت
+                    </button>
+
+                </div>
+
+
+                <div
+                    id="recoveryBox"
+                    class="recovery-box"
+                >
+
+                    <div class="recovery-title">
+                        ✅ حساب با موفقیت ساخته شد
+                    </div>
+
+                    <div class="recovery-text">
+                        این کد بازیابی را در جای امن نگه دار.
+                        برای بازیابی نام کاربری یا رمز عبور لازم می‌شود.
+                    </div>
+
+                    <div
+                        id="recoveryCode"
+                        class="recovery-code"
+                    ></div>
+
+                    <button
+                        id="copyRecoveryCode"
+                        class="copy-code"
+                        type="button"
+                    >
+                        📋 کپی کد بازیابی
+                    </button>
+
+                </div>
+
+            </form>
+
+
+            <div class="footer">
+                GAPINO PRO
+            </div>
+
+        </section>
+
+    </main>
+
+
+    <script>
+        "use strict";
+
+
+        /* =====================================================
+           CONFIG
+        ===================================================== */
+
+        const API =
+            window.GAPINO_API_BASE ||
+            window.location.origin;
+
+
+        /* =====================================================
+           DOM
+        ===================================================== */
+
+        const registerForm =
+            document.getElementById(
+                "registerForm"
+            );
+
+        const displayNameInput =
+            document.getElementById(
+                "displayName"
+            );
+
+        const usernameInput =
+            document.getElementById(
+                "username"
+            );
+
+        const passwordInput =
+            document.getElementById(
+                "password"
+            );
+
+        const passwordConfirmInput =
+            document.getElementById(
+                "passwordConfirm"
+            );
+
+        const registerButton =
+            document.getElementById(
+                "registerButton"
+            );
+
+        const loginButton =
+            document.getElementById(
+                "loginButton"
+            );
+
+        const backButton =
+            document.getElementById(
+                "backButton"
+            );
+
+        const registerMessage =
+            document.getElementById(
+                "registerMessage"
+            );
+
+        const togglePassword =
+            document.getElementById(
+                "togglePassword"
+            );
+
+        const togglePasswordConfirm =
+            document.getElementById(
+                "togglePasswordConfirm"
+            );
+
+        const recoveryBox =
+            document.getElementById(
+                "recoveryBox"
+            );
+
+        const recoveryCode =
+            document.getElementById(
+                "recoveryCode"
+            );
+
+        const copyRecoveryCode =
+            document.getElementById(
+                "copyRecoveryCode"
+            );
+
+
+        /* =====================================================
+           MESSAGE
+        ===================================================== */
+
+        function showMessage(
+            text,
+            type = ""
+        ) {
+
+            if (
+                !registerMessage
+            ) {
+                return;
+            }
+
+            registerMessage.textContent =
+                String(text || "");
+
+            registerMessage.className =
+                "message";
+
+            if (type) {
+                registerMessage.classList.add(
+                    type
+                );
+            }
+        }
+
+
+        /* =====================================================
+           LOADING
+        ===================================================== */
+
+        function setLoading(
+            loading
+        ) {
+
+            if (
+                !registerButton
+            ) {
+                return;
+            }
+
+            registerButton.disabled =
+                Boolean(loading);
+
+            registerButton.textContent =
+                loading
+                    ? "در حال ساخت حساب..."
+                    : "ساخت حساب";
+        }
+
+
+        /* =====================================================
+           PASSWORD TOGGLE
+        ===================================================== */
+
+        function setupPasswordToggle(
+            button,
+            input
+        ) {
+
+            if (
+                !button ||
+                !input
+            ) {
+                return;
+            }
+
+            button.addEventListener(
+                "click",
+                () => {
+
+                    const visible =
+                        input.type ===
+                        "text";
+
+                    input.type =
+                        visible
+                            ? "password"
+                            : "text";
+
+                    button.textContent =
+                        visible
+                            ? "👁️"
+                            : "🙈";
+                }
+            );
+        }
+
+
+        setupPasswordToggle(
+            togglePassword,
+            passwordInput
+        );
+
+        setupPasswordToggle(
+            togglePasswordConfirm,
+            passwordConfirmInput
+        );
+
+
+        /* =====================================================
+           VALIDATION
+        ===================================================== */
+
+        function validateUsername(
+            username
+        ) {
+
+            return /^[a-zA-Z0-9_.-]+$/.test(
+                username
+            );
+        }
+
+
+        function validateForm() {
+
+            const displayName =
+                String(
+                    displayNameInput?.value ||
+                    ""
+                ).trim();
+
+            const username =
+                String(
+                    usernameInput?.value ||
+                    ""
+                )
+                .trim()
+                .toLowerCase();
+
+            const password =
+                String(
+                    passwordInput?.value ||
+                    ""
+                );
+
+            const passwordConfirm =
+                String(
+                    passwordConfirmInput?.value ||
+                    ""
+                );
+
+
+            if (
+                !displayName
+            ) {
+
+                showMessage(
+                    "نام نمایشی را وارد کن.",
+                    "error"
+                );
+
+                displayNameInput?.focus();
+
+                return null;
+            }
+
+
+            if (
+                displayName.length > 60
+            ) {
+
+                showMessage(
+                    "نام نمایشی خیلی طولانی است.",
+                    "error"
+                );
+
+                return null;
+            }
+
+
+            if (
+                !username
+            ) {
+
+                showMessage(
+                    "نام کاربری را وارد کن.",
+                    "error"
+                );
+
+                usernameInput?.focus();
+
+                return null;
+            }
+
+
+            if (
+                username.length < 3 ||
+                username.length > 32
+            ) {
+
+                showMessage(
+                    "نام کاربری باید بین ۳ تا ۳۲ کاراکتر باشد.",
+                    "error"
+                );
+
+                usernameInput?.focus();
+
+                return null;
+            }
+
+
+            if (
+                !validateUsername(
+                    username
+                )
+            ) {
+
+                showMessage(
+                    "نام کاربری فقط می‌تواند شامل حروف انگلیسی، عدد، نقطه، خط تیره و زیرخط باشد.",
+                    "error"
+                );
+
+                usernameInput?.focus();
+
+                return null;
+            }
+
+
+            if (
+                !password
+            ) {
+
+                showMessage(
+                    "رمز عبور را وارد کن.",
+                    "error"
+                );
+
+                passwordInput?.focus();
+
+                return null;
+            }
+
+
+            if (
+                password.length < 6
+            ) {
+
+                showMessage(
+                    "رمز عبور باید حداقل ۶ کاراکتر باشد.",
+                    "error"
+                );
+
+                passwordInput?.focus();
+
+                return null;
+            }
+
+
+            if (
+                password !==
+                passwordConfirm
+            ) {
+
+                showMessage(
+                    "تکرار رمز عبور با رمز اصلی یکسان نیست.",
+                    "error"
+                );
+
+                passwordConfirmInput?.focus();
+
+                return null;
+            }
+
+
+            return {
+                displayName,
+                username,
+                password
+            };
+        }
+
+
+        /* =====================================================
+           REGISTER API
+        ===================================================== */
+
+        async function registerUser(
+            values
+        ) {
+
+            const formData =
+                new URLSearchParams();
+
+            formData.set(
+                "username",
+                values.username
+            );
+
+            formData.set(
+                "password",
+                values.password
+            );
+
+            formData.set(
+                "display_name",
+                values.displayName
+            );
+
+
+            let response;
+
+            try {
+
+                response =
+                    await fetch(
+                        API +
+                            "/api/register",
+                        {
+                            method:
+                                "POST",
+
+                            headers: {
+                                "Content-Type":
+                                    "application/x-www-form-urlencoded"
+                            },
+
+                            body:
+                                formData.toString(),
+
+                            credentials:
+                                "include",
+
+                            cache:
+                                "no-store"
+                        }
+                    );
+
+            } catch (error) {
+
+                console.error(
+                    "REGISTER FETCH ERROR:",
+                    error
+                );
+
+                throw new Error(
+                    "ارتباط با سرور برقرار نشد."
+                );
+            }
+
+
+            const text =
+                await response.text();
+
+            let data = null;
+
+            if (text) {
+
+                try {
+                    data =
+                        JSON.parse(
+                            text
+                        );
+                } catch (_) {
+                    data = null;
+                }
+            }
+
+
+            if (
+                !response.ok
+            ) {
+
+                throw new Error(
+                    data?.detail ||
+                    data?.message ||
+                    `خطای ثبت‌نام (${response.status})`
+                );
+            }
+
+
+            if (
+                !data ||
+                data.success !== true ||
+                !data.user ||
+                !data.user.id
+            ) {
+
+                console.error(
+                    "Unexpected register response:",
+                    data
+                );
+
+                throw new Error(
+                    "پاسخ نامعتبر از سرور دریافت شد."
+                );
+            }
+
+
+            return data;
+        }
+
+
+        /* =====================================================
+           REGISTER
+        ===================================================== */
+
+        async function handleRegister(
+            event
+        ) {
+
+            event.preventDefault();
+
+
+            const values =
+                validateForm();
+
+
+            if (!values) {
+                return;
+            }
+
+
+            setLoading(
+                true
+            );
+
+            showMessage(
+                "در حال ساخت حساب..."
+            );
+
+
+            try {
+
+                const result =
+                    await registerUser(
+                        values
+                    );
+
+
+                /*
+                 * ذخیره کاربر
+                 */
+                localStorage.setItem(
+                    "gapino_user",
+                    JSON.stringify(
+                        result.user
+                    )
+                );
+
+
+                /*
+                 * نمایش Recovery Code
+                 */
+                if (
+                    result.recovery_code
+                ) {
+
+                    recoveryCode.textContent =
+                        String(
+                            result.recovery_code
+                        );
+
+                    recoveryBox.style.display =
+                        "block";
+
+                    showMessage(
+                        "حساب با موفقیت ساخته شد.",
+                        "success"
+                    );
+
+                } else {
+
+                    showMessage(
+                        "حساب با موفقیت ساخته شد.",
+                        "success"
+                    );
+                }
+
+
+                /*
+                 * کمی مکث برای نمایش موفقیت
+                 */
+                setTimeout(
+                    () => {
+
+                        window.location.replace(
+                            "/chat.html"
+                        );
+
+                    },
+                    1200
+                );
+
+
+            } catch (error) {
+
+                console.error(
+                    "GAPINO REGISTER ERROR:",
+                    error
+                );
+
+                showMessage(
+                    error.message ||
+                    "ثبت‌نام انجام نشد.",
+                    "error"
+                );
+
+                setLoading(
+                    false
+                );
+            }
+        }
+
+
+        /* =====================================================
+           COPY RECOVERY CODE
+        ===================================================== */
+
+        if (
+            copyRecoveryCode
+        ) {
+
+            copyRecoveryCode.addEventListener(
+                "click",
+                async () => {
+
+                    const code =
+                        String(
+                            recoveryCode?.textContent ||
+                            ""
+                        ).trim();
+
+                    if (!code) {
+                        return;
+                    }
+
+                    try {
+
+                        await navigator.clipboard.writeText(
+                            code
+                        );
+
+                        copyRecoveryCode.textContent =
+                            "✅ کپی شد";
+
+                        setTimeout(
+                            () => {
+                                copyRecoveryCode.textContent =
+                                    "📋 کپی کد بازیابی";
+                            },
+                            1600
+                        );
+
+                    } catch (_) {
+
+                        showMessage(
+                            "کپی خودکار انجام نشد؛ کد را دستی انتخاب کن.",
+                            "info"
+                        );
+                    }
+                }
+            );
+        }
+
+
+        /* =====================================================
+           NAVIGATION
+        ===================================================== */
+
+        if (
+            loginButton
+        ) {
+
+            loginButton.addEventListener(
+                "click",
+                () => {
+
+                    window.location.href =
+                        "/login.html";
+                }
+            );
+        }
+
+
+        if (
+            backButton
+        ) {
+
+            backButton.addEventListener(
+                "click",
+                () => {
+
+                    window.location.href =
+                        "/";
+                }
+            );
+        }
+
+
+        /* =====================================================
+           SUBMIT
+        ===================================================== */
+
+        if (
+            registerForm
+        ) {
+
+            registerForm.addEventListener(
+                "submit",
+                handleRegister
+            );
+        }
+
+
+        /* =====================================================
+           USERNAME NORMALIZATION
+        ===================================================== */
+
+        if (
+            usernameInput
+        ) {
+
+            usernameInput.addEventListener(
+                "input",
+                () => {
+
+                    usernameInput.value =
+                        usernameInput.value
+                            .trim()
+                            .toLowerCase();
+                }
+            );
+        }
+
+
+        /* =====================================================
+           BOOT
+        ===================================================== */
+
+        window.addEventListener(
+            "DOMContentLoaded",
+            () => {
+
+                displayNameInput?.focus();
+
+            },
+            {
+                once: true
+            }
+        );
+
+    </script>
+
+</body>
+</html>
