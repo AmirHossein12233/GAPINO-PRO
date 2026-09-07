@@ -1,17 +1,16 @@
 "use strict";
 
 (() => {
-    /* =========================================================
-       GAPINO PRO - REAL VOICE CALL
-       WebRTC + WebSocket Signaling
-       STUN + TURN ready
-       Echo Cancellation
-       Noise Suppression
-       Auto Gain Control
-       ========================================================= */
+    /*
+     * =========================================================
+     * GAPINO PRO - VOICE CALL
+     * WebRTC + WebSocket Signaling
+     * سازگار با chat.js فعلی
+     * =========================================================
+     */
 
     /* =========================================================
-       ICE CONFIG
+       ICE
        ========================================================= */
 
     const DEFAULT_ICE_SERVERS = [
@@ -23,23 +22,31 @@
         }
     ];
 
-    function buildIceConfig() {
-        let servers = [...DEFAULT_ICE_SERVERS];
+    function getIceServers() {
+        const servers = [
+            ...DEFAULT_ICE_SERVERS
+        ];
 
         try {
             if (
-                Array.isArray(window.GAPINO_TURN_SERVERS) &&
-                window.GAPINO_TURN_SERVERS.length > 0
+                Array.isArray(
+                    window.GAPINO_TURN_SERVERS
+                ) &&
+                window.GAPINO_TURN_SERVERS.length
             ) {
-                servers = [
-                    ...servers,
+                servers.push(
                     ...window.GAPINO_TURN_SERVERS
-                ];
+                );
             }
         } catch (_) {}
 
+        return servers;
+    }
+
+    function buildPeerConfig() {
         return {
-            iceServers: servers,
+            iceServers:
+                getIceServers(),
             iceCandidatePoolSize: 10,
             bundlePolicy: "max-bundle",
             rtcpMuxPolicy: "require"
@@ -52,105 +59,116 @@
 
     let peerConnection = null;
     let localStream = null;
+    let remoteStream = null;
     let remoteAudio = null;
-
-    let activeCall = false;
-    let outgoingCall = false;
 
     let callTarget = null;
     let currentCallId = null;
 
+    let outgoingCall = false;
+    let activeCall = false;
+
     let pendingOffer = null;
     let pendingIce = [];
 
+    let ringTimer = null;
     let callTimer = null;
     let callStartedAt = 0;
 
-    let notificationAudioContext = null;
-    let ringInterval = null;
-
+    let audioContext = null;
     let initialized = false;
-
-    let localAudioTrack = null;
-    let remoteStream = null;
 
     /* =========================================================
        HELPERS
        ========================================================= */
 
+    function getElement(id) {
+        return document.getElementById(id);
+    }
+
     function getUserId(user) {
-        return String(
-            user?.id ??
-            user?.user_id ??
-            ""
-        );
+        if (!user) {
+            return "";
+        }
+
+        const value =
+            user.id ??
+            user.user_id ??
+            user.uid ??
+            "";
+
+        return String(value);
     }
 
     function getUserName(user) {
+        if (!user) {
+            return "کاربر";
+        }
+
         return (
-            user?.display_name ||
-            user?.full_name ||
-            user?.name ||
-            user?.username ||
+            user.display_name ||
+            user.full_name ||
+            user.name ||
+            user.username ||
             "کاربر"
         );
     }
 
     function getCurrentUser() {
-        return window.GAPINO?.currentUser || null;
+        return (
+            window.GAPINO?.currentUser ||
+            null
+        );
     }
 
     function getCurrentChatUser() {
-        return window.GAPINO?.currentChatUser || null;
+        return (
+            window.GAPINO?.currentChatUser ||
+            null
+        );
     }
 
     function getSocket() {
-        return window.GAPINO?.socket || null;
+        return (
+            window.GAPINO?.socket ||
+            window.GAPINO_SOCKET ||
+            null
+        );
     }
 
     function showToast(text) {
-        try {
-            if (
-                window.GAPINO &&
-                typeof window.GAPINO.showToast === "function"
-            ) {
-                window.GAPINO.showToast(text);
-                return;
-            }
-        } catch (_) {}
+        const container =
+            getElement("toastContainer");
 
-        console.log("GAPINO:", text);
-    }
+        if (container) {
+            const toast =
+                document.createElement("div");
 
-    function getAvatarUrl(user) {
-        const value =
-            user?.avatar ||
-            user?.profile?.avatar ||
-            "";
+            toast.className = "toast";
+            toast.textContent =
+                String(text);
 
-        if (!value) {
-            return "";
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.remove();
+            }, 3500);
+
+            return;
         }
 
-        if (
-            value.startsWith("http://") ||
-            value.startsWith("https://")
-        ) {
-            return value;
-        }
-
-        if (value.startsWith("/")) {
-            return value;
-        }
-
-        return "/" + value;
+        console.log(
+            "GAPINO:",
+            text
+        );
     }
 
     function makeCallId() {
         try {
             if (
                 window.crypto &&
-                typeof window.crypto.randomUUID === "function"
+                typeof window.crypto.randomUUID ===
+                    "function"
             ) {
                 return window.crypto.randomUUID();
             }
@@ -165,54 +183,49 @@
         );
     }
 
-    /* =========================================================
-       NOTIFICATIONS
-       ========================================================= */
+    function sendSignal(data) {
+        const socket =
+            getSocket();
 
-    async function requestNotificationPermission() {
-        if (!("Notification" in window)) {
-            return;
-        }
-
-        if (Notification.permission !== "default") {
-            return;
-        }
-
-        try {
-            await Notification.requestPermission();
-        } catch (_) {}
-    }
-
-    function browserNotify(title, body) {
-        if (!("Notification" in window)) {
-            return;
-        }
-
-        if (Notification.permission !== "granted") {
-            return;
-        }
-
-        try {
-            const notification = new Notification(
-                title,
-                {
-                    body,
-                    icon: "/favicon.png",
-                    tag: "gapino-call"
-                }
+        if (
+            !socket ||
+            socket.readyState !==
+                WebSocket.OPEN
+        ) {
+            console.warn(
+                "GAPINO call: WebSocket unavailable"
             );
 
-            setTimeout(() => {
-                try {
-                    notification.close();
-                } catch (_) {}
-            }, 5000);
+            showToast(
+                "اتصال تماس آماده نیست."
+            );
 
-        } catch (_) {}
+            return false;
+        }
+
+        try {
+            socket.send(
+                JSON.stringify(data)
+            );
+
+            console.log(
+                "GAPINO call signal sent:",
+                data.type
+            );
+
+            return true;
+        } catch (error) {
+            console.error(
+                "GAPINO call signal error:",
+                error
+            );
+
+            return false;
+        }
     }
 
     /* =========================================================
-       AUDIO CONTEXT
+       AUDIO
        ========================================================= */
 
     function getAudioContext() {
@@ -223,27 +236,31 @@
             return null;
         }
 
-        if (!notificationAudioContext) {
+        if (!audioContext) {
             const AudioContextClass =
                 window.AudioContext ||
                 window.webkitAudioContext;
 
-            notificationAudioContext =
+            audioContext =
                 new AudioContextClass();
         }
 
-        return notificationAudioContext;
+        return audioContext;
     }
 
     async function unlockAudio() {
-        const ctx = getAudioContext();
+        const ctx =
+            getAudioContext();
 
         if (!ctx) {
             return;
         }
 
         try {
-            if (ctx.state === "suspended") {
+            if (
+                ctx.state ===
+                "suspended"
+            ) {
                 await ctx.resume();
             }
         } catch (_) {}
@@ -251,18 +268,24 @@
 
     function beep(
         frequency = 760,
-        duration = 140,
-        volume = 0.06
+        duration = 130,
+        volume = 0.05
     ) {
-        const ctx = getAudioContext();
+        const ctx =
+            getAudioContext();
 
         if (!ctx) {
             return;
         }
 
         try {
-            if (ctx.state === "suspended") {
-                ctx.resume().catch(() => {});
+            if (
+                ctx.state ===
+                "suspended"
+            ) {
+                ctx.resume().catch(
+                    () => {}
+                );
             }
 
             const oscillator =
@@ -271,10 +294,15 @@
             const gain =
                 ctx.createGain();
 
-            oscillator.type = "sine";
-            oscillator.frequency.value = frequency;
+            oscillator.type =
+                "sine";
 
-            const start = ctx.currentTime;
+            oscillator.frequency.value =
+                frequency;
+
+            const start =
+                ctx.currentTime;
+
             const end =
                 start +
                 Math.max(
@@ -288,7 +316,10 @@
             );
 
             gain.gain.exponentialRampToValueAtTime(
-                Math.max(volume, 0.0001),
+                Math.max(
+                    volume,
+                    0.0001
+                ),
                 start + 0.02
             );
 
@@ -298,10 +329,14 @@
             );
 
             oscillator.connect(gain);
-            gain.connect(ctx.destination);
+            gain.connect(
+                ctx.destination
+            );
 
             oscillator.start(start);
-            oscillator.stop(end + 0.03);
+            oscillator.stop(
+                end + 0.03
+            );
 
         } catch (_) {}
     }
@@ -309,71 +344,126 @@
     function startRing() {
         stopRing();
 
-        beep(820, 180, 0.08);
+        beep(
+            820,
+            180,
+            0.08
+        );
 
-        ringInterval = setInterval(() => {
-            beep(820, 180, 0.08);
-        }, 1300);
+        ringTimer =
+            setInterval(() => {
+                beep(
+                    820,
+                    180,
+                    0.08
+                );
+            }, 1300);
     }
 
     function stopRing() {
-        if (ringInterval) {
-            clearInterval(ringInterval);
-            ringInterval = null;
-        }
-    }
+        if (ringTimer) {
+            clearInterval(
+                ringTimer
+            );
 
-    function notify(
-        title,
-        body,
-        sound = true,
-        browser = false
-    ) {
-        if (sound) {
-            beep(720, 150, 0.07);
-        }
-
-        showToast(
-            `${title}${body ? ` • ${body}` : ""}`
-        );
-
-        if (browser) {
-            browserNotify(title, body);
+            ringTimer = null;
         }
     }
 
     /* =========================================================
-       SIGNALING
+       REMOTE AUDIO
        ========================================================= */
 
-    function send(data) {
-        const socket = getSocket();
+    function ensureRemoteAudio() {
 
         if (
-            !socket ||
-            socket.readyState !== WebSocket.OPEN
+            remoteAudio &&
+            document.body.contains(
+                remoteAudio
+            )
         ) {
-            console.warn(
-                "GAPINO call: WebSocket not ready"
+            return remoteAudio;
+        }
+
+        remoteAudio =
+            document.createElement(
+                "audio"
             );
 
-            return false;
+        remoteAudio.id =
+            "gapinoRemoteAudio";
+
+        remoteAudio.autoplay = true;
+        remoteAudio.playsInline = true;
+        remoteAudio.muted = false;
+        remoteAudio.controls = false;
+        remoteAudio.volume = 1;
+
+        /*
+         * مخفی است ولی واقعی؛
+         * srcObject روی audio باقی می‌ماند.
+         */
+        remoteAudio.style.position =
+            "fixed";
+
+        remoteAudio.style.left =
+            "-10000px";
+
+        remoteAudio.style.top =
+            "0";
+
+        remoteAudio.style.width =
+            "1px";
+
+        remoteAudio.style.height =
+            "1px";
+
+        remoteAudio.style.opacity =
+            "0";
+
+        remoteAudio.style.pointerEvents =
+            "none";
+
+        document.body.appendChild(
+            remoteAudio
+        );
+
+        return remoteAudio;
+    }
+
+    async function playRemoteAudio() {
+
+        if (!remoteAudio) {
+            return;
         }
 
         try {
-            socket.send(
-                JSON.stringify(data)
-            );
+            await unlockAudio();
 
-            return true;
+            remoteAudio.muted = false;
+            remoteAudio.volume = 1;
+
+            const result =
+                remoteAudio.play();
+
+            if (
+                result &&
+                typeof result.catch ===
+                    "function"
+            ) {
+                await result;
+            }
 
         } catch (error) {
-            console.error(
-                "GAPINO call send error:",
+
+            console.warn(
+                "GAPINO remote audio play:",
                 error
             );
 
-            return false;
+            showToast(
+                "برای شنیدن صدا یک بار روی صفحه ضربه بزن."
+            );
         }
     }
 
@@ -381,9 +471,137 @@
        CALL UI
        ========================================================= */
 
-    function createCallUI() {
+    function ensureCallStyles() {
+
         if (
-            document.getElementById(
+            getElement(
+                "gapinoCallStyles"
+            )
+        ) {
+            return;
+        }
+
+        const style =
+            document.createElement(
+                "style"
+            );
+
+        style.id =
+            "gapinoCallStyles";
+
+        style.textContent = `
+            .gapino-call-overlay {
+                position: fixed;
+                inset: 0;
+                z-index: 99999;
+                display: none;
+                align-items: center;
+                justify-content: center;
+                padding: 20px;
+                background: rgba(0,0,0,.78);
+            }
+
+            .gapino-call-overlay.show {
+                display: flex;
+            }
+
+            .gapino-call-card {
+                width: min(390px, 100%);
+                padding: 28px 20px 20px;
+                border-radius: 24px;
+                background: #111827;
+                box-shadow: 0 25px 80px rgba(0,0,0,.55);
+                text-align: center;
+            }
+
+            .gapino-call-avatar {
+                width: 86px;
+                height: 86px;
+                margin: 0 auto 14px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                overflow: hidden;
+                border-radius: 50%;
+                background: #2563eb;
+                color: #fff;
+                font-size: 32px;
+                font-weight: 900;
+            }
+
+            .gapino-call-avatar img {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+            }
+
+            .gapino-call-name {
+                color: #fff;
+                font-size: 19px;
+                font-weight: 900;
+            }
+
+            .gapino-call-status {
+                margin-top: 8px;
+                color: #94a3b8;
+                font-size: 13px;
+            }
+
+            .gapino-call-timer {
+                margin-top: 7px;
+                color: #cbd5e1;
+                font-size: 12px;
+                direction: ltr;
+            }
+
+            .gapino-call-actions {
+                margin-top: 22px;
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 8px;
+            }
+
+            .gapino-call-button {
+                min-width: 120px;
+                min-height: 45px;
+                padding: 9px 13px;
+                border-radius: 12px;
+                color: #fff;
+                font-size: 13px;
+                font-weight: 900;
+            }
+
+            .gapino-call-button.accept {
+                background: #16a34a;
+            }
+
+            .gapino-call-button.reject {
+                background: #dc2626;
+            }
+
+            @media (max-width: 430px) {
+                .gapino-call-card {
+                    padding: 24px 15px 16px;
+                }
+
+                .gapino-call-button {
+                    width: 100%;
+                }
+            }
+        `;
+
+        document.head.appendChild(
+            style
+        );
+    }
+
+    function createCallUI() {
+
+        ensureCallStyles();
+
+        if (
+            getElement(
                 "gapinoCallOverlay"
             )
         ) {
@@ -391,7 +609,9 @@
         }
 
         const overlay =
-            document.createElement("div");
+            document.createElement(
+                "div"
+            );
 
         overlay.id =
             "gapinoCallOverlay";
@@ -463,31 +683,41 @@
             </div>
         `;
 
-        document.body.appendChild(overlay);
+        document.body.appendChild(
+            overlay
+        );
 
-        document
-            .getElementById(
+        const accept =
+            getElement(
                 "gapinoAcceptCall"
-            )
-            ?.addEventListener(
+            );
+
+        const reject =
+            getElement(
+                "gapinoRejectCall"
+            );
+
+        const end =
+            getElement(
+                "gapinoEndCall"
+            );
+
+        if (accept) {
+            accept.addEventListener(
                 "click",
                 acceptCall
             );
+        }
 
-        document
-            .getElementById(
-                "gapinoRejectCall"
-            )
-            ?.addEventListener(
+        if (reject) {
+            reject.addEventListener(
                 "click",
                 rejectCall
             );
+        }
 
-        document
-            .getElementById(
-                "gapinoEndCall"
-            )
-            ?.addEventListener(
+        if (end) {
+            end.addEventListener(
                 "click",
                 () => {
                     endCall(
@@ -496,6 +726,7 @@
                     );
                 }
             );
+        }
     }
 
     function showCallUI(
@@ -505,37 +736,37 @@
         createCallUI();
 
         const overlay =
-            document.getElementById(
+            getElement(
                 "gapinoCallOverlay"
             );
 
         const avatar =
-            document.getElementById(
+            getElement(
                 "gapinoCallAvatar"
             );
 
         const name =
-            document.getElementById(
+            getElement(
                 "gapinoCallName"
             );
 
         const statusEl =
-            document.getElementById(
+            getElement(
                 "gapinoCallStatus"
             );
 
         const accept =
-            document.getElementById(
+            getElement(
                 "gapinoAcceptCall"
             );
 
         const reject =
-            document.getElementById(
+            getElement(
                 "gapinoRejectCall"
             );
 
         const end =
-            document.getElementById(
+            getElement(
                 "gapinoEndCall"
             );
 
@@ -543,37 +774,53 @@
             return;
         }
 
-        overlay.classList.add("show");
+        overlay.classList.add(
+            "show"
+        );
+
+        const username =
+            getUserName(user);
 
         if (avatar) {
-            avatar.innerHTML = "";
+
+            avatar.innerHTML =
+                "";
 
             const url =
-                getAvatarUrl(user);
+                user?.avatar ||
+                user?.avatar_url ||
+                "";
 
             if (url) {
+
                 const img =
-                    document.createElement("img");
+                    document.createElement(
+                        "img"
+                    );
 
                 img.src = url;
+                img.alt = username;
 
-                img.alt =
-                    getUserName(user);
+                img.onerror =
+                    () => {
+                        avatar.innerHTML =
+                            "";
 
-                img.onerror = () => {
-                    avatar.innerHTML = "";
+                        avatar.textContent =
+                            username
+                                .charAt(0)
+                                .toUpperCase() ||
+                            "G";
+                    };
 
-                    avatar.textContent =
-                        getUserName(user)
-                            .charAt(0)
-                            .toUpperCase() ||
-                        "G";
-                };
+                avatar.appendChild(
+                    img
+                );
 
-                avatar.appendChild(img);
             } else {
+
                 avatar.textContent =
-                    getUserName(user)
+                    username
                         .charAt(0)
                         .toUpperCase() ||
                     "G";
@@ -582,7 +829,7 @@
 
         if (name) {
             name.textContent =
-                getUserName(user);
+                username;
         }
 
         if (statusEl) {
@@ -590,80 +837,89 @@
                 status;
         }
 
-        const incoming =
-            status.includes("ورودی");
+        const isIncoming =
+            status.includes(
+                "ورودی"
+            );
 
-        const connected =
-            status.includes("مکالمه");
+        const isConnected =
+            status.includes(
+                "مکالمه"
+            );
 
         if (accept) {
             accept.style.display =
-                incoming
-                    ? "flex"
+                isIncoming
+                    ? "block"
                     : "none";
         }
 
         if (reject) {
             reject.style.display =
-                incoming || !connected
-                    ? "flex"
-                    : "none";
+                isConnected
+                    ? "none"
+                    : "block";
         }
 
         if (end) {
             end.style.display =
-                connected
-                    ? "flex"
+                isConnected
+                    ? "block"
                     : "none";
         }
 
-        if (incoming) {
+        if (isIncoming) {
             startRing();
         } else {
             stopRing();
         }
 
-        if (connected) {
+        if (isConnected) {
             stopRing();
         }
     }
 
     function hideCallUI() {
+
         const overlay =
-            document.getElementById(
+            getElement(
                 "gapinoCallOverlay"
             );
 
         if (overlay) {
-            overlay.classList.remove("show");
+            overlay.classList.remove(
+                "show"
+            );
         }
 
         stopRing();
-        stopTimer();
+        stopCallTimer();
     }
 
     /* =========================================================
        TIMER
        ========================================================= */
 
-    function startTimer() {
-        stopTimer();
+    function startCallTimer() {
+
+        stopCallTimer();
 
         callStartedAt =
             Date.now();
 
-        updateTimer();
+        updateCallTimer();
 
         callTimer =
             setInterval(
-                updateTimer,
+                updateCallTimer,
                 1000
             );
     }
 
-    function updateTimer() {
+    function updateCallTimer() {
+
         const timer =
-            document.getElementById(
+            getElement(
                 "gapinoCallTimer"
             );
 
@@ -687,16 +943,20 @@
                 seconds / 60
             );
 
-        const remaining =
+        const rest =
             seconds % 60;
 
         timer.textContent =
-            `${String(minutes).padStart(2, "0")}:${String(remaining).padStart(2, "0")}`;
+            `${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
     }
 
-    function stopTimer() {
+    function stopCallTimer() {
+
         if (callTimer) {
-            clearInterval(callTimer);
+            clearInterval(
+                callTimer
+            );
+
             callTimer = null;
         }
 
@@ -708,116 +968,53 @@
        ========================================================= */
 
     async function getMicrophone() {
+
         if (
             !navigator.mediaDevices ||
             !navigator.mediaDevices.getUserMedia
         ) {
             throw new Error(
-                "مرورگر از میکروفن پشتیبانی نمی‌کند."
+                "مرورگر از میکروفون پشتیبانی نمی‌کند."
             );
         }
 
-        const constraints = {
-            audio: {
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true,
-                channelCount: 1
-            },
-            video: false
-        };
-
         try {
+
             const stream =
-                await navigator.mediaDevices.getUserMedia(
-                    constraints
-                );
+                await navigator.mediaDevices
+                    .getUserMedia({
+                        audio: {
+                            echoCancellation: true,
+                            noiseSuppression: true,
+                            autoGainControl: true,
+                            channelCount: 1
+                        },
+                        video: false
+                    });
 
             const tracks =
                 stream.getAudioTracks();
 
-            const track =
-                tracks[0];
+            if (!tracks.length) {
 
-            if (!track) {
-                throw new Error(
-                    "میکروفن صوتی پیدا نشد."
-                );
-            }
-
-            localAudioTrack =
-                track;
-
-            try {
-                const capabilities =
-                    typeof track.getCapabilities ===
-                    "function"
-                        ? track.getCapabilities()
-                        : {};
-
-                const apply = {};
-
-                if (
-                    "echoCancellation" in
-                    capabilities
-                ) {
-                    apply.echoCancellation =
-                        true;
-                }
-
-                if (
-                    "noiseSuppression" in
-                    capabilities
-                ) {
-                    apply.noiseSuppression =
-                        true;
-                }
-
-                if (
-                    "autoGainControl" in
-                    capabilities
-                ) {
-                    apply.autoGainControl =
-                        true;
-                }
-
-                if (
-                    "channelCount" in
-                    capabilities
-                ) {
-                    apply.channelCount =
-                        1;
-                }
-
-                if (
-                    Object.keys(apply).length > 0 &&
-                    typeof track.applyConstraints ===
-                    "function"
-                ) {
-                    await track.applyConstraints(
-                        apply
+                stream
+                    .getTracks()
+                    .forEach(
+                        track =>
+                            track.stop()
                     );
-                }
 
-            } catch (error) {
-                console.warn(
-                    "GAPINO microphone constraints:",
-                    error
+                throw new Error(
+                    "میکروفون پیدا نشد."
                 );
             }
-
-            console.log(
-                "GAPINO microphone ready:",
-                track.getSettings
-                    ? track.getSettings()
-                    : {}
-            );
 
             return stream;
 
         } catch (error) {
+
             console.error(
-                "GAPINO Microphone error:",
+                "GAPINO microphone:",
                 error
             );
 
@@ -826,180 +1023,68 @@
     }
 
     /* =========================================================
-       REMOTE AUDIO
-       ========================================================= */
-
-    function ensureRemoteAudio() {
-        if (
-            remoteAudio &&
-            document.body.contains(
-                remoteAudio
-            )
-        ) {
-            return remoteAudio;
-        }
-
-        remoteAudio =
-            document.createElement("audio");
-
-        remoteAudio.id =
-            "gapinoRemoteAudio";
-
-        remoteAudio.autoplay = true;
-        remoteAudio.playsInline = true;
-        remoteAudio.muted = false;
-        remoteAudio.controls = false;
-
-        try {
-            remoteAudio.volume = 1;
-        } catch (_) {}
-
-        remoteAudio.style.position =
-            "fixed";
-
-        remoteAudio.style.left =
-            "-9999px";
-
-        remoteAudio.style.top =
-            "0";
-
-        remoteAudio.style.width =
-            "1px";
-
-        remoteAudio.style.height =
-            "1px";
-
-        remoteAudio.style.opacity =
-            "0";
-
-        remoteAudio.style.pointerEvents =
-            "none";
-
-        remoteAudio.setAttribute(
-            "aria-hidden",
-            "true"
-        );
-
-        document.body.appendChild(
-            remoteAudio
-        );
-
-        return remoteAudio;
-    }
-
-    async function playRemoteAudio() {
-        if (!remoteAudio) {
-            return;
-        }
-
-        try {
-            remoteAudio.muted = false;
-            remoteAudio.volume = 1;
-
-            await unlockAudio();
-
-            const promise =
-                remoteAudio.play();
-
-            if (
-                promise &&
-                typeof promise.catch ===
-                "function"
-            ) {
-                await promise;
-            }
-
-            console.log(
-                "GAPINO remote audio playing"
-            );
-
-        } catch (error) {
-            console.warn(
-                "GAPINO remote audio play failed:",
-                error
-            );
-
-            showToast(
-                "صدای تماس آماده است؛ یک بار روی صفحه ضربه بزن."
-            );
-        }
-    }
-
-    /* =========================================================
-       PEER CONNECTION
+       PEER
        ========================================================= */
 
     function createPeerConnection(
-        receiverId
+        targetId
     ) {
+
         if (peerConnection) {
             try {
                 peerConnection.close();
             } catch (_) {}
         }
 
-        if (!window.RTCPeerConnection) {
+        if (
+            !window.RTCPeerConnection
+        ) {
             throw new Error(
-                "مرورگر از WebRTC پشتیبانی نمی‌کند."
+                "WebRTC در این مرورگر در دسترس نیست."
             );
         }
 
-        const config =
-            buildIceConfig();
-
-        console.log(
-            "GAPINO ICE config:",
-            config
-        );
-
-        peerConnection =
+        const pc =
             new RTCPeerConnection(
-                config
+                buildPeerConfig()
             );
 
-        peerConnection.onicecandidate =
+        peerConnection =
+            pc;
+
+        pc.onicecandidate =
             event => {
+
                 if (
                     !event.candidate ||
-                    !callTarget
+                    !targetId
                 ) {
                     return;
                 }
 
-                console.log(
-                    "GAPINO sending ICE candidate:",
-                    event.candidate.candidate
-                );
-
-                send({
-                    type:
-                        "call_ice",
-
+                sendSignal({
+                    type: "call_ice",
                     receiver_id:
-                        Number(receiverId),
-
+                        Number(targetId),
                     call_id:
                         currentCallId,
-
                     candidate:
                         event.candidate
                 });
             };
 
-        peerConnection.ontrack =
+        pc.ontrack =
             event => {
+
                 console.log(
-                    "GAPINO remote audio track received",
-                    event
+                    "GAPINO remote track received"
                 );
 
                 const stream =
-                    event.streams?.[0];
+                    event.streams &&
+                    event.streams[0];
 
                 if (!stream) {
-                    console.warn(
-                        "GAPINO ontrack without stream"
-                    );
                     return;
                 }
 
@@ -1018,183 +1103,158 @@
                 playRemoteAudio();
             };
 
-        peerConnection.onconnectionstatechange =
+        pc.onconnectionstatechange =
             () => {
-                if (!peerConnection) {
-                    return;
-                }
 
                 const state =
-                    peerConnection.connectionState;
+                    pc.connectionState;
 
                 console.log(
-                    "GAPINO WebRTC connectionState:",
+                    "GAPINO connection:",
                     state
                 );
 
-                if (state === "new") {
-                    showCallUI(
-                        callTarget,
-                        outgoingCall
-                            ? "📤 در حال تماس..."
-                            : "📞 تماس ورودی"
-                    );
-                }
-
-                if (state === "connecting") {
+                if (
+                    state ===
+                    "connecting"
+                ) {
                     showCallUI(
                         callTarget,
                         "🔄 در حال اتصال..."
                     );
                 }
 
-                if (state === "connected") {
-                    activeCall = true;
+                if (
+                    state ===
+                    "connected"
+                ) {
+
+                    activeCall =
+                        true;
 
                     showCallUI(
                         callTarget,
                         "🟢 در حال مکالمه"
                     );
 
-                    startTimer();
+                    startCallTimer();
                     stopRing();
 
                     playRemoteAudio();
 
-                    notify(
-                        "🟢 تماس برقرار شد",
-                        `مکالمه با ${getUserName(callTarget)} برقرار شد.`,
-                        false,
-                        false
+                    beep(
+                        980,
+                        90,
+                        0.04
                     );
                 }
 
-                if (state === "disconnected") {
+                if (
+                    state ===
+                    "disconnected"
+                ) {
+
                     showCallUI(
                         callTarget,
                         "📡 ارتباط ناپایدار..."
                     );
                 }
 
-                if (state === "failed") {
-                    console.error(
-                        "GAPINO WebRTC failed."
+                if (
+                    state ===
+                    "failed"
+                ) {
+
+                    showCallUI(
+                        callTarget,
+                        "❌ اتصال تماس ناموفق بود"
                     );
 
-                    notify(
-                        "❌ تماس",
-                        "ارتباط WebRTC برقرار نشد.",
-                        true,
-                        false
+                    setTimeout(
+                        () => {
+                            if (
+                                peerConnection === pc
+                            ) {
+                                endCall(
+                                    true,
+                                    true
+                                );
+                            }
+                        },
+                        1200
                     );
-
-                    endCall(
-                        true,
-                        false
-                    );
-                }
-
-                if (state === "closed") {
-                    cleanup();
                 }
             };
 
-        peerConnection.oniceconnectionstatechange =
+        pc.oniceconnectionstatechange =
             () => {
-                if (!peerConnection) {
-                    return;
-                }
-
-                const state =
-                    peerConnection.iceConnectionState;
 
                 console.log(
                     "GAPINO ICE:",
-                    state
+                    pc.iceConnectionState
                 );
             };
 
-        peerConnection.onicegatheringstatechange =
+        pc.onicegatheringstatechange =
             () => {
-                if (!peerConnection) {
-                    return;
-                }
 
                 console.log(
                     "GAPINO ICE gathering:",
-                    peerConnection.iceGatheringState
+                    pc.iceGatheringState
                 );
             };
 
-        peerConnection.onsignalingstatechange =
-            () => {
-                if (!peerConnection) {
-                    return;
-                }
-
-                console.log(
-                    "GAPINO signaling:",
-                    peerConnection.signalingState
-                );
-            };
-
-        peerConnection.onnegotiationneeded =
-            () => {
-                console.log(
-                    "GAPINO negotiationneeded"
-                );
-            };
-
-        return peerConnection;
+        return pc;
     }
 
     async function addLocalTracks() {
+
+        if (!peerConnection) {
+            throw new Error(
+                "PeerConnection وجود ندارد."
+            );
+        }
+
         if (!localStream) {
             localStream =
                 await getMicrophone();
         }
 
-        if (!peerConnection) {
-            throw new Error(
-                "اتصال WebRTC ایجاد نشده است."
-            );
-        }
-
         const senders =
             peerConnection.getSenders();
 
-        for (
-            const track
-            of localStream.getTracks()
-        ) {
-            const exists =
-                senders.some(
-                    sender =>
-                        sender.track === track
-                );
+        localStream
+            .getTracks()
+            .forEach(
+                track => {
 
-            if (!exists) {
-                peerConnection.addTrack(
-                    track,
-                    localStream
-                );
-            }
-        }
+                    const exists =
+                        senders.some(
+                            sender =>
+                                sender.track ===
+                                track
+                        );
 
-        console.log(
-            "GAPINO local audio tracks:",
-            localStream.getAudioTracks()
-        );
+                    if (!exists) {
+
+                        peerConnection.addTrack(
+                            track,
+                            localStream
+                        );
+                    }
+                }
+            );
     }
 
     /* =========================================================
-       OUTGOING CALL
+       START OUTGOING
        ========================================================= */
 
-    async function startCall() {
-        await unlockAudio();
+    async function startCall(
+        explicitUser = null
+    ) {
 
-        await requestNotificationPermission();
+        await unlockAudio();
 
         if (
             activeCall ||
@@ -1203,10 +1263,12 @@
             showToast(
                 "یک تماس در حال اجراست."
             );
+
             return;
         }
 
         const target =
+            explicitUser ||
             getCurrentChatUser();
 
         const targetId =
@@ -1226,13 +1288,18 @@
             showToast(
                 "ابتدا یک کاربر را انتخاب کن."
             );
+
             return;
         }
 
-        if (targetId === myId) {
+        if (
+            targetId ===
+            myId
+        ) {
             showToast(
                 "نمی‌توانی با خودت تماس بگیری."
             );
+
             return;
         }
 
@@ -1241,14 +1308,11 @@
 
         if (
             !socket ||
-            socket.readyState !== WebSocket.OPEN
+            socket.readyState !==
+                WebSocket.OPEN
         ) {
             showToast(
-                "اتصال تماس آماده نیست؛ چند لحظه صبر کن."
-            );
-
-            console.warn(
-                "GAPINO call: socket unavailable"
+                "اتصال تماس آماده نیست."
             );
 
             return;
@@ -1266,10 +1330,11 @@
         activeCall =
             false;
 
-        pendingIce = [];
         pendingOffer = null;
+        pendingIce = [];
 
         try {
+
             showCallUI(
                 target,
                 "📤 در حال تماس..."
@@ -1286,8 +1351,7 @@
 
             const offer =
                 await peerConnection.createOffer({
-                    offerToReceiveAudio: true,
-                    voiceActivityDetection: true
+                    offerToReceiveAudio: true
                 });
 
             await peerConnection.setLocalDescription(
@@ -1295,7 +1359,7 @@
             );
 
             const sent =
-                send({
+                sendSignal({
                     type:
                         "call_offer",
 
@@ -1311,7 +1375,7 @@
 
             if (!sent) {
                 throw new Error(
-                    "ارسال تماس انجام نشد."
+                    "ارسال تماس ناموفق بود."
                 );
             }
 
@@ -1321,12 +1385,16 @@
             );
 
         } catch (error) {
+
             console.error(
-                "GAPINO Start call error:",
+                "GAPINO outgoing call:",
                 error
             );
 
-            cleanup();
+            endCall(
+                false,
+                false
+            );
 
             showToast(
                 "❌ برقراری تماس انجام نشد."
@@ -1335,24 +1403,26 @@
     }
 
     /* =========================================================
-       INCOMING CALL
+       INCOMING OFFER
        ========================================================= */
 
     async function handleOffer(data) {
-        await unlockAudio();
 
-        await requestNotificationPermission();
+        await unlockAudio();
 
         if (
             activeCall ||
             peerConnection
         ) {
-            send({
+
+            sendSignal({
                 type:
                     "call_busy",
 
                 receiver_id:
-                    Number(data.sender_id),
+                    Number(
+                        data.sender_id
+                    ),
 
                 call_id:
                     data.call_id || ""
@@ -1363,32 +1433,38 @@
 
         const senderId =
             String(
-                data.sender_id || ""
+                data.sender_id ??
+                data.user_id ??
+                ""
             );
 
         if (!senderId) {
+            console.warn(
+                "GAPINO incoming call: sender missing"
+            );
+
             return;
         }
 
-        const users =
+        let caller = null;
+
+        const availableUsers =
             Array.isArray(
                 window.GAPINO?.users
             )
                 ? window.GAPINO.users
                 : [];
 
-        const caller =
-            users.find(
+        caller =
+            availableUsers.find(
                 user =>
                     getUserId(user) ===
                     senderId
-            ) ||
-            {
+            ) || {
                 id: senderId,
                 username: "کاربر",
                 display_name:
-                    "کاربر گپینو",
-                online: true
+                    "کاربر گپینو"
             };
 
         callTarget =
@@ -1411,19 +1487,16 @@
         pendingIce = [];
 
         if (!pendingOffer) {
+            console.warn(
+                "GAPINO incoming call: offer missing"
+            );
+
             return;
         }
 
         showCallUI(
             caller,
             "📞 تماس ورودی"
-        );
-
-        notify(
-            "📞 تماس ورودی",
-            `${getUserName(caller)} با شما تماس می‌گیرد.`,
-            true,
-            true
         );
 
         startRing();
@@ -1434,9 +1507,8 @@
        ========================================================= */
 
     async function acceptCall() {
-        await unlockAudio();
 
-        await requestNotificationPermission();
+        await unlockAudio();
 
         stopRing();
 
@@ -1448,6 +1520,7 @@
         }
 
         try {
+
             showCallUI(
                 callTarget,
                 "🔄 در حال پاسخ..."
@@ -1457,7 +1530,9 @@
                 await getMicrophone();
 
             createPeerConnection(
-                getUserId(callTarget)
+                getUserId(
+                    callTarget
+                )
             );
 
             await addLocalTracks();
@@ -1468,12 +1543,11 @@
                 )
             );
 
-            await flushIce();
+            await flushPendingIce();
 
             const answer =
                 await peerConnection.createAnswer({
-                    offerToReceiveAudio: true,
-                    voiceActivityDetection: true
+                    offerToReceiveAudio: true
                 });
 
             await peerConnection.setLocalDescription(
@@ -1481,13 +1555,15 @@
             );
 
             const sent =
-                send({
+                sendSignal({
                     type:
                         "call_answer",
 
                     receiver_id:
                         Number(
-                            getUserId(callTarget)
+                            getUserId(
+                                callTarget
+                            )
                         ),
 
                     call_id:
@@ -1499,7 +1575,7 @@
 
             if (!sent) {
                 throw new Error(
-                    "ارسال پاسخ تماس انجام نشد."
+                    "ارسال پاسخ تماس ناموفق بود."
                 );
             }
 
@@ -1511,27 +1587,13 @@
             );
 
         } catch (error) {
+
             console.error(
-                "GAPINO Accept call error:",
+                "GAPINO accept call:",
                 error
             );
 
-            if (callTarget) {
-                send({
-                    type:
-                        "call_reject",
-
-                    receiver_id:
-                        Number(
-                            getUserId(callTarget)
-                        ),
-
-                    call_id:
-                        currentCallId
-                });
-            }
-
-            cleanup();
+            rejectCall();
 
             showToast(
                 "❌ پاسخ به تماس انجام نشد."
@@ -1544,6 +1606,7 @@
        ========================================================= */
 
     async function handleAnswer(data) {
+
         if (
             !peerConnection ||
             !outgoingCall
@@ -1552,8 +1615,13 @@
         }
 
         if (
-            String(data.call_id || "") !==
-            String(currentCallId || "")
+            data.call_id &&
+            String(
+                data.call_id
+            ) !==
+            String(
+                currentCallId
+            )
         ) {
             return;
         }
@@ -1563,13 +1631,14 @@
         }
 
         try {
+
             await peerConnection.setRemoteDescription(
                 new RTCSessionDescription(
                     data.answer
                 )
             );
 
-            await flushIce();
+            await flushPendingIce();
 
             showCallUI(
                 callTarget,
@@ -1577,14 +1646,15 @@
             );
 
         } catch (error) {
+
             console.error(
-                "GAPINO Answer error:",
+                "GAPINO handle answer:",
                 error
             );
 
             endCall(
                 true,
-                false
+                true
             );
         }
     }
@@ -1594,14 +1664,20 @@
        ========================================================= */
 
     async function handleIce(data) {
+
         if (!data.candidate) {
             return;
         }
 
         if (
             data.call_id &&
-            String(data.call_id) !==
-            String(currentCallId)
+            currentCallId &&
+            String(
+                data.call_id
+            ) !==
+            String(
+                currentCallId
+            )
         ) {
             return;
         }
@@ -1618,6 +1694,7 @@
         }
 
         try {
+
             await peerConnection.addIceCandidate(
                 new RTCIceCandidate(
                     data.candidate
@@ -1625,14 +1702,16 @@
             );
 
         } catch (error) {
+
             console.warn(
-                "GAPINO ICE error:",
+                "GAPINO ICE candidate:",
                 error
             );
         }
     }
 
-    async function flushIce() {
+    async function flushPendingIce() {
+
         if (
             !peerConnection ||
             !peerConnection.remoteDescription
@@ -1640,22 +1719,28 @@
             return;
         }
 
-        const list =
-            pendingIce.splice(0);
+        const candidates =
+            pendingIce.splice(
+                0
+            );
 
         for (
             const candidate
-            of list
+            of candidates
         ) {
+
             try {
+
                 await peerConnection.addIceCandidate(
                     new RTCIceCandidate(
                         candidate
                     )
                 );
+
             } catch (error) {
+
                 console.warn(
-                    "GAPINO ICE flush error:",
+                    "GAPINO ICE flush:",
                     error
                 );
             }
@@ -1663,21 +1748,26 @@
     }
 
     /* =========================================================
-       REJECT / BUSY
+       CALL CONTROL
        ========================================================= */
 
     function rejectCall() {
-        stopRing();
 
-        if (callTarget) {
-            send({
+        const targetId =
+            callTarget
+                ? getUserId(
+                    callTarget
+                )
+                : "";
+
+        if (targetId) {
+
+            sendSignal({
                 type:
                     "call_reject",
 
                 receiver_id:
-                    Number(
-                        getUserId(callTarget)
-                    ),
+                    Number(targetId),
 
                 call_id:
                     currentCallId
@@ -1692,14 +1782,16 @@
     }
 
     function handleReject() {
+
         cleanup();
 
         showToast(
-            "❌ تماس شما رد شد."
+            "❌ تماس رد شد."
         );
     }
 
     function handleBusy() {
+
         cleanup();
 
         showToast(
@@ -1708,6 +1800,7 @@
     }
 
     function handleRemoteEnd() {
+
         cleanup();
 
         showToast(
@@ -1715,24 +1808,24 @@
         );
     }
 
-    /* =========================================================
-       END CALL
-       ========================================================= */
-
     function endCall(
         notifyRemote = true,
         showMessage = true
     ) {
+
         const targetId =
             callTarget
-                ? getUserId(callTarget)
+                ? getUserId(
+                    callTarget
+                )
                 : "";
 
         if (
             notifyRemote &&
             targetId
         ) {
-            send({
+
+            sendSignal({
                 type:
                     "call_end",
 
@@ -1758,53 +1851,57 @@
        ========================================================= */
 
     function cleanup() {
+
         stopRing();
-        stopTimer();
+        stopCallTimer();
 
         if (peerConnection) {
+
             try {
-                peerConnection.ontrack = null;
                 peerConnection.onicecandidate = null;
+                peerConnection.ontrack = null;
                 peerConnection.onconnectionstatechange = null;
                 peerConnection.oniceconnectionstatechange = null;
                 peerConnection.onicegatheringstatechange = null;
-                peerConnection.onsignalingstatechange = null;
-                peerConnection.onnegotiationneeded = null;
 
                 peerConnection.close();
+
             } catch (_) {}
         }
 
         peerConnection = null;
 
         if (localStream) {
+
             localStream
                 .getTracks()
-                .forEach(track => {
-                    try {
-                        track.stop();
-                    } catch (_) {}
-                });
+                .forEach(
+                    track => {
+                        try {
+                            track.stop();
+                        } catch (_) {}
+                    }
+                );
         }
 
         localStream = null;
-        localAudioTrack = null;
+        remoteStream = null;
 
         if (remoteAudio) {
+
             try {
                 remoteAudio.pause();
             } catch (_) {}
 
-            remoteAudio.srcObject = null;
+            remoteAudio.srcObject =
+                null;
         }
 
-        remoteStream = null;
-
-        pendingIce = [];
         pendingOffer = null;
+        pendingIce = [];
 
-        activeCall = false;
         outgoingCall = false;
+        activeCall = false;
 
         callTarget = null;
         currentCallId = null;
@@ -1813,82 +1910,161 @@
     }
 
     /* =========================================================
-       EVENTS
+       EVENT BRIDGE
        ========================================================= */
 
-    window.addEventListener(
-        "gapino:call",
-        async event => {
-            const data =
-                event.detail;
+    function handleCallEvent(data) {
 
-            if (
-                !data ||
-                typeof data.type !==
+        if (
+            !data ||
+            typeof data.type !==
                 "string"
-            ) {
-                return;
-            }
+        ) {
+            return;
+        }
 
-            console.log(
-                "GAPINO call event:",
-                data
-            );
+        console.log(
+            "GAPINO call event:",
+            data
+        );
 
-            if (
-                data.type ===
-                "call_offer"
-            ) {
-                await handleOffer(data);
-                return;
-            }
+        switch (data.type) {
 
-            if (
-                data.type ===
-                "call_answer"
-            ) {
-                await handleAnswer(data);
-                return;
-            }
+            case "call_offer":
+                handleOffer(data);
+                break;
 
-            if (
-                data.type ===
-                "call_ice"
-            ) {
-                await handleIce(data);
-                return;
-            }
+            case "call_answer":
+                handleAnswer(data);
+                break;
 
-            if (
-                data.type ===
-                "call_reject"
-            ) {
+            case "call_ice":
+                handleIce(data);
+                break;
+
+            case "call_reject":
                 handleReject();
-                return;
-            }
+                break;
 
-            if (
-                data.type ===
-                "call_busy"
-            ) {
+            case "call_busy":
                 handleBusy();
-                return;
-            }
+                break;
 
-            if (
-                data.type ===
-                "call_end"
-            ) {
+            case "call_end":
                 handleRemoteEnd();
-            }
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    /*
+     * chat.js فعلی:
+     * document.dispatchEvent(
+     *   new CustomEvent("gapino-call-event", ...)
+     * )
+     */
+    document.addEventListener(
+        "gapino-call-event",
+        event => {
+            handleCallEvent(
+                event.detail
+            );
         }
     );
+
+    /*
+     * سازگاری با نسخه‌های قبلی
+     */
+    window.addEventListener(
+        "gapino:call",
+        event => {
+            handleCallEvent(
+                event.detail
+            );
+        }
+    );
+
+    /* =========================================================
+       BUTTON
+       ========================================================= */
+
+    function setupCallButton() {
+
+        const button =
+            getElement(
+                "callButton"
+            );
+
+        if (!button) {
+            return;
+        }
+
+        /*
+         * جلوگیری از ثبت چندباره
+         */
+        if (
+            button.dataset.gapinoCallReady ===
+            "1"
+        ) {
+            return;
+        }
+
+        button.dataset.gapinoCallReady =
+            "1";
+
+        button.addEventListener(
+            "click",
+            async () => {
+
+                await startCall();
+
+            }
+        );
+    }
+
+    /* =========================================================
+       PUBLIC API
+       ========================================================= */
+
+    window.GAPINO_CALL_START =
+        startCall;
+
+    window.GAPINO_CALL_END =
+        () =>
+            endCall(
+                true,
+                true
+            );
+
+    window.GAPINO_CALL_HANDLE_EVENT =
+        handleCallEvent;
+
+    window.GAPINO_CALL = {
+        start:
+            startCall,
+
+        end:
+            () =>
+                endCall(
+                    true,
+                    true
+                ),
+
+        accept:
+            acceptCall,
+
+        reject:
+            rejectCall
+    };
 
     /* =========================================================
        INIT
        ========================================================= */
 
     function init() {
+
         if (initialized) {
             return;
         }
@@ -1896,14 +2072,20 @@
         initialized = true;
 
         createCallUI();
+        setupCallButton();
+
+        /*
+         * فعال کردن صدای مرورگر با اولین لمس/کلیک
+         */
+        const unlock = () => {
+            unlockAudio().catch(
+                () => {}
+            );
+        };
 
         document.addEventListener(
             "click",
-            () => {
-                unlockAudio().catch(
-                    () => {}
-                );
-            },
+            unlock,
             {
                 once: true,
                 passive: true
@@ -1912,30 +2094,12 @@
 
         document.addEventListener(
             "touchstart",
-            () => {
-                unlockAudio().catch(
-                    () => {}
-                );
-            },
+            unlock,
             {
                 once: true,
                 passive: true
             }
         );
-
-        window.GAPINO_CALL = {
-            start: startCall,
-
-            end: () =>
-                endCall(
-                    true,
-                    true
-                ),
-
-            accept: acceptCall,
-
-            reject: rejectCall
-        };
 
         console.log(
             "GAPINO voice call initialized"
@@ -1946,6 +2110,7 @@
         document.readyState ===
         "loading"
     ) {
+
         document.addEventListener(
             "DOMContentLoaded",
             init,
@@ -1953,7 +2118,9 @@
                 once: true
             }
         );
+
     } else {
+
         init();
     }
 
