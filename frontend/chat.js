@@ -4,7 +4,6 @@ const API = window.location.origin;
 
 let currentUser = null;
 let currentChatUser = null;
-
 let socket = null;
 
 let reconnectTimer = null;
@@ -39,16 +38,16 @@ function safeText(value) {
 
 function getCurrentUserId() {
     return String(
-        currentUser?.id ||
-        currentUser?.user_id ||
+        currentUser?.id ??
+        currentUser?.user_id ??
         ""
     );
 }
 
 function getUserId(user) {
     return String(
-        user?.id ||
-        user?.user_id ||
+        user?.id ??
+        user?.user_id ??
         ""
     );
 }
@@ -201,7 +200,6 @@ function getAvatarLetter(user) {
     );
 }
 
-
 function getAbsoluteUrl(url) {
     const value = safeText(url).trim();
 
@@ -223,7 +221,6 @@ function getAbsoluteUrl(url) {
     return "/" + value;
 }
 
-
 function renderAvatar(element, user) {
     if (!element) {
         return;
@@ -240,12 +237,10 @@ function renderAvatar(element, user) {
     if (!avatar) {
         element.textContent =
             getAvatarLetter(user);
-
         return;
     }
 
-    const img =
-        document.createElement("img");
+    const img = document.createElement("img");
 
     img.src = avatar;
     img.alt = "آواتار";
@@ -262,7 +257,7 @@ function renderAvatar(element, user) {
 
 
 /* =========================================================
-   CURRENT USER
+   CURRENT USER UI
    ========================================================= */
 
 function updateCurrentUserUI() {
@@ -326,77 +321,66 @@ function updateChatHeader(user) {
         chatHeaderEmpty.hidden = true;
     }
 
+    /*
+     * مهم:
+     * دکمه تماس فقط بر اساس انتخاب کاربر فعال/غیرفعال می‌شود،
+     * نه بر اساس online که ممکن است Presence هنوز به‌روز نشده باشد.
+     */
     if (callButton) {
-        callButton.disabled =
-            !isOnline(user);
-
-        callButton.title =
-            isOnline(user)
-                ? "تماس صوتی"
-                : "کاربر آفلاین است";
+        callButton.disabled = false;
+        callButton.title = "تماس صوتی";
     }
 }
 
 
 /* =========================================================
-   INPUT
+   INPUT STATE
    ========================================================= */
 
 function setChatInputEnabled(enabled) {
-    const state =
-        Boolean(enabled);
+    const state = Boolean(enabled);
 
     if (messageInput) {
-        messageInput.disabled =
-            !state;
+        messageInput.disabled = !state;
 
         messageInput.placeholder =
             state
-                ? "پیامت را بنویس..."
+                ? "پیامت را بنوی..."
                 : "یک کاربر را انتخاب کنید...";
     }
 
     if (sendButton) {
-        sendButton.disabled =
-            !state;
+        sendButton.disabled = !state;
     }
 
     if (attachButton) {
-        attachButton.disabled =
-            !state;
+        attachButton.disabled = !state;
     }
 
     if (voiceButton) {
-        voiceButton.disabled =
-            !state;
+        voiceButton.disabled = !state;
     }
 
+    /*
+     * تماس:
+     * وقتی گفتگو انتخاب شده، فعال باشد.
+     */
     if (callButton) {
         callButton.disabled =
             !state ||
-            !currentChatUser ||
-            !isOnline(currentChatUser);
+            !currentChatUser;
     }
 }
 
 
 /* =========================================================
-   CURRENT USER
+   LOAD CURRENT USER
    ========================================================= */
 
 async function loadCurrentUser() {
     try {
-        /*
-         * مهم:
-         * مسیر صحیح بک‌اند /api/me است.
-         */
-
         const data =
             await apiFetch("/api/me");
-
-        /*
-         * /api/me مستقیماً خود user را برمی‌گرداند.
-         */
 
         if (data?.id) {
             currentUser = data;
@@ -411,9 +395,6 @@ async function loadCurrentUser() {
             return currentUser;
         }
 
-        /*
-         * برای سازگاری احتمالی با پاسخ‌های قدیمی
-         */
         if (
             data?.authenticated &&
             data?.user
@@ -676,7 +657,7 @@ function renderUsers() {
 
 
 /* =========================================================
-   CHAT
+   OPEN CHAT
    ========================================================= */
 
 async function openChat(user) {
@@ -687,7 +668,9 @@ async function openChat(user) {
     currentChatUser =
         user;
 
-    updateChatHeader(user);
+    updateChatHeader(
+        user
+    );
 
     renderUsers();
 
@@ -727,25 +710,19 @@ async function openChat(user) {
 
 
 /* =========================================================
-   CONVERSATION
+   LOAD CONVERSATION
    ========================================================= */
 
 async function loadConversation(
     otherUserId
 ) {
     if (
-        !getCurrentUserId() ||
         !otherUserId
     ) {
         return;
     }
 
     try {
-        /*
-         * بک‌اند فعلی:
-         * /api/messages/{other_id}
-         */
-
         const data =
             await apiFetch(
                 `/api/messages/${encodeURIComponent(
@@ -857,8 +834,8 @@ function appendMessage(
 
     const senderId =
         String(
-            message.sender_id ||
-            message.sender ||
+            message.sender_id ??
+            message.sender ??
             ""
         );
 
@@ -995,17 +972,13 @@ function renderFileObject(
         );
 
     const isAudio =
-        type.startsWith(
-            "audio/"
-        ) ||
+        type.startsWith("audio/") ||
         /\.(webm|ogg|mp3|wav|m4a)$/i.test(
             url
         );
 
     const isImage =
-        type.startsWith(
-            "image/"
-        ) ||
+        type.startsWith("image/") ||
         /\.(jpg|jpeg|png|gif|webp)$/i.test(
             url
         );
@@ -1031,10 +1004,14 @@ function renderFileObject(
                 "audio"
             );
 
-        audio.controls = true;
+        audio.controls =
+            true;
+
         audio.preload =
             "metadata";
-        audio.src = url;
+
+        audio.src =
+            url;
 
         const label =
             document.createElement(
@@ -1071,9 +1048,14 @@ function renderFileObject(
         image.className =
             "message-image";
 
-        image.src = url;
-        image.alt = name;
-        image.loading = "lazy";
+        image.src =
+            url;
+
+        image.alt =
+            name;
+
+        image.loading =
+            "lazy";
 
         image.addEventListener(
             "click",
@@ -1101,12 +1083,17 @@ function renderFileObject(
     link.className =
         "message-file";
 
-    link.href = url;
-    link.target = "_blank";
+    link.href =
+        url;
+
+    link.target =
+        "_blank";
+
     link.rel =
         "noopener noreferrer";
 
-    link.innerHTML = "📎 ";
+    link.innerHTML =
+        "📎 ";
 
     const strong =
         document.createElement(
@@ -1237,7 +1224,7 @@ function scrollToBottom() {
 
 
 /* =========================================================
-   SEND MESSAGE
+   SEND TEXT
    ========================================================= */
 
 function sendTextMessage() {
@@ -1266,21 +1253,18 @@ function sendTextMessage() {
         return;
     }
 
-    const receiverId =
-        Number(
-            getUserId(
-                currentChatUser
-            )
-        );
-
-    /*
-     * بک‌اند فعلی WebSocket نوع message را می‌پذیرد.
-     */
-
     const sent =
         sendSocket({
-            type: "message",
-            receiver_id: receiverId,
+            type:
+                "message",
+
+            receiver_id:
+                Number(
+                    getUserId(
+                        currentChatUser
+                    )
+                ),
+
             text
         });
 
@@ -1293,7 +1277,9 @@ function sendTextMessage() {
     }
 
     if (messageInput) {
-        messageInput.value = "";
+        messageInput.value =
+            "";
+
         resizeMessageInput();
     }
 
@@ -1311,14 +1297,18 @@ function sendTyping() {
     }
 
     sendSocket({
-        type: "typing",
+        type:
+            "typing",
+
         receiver_id:
             Number(
                 getUserId(
                     currentChatUser
                 )
             ),
-        value: true
+
+        value:
+            true
     });
 
     clearTimeout(
@@ -1343,14 +1333,18 @@ function stopTyping() {
     }
 
     sendSocket({
-        type: "typing",
+        type:
+            "typing",
+
         receiver_id:
             Number(
                 getUserId(
                     currentChatUser
                 )
             ),
-        value: false
+
+        value:
+            false
     });
 }
 
@@ -1382,13 +1376,10 @@ async function markConversationRead(
         return;
     }
 
-    /*
-     * بک‌اند فعلی endpoint خواندن پیام‌ها ندارد.
-     * بنابراین فقط سیگنال WebSocket را ارسال می‌کنیم.
-     */
-
     sendSocket({
-        type: "read",
+        type:
+            "read",
+
         other_user_id:
             String(otherUserId)
     });
@@ -1406,20 +1397,20 @@ async function uploadFile(
         return null;
     }
 
+    if (!currentChatUser) {
+        showToast(
+            "ابتدا یک کاربر را انتخاب کن."
+        );
+
+        return null;
+    }
+
     const limit =
         10 * 1024 * 1024;
 
     if (file.size > limit) {
         showToast(
             "حجم فایل نباید بیشتر از ۱۰ مگابایت باشد."
-        );
-
-        return null;
-    }
-
-    if (!currentChatUser) {
-        showToast(
-            "ابتدا یک کاربر را انتخاب کن."
         );
 
         return null;
@@ -1441,16 +1432,14 @@ async function uploadFile(
     );
 
     try {
-        /*
-         * مسیر صحیح:
-         * /api/upload
-         */
-
         return await apiFetch(
             "/api/upload",
             {
-                method: "POST",
-                body: form
+                method:
+                    "POST",
+
+                body:
+                    form
             }
         );
 
@@ -1485,14 +1474,6 @@ async function sendFile(file) {
         return;
     }
 
-    /*
-     * /api/upload خودش پیام فایل را
-     * داخل دیتابیس ثبت و برای گیرنده broadcast می‌کند.
-     *
-     * بنابراین دیگر لازم نیست یک پیام file
-     * جداگانه از WebSocket بفرستیم.
-     */
-
     if (
         file.type.startsWith(
             "audio/"
@@ -1518,17 +1499,12 @@ async function sendFile(file) {
     }
 
     /*
-     * چون خود سرور فایل را برای ما ذخیره کرده،
-     * پیام را هم برای فرستنده محلی اضافه می‌کنیم.
+     * /api/upload پیام را داخل دیتابیس ساخته است.
+     * برای فرستنده آن را در صفحه نمایش می‌دهیم.
      */
-
-    if (
-        uploaded?.id
-    ) {
-        receiveMessage(
-            uploaded
-        );
-    }
+    receiveMessage(
+        uploaded
+    );
 }
 
 
@@ -1596,9 +1572,14 @@ async function toggleVoiceRecording() {
             await navigator.mediaDevices.getUserMedia(
                 {
                     audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        autoGainControl: true
+                        echoCancellation:
+                            true,
+
+                        noiseSuppression:
+                            true,
+
+                        autoGainControl:
+                            true
                     }
                 }
             );
@@ -1696,7 +1677,8 @@ async function toggleVoiceRecording() {
 
         mediaRecorder.start();
 
-        isRecording = true;
+        isRecording =
+            true;
 
         updateVoiceUI();
 
@@ -1745,10 +1727,17 @@ function cleanupVoice() {
             );
     }
 
-    mediaStream = null;
-    mediaRecorder = null;
-    audioChunks = [];
-    isRecording = false;
+    mediaStream =
+        null;
+
+    mediaRecorder =
+        null;
+
+    audioChunks =
+        [];
+
+    isRecording =
+        false;
 
     updateVoiceUI();
 }
@@ -1785,14 +1774,6 @@ function getWebSocketUrl() {
         location.protocol === "https:"
             ? "wss:"
             : "ws:";
-
-    /*
-     * مهم:
-     * بک‌اند فعلی /ws دارد، نه /ws/{user_id}
-     *
-     * احراز هویت از طریق cookie
-     * gapino_ws_ticket انجام می‌شود.
-     */
 
     return (
         `${protocol}//${location.host}/ws`
@@ -1851,7 +1832,9 @@ function connectWebSocket() {
 
             startPing();
 
-            if (currentChatUser) {
+            if (
+                currentChatUser
+            ) {
                 setChatInputEnabled(
                     true
                 );
@@ -1955,7 +1938,8 @@ function startPing() {
         setInterval(
             () => {
                 sendSocket({
-                    type: "ping"
+                    type:
+                        "ping"
                 });
             },
             25000
@@ -2003,9 +1987,7 @@ function handleSocketMessage(
     }
 
 
-    /* -----------------------------------------------------
-       CALL SIGNALING
-       ----------------------------------------------------- */
+    /* CALL SIGNALING */
 
     if (
         typeof data.type ===
@@ -2028,9 +2010,7 @@ function handleSocketMessage(
     }
 
 
-    /* -----------------------------------------------------
-       READY
-       ----------------------------------------------------- */
+    /* READY */
 
     if (
         data.type ===
@@ -2041,21 +2021,17 @@ function handleSocketMessage(
                 data.online
             )
         ) {
-            updatePresence(
-                {
-                    users:
-                        data.online
-                }
-            );
+            updatePresence({
+                users:
+                    data.online
+            });
         }
 
         return;
     }
 
 
-    /* -----------------------------------------------------
-       PONG
-       ----------------------------------------------------- */
+    /* PONG */
 
     if (
         data.type === "connected" ||
@@ -2065,15 +2041,11 @@ function handleSocketMessage(
     }
 
 
-    /* -----------------------------------------------------
-       ONLINE
-       ----------------------------------------------------- */
+    /* ONLINE */
 
     if (
-        data.type ===
-            "user_online" ||
-        data.type ===
-            "online"
+        data.type === "user_online" ||
+        data.type === "online"
     ) {
         updateSingleUserPresence(
             data.user_id,
@@ -2084,9 +2056,7 @@ function handleSocketMessage(
     }
 
 
-    /* -----------------------------------------------------
-       OFFLINE
-       ----------------------------------------------------- */
+    /* OFFLINE */
 
     if (
         data.type ===
@@ -2103,25 +2073,7 @@ function handleSocketMessage(
     }
 
 
-    /* -----------------------------------------------------
-       ONLINE USERS
-       ----------------------------------------------------- */
-
-    if (
-        data.type ===
-        "online_users"
-    ) {
-        updatePresence(
-            data
-        );
-
-        return;
-    }
-
-
-    /* -----------------------------------------------------
-       TYPING
-       ----------------------------------------------------- */
+    /* TYPING */
 
     if (
         data.type ===
@@ -2154,21 +2106,12 @@ function handleSocketMessage(
     }
 
 
-    /* -----------------------------------------------------
-       MESSAGE UPDATE
-       ----------------------------------------------------- */
+    /* MESSAGE UPDATE */
 
     if (
         data.type ===
         "message:update"
     ) {
-        const message =
-            data.message;
-
-        if (!message) {
-            return;
-        }
-
         if (
             currentChatUser
         ) {
@@ -2183,9 +2126,7 @@ function handleSocketMessage(
     }
 
 
-    /* -----------------------------------------------------
-       MESSAGE
-       ----------------------------------------------------- */
+    /* MESSAGE */
 
     if (
         data.type ===
@@ -2199,25 +2140,7 @@ function handleSocketMessage(
     }
 
 
-    /* -----------------------------------------------------
-       PROFILE
-       ----------------------------------------------------- */
-
-    if (
-        data.type ===
-        "profile_updated"
-    ) {
-        handleProfileUpdated(
-            data.user
-        );
-
-        return;
-    }
-
-
-    /* -----------------------------------------------------
-       ERROR
-       ----------------------------------------------------- */
+    /* ERROR */
 
     if (
         data.type ===
@@ -2244,15 +2167,15 @@ function receiveMessage(
 
     const sender =
         String(
-            message.sender_id ||
-            message.sender ||
+            message.sender_id ??
+            message.sender ??
             ""
         );
 
     const receiver =
         String(
-            message.receiver_id ||
-            message.receiver ||
+            message.receiver_id ??
+            message.receiver ??
             ""
         );
 
@@ -2292,11 +2215,6 @@ function receiveMessage(
             "💬 پیام جدید"
         );
 
-        /*
-         * اگر پیام از کاربر انتخاب‌شده آمده،
-         * گفت‌وگو را تازه می‌کنیم.
-         */
-
         if (
             currentChatUser &&
             sender ===
@@ -2332,7 +2250,9 @@ function updatePresence(
         allUsers.map(
             user => {
                 const id =
-                    getUserId(user);
+                    getUserId(
+                        user
+                    );
 
                 const online =
                     onlineIds.includes(
@@ -2396,8 +2316,9 @@ function updateSingleUserPresence(
         allUsers.map(
             user => {
                 if (
-                    getUserId(user) !==
-                    target
+                    getUserId(
+                        user
+                    ) !== target
                 ) {
                     return user;
                 }
@@ -2565,16 +2486,12 @@ async function saveMyProfile() {
     }
 
     try {
-        /*
-         * بک‌اند فعلی:
-         * PUT /api/profile
-         */
-
         const data =
             await apiFetch(
                 "/api/profile",
                 {
-                    method: "PUT",
+                    method:
+                        "PUT",
 
                     headers: {
                         "Content-Type":
@@ -2607,8 +2524,6 @@ async function saveMyProfile() {
             );
 
             updateCurrentUserUI();
-
-            openMyProfile();
 
             await loadUsers();
 
@@ -2648,34 +2563,6 @@ async function saveMyProfile() {
                 "ذخیره تغییرات";
         }
     }
-}
-
-
-function handleProfileUpdated(
-    user
-) {
-    if (!user) {
-        return;
-    }
-
-    if (
-        String(user.id) ===
-        getCurrentUserId()
-    ) {
-        currentUser =
-            user;
-
-        localStorage.setItem(
-            "gapino_user",
-            JSON.stringify(
-                currentUser
-            )
-        );
-
-        updateCurrentUserUI();
-    }
-
-    loadUsers();
 }
 
 
@@ -2965,23 +2852,52 @@ voiceButton?.addEventListener(
     toggleVoiceRecording
 );
 
+
+/* =========================================================
+   CALL BUTTON
+   ========================================================= */
+
 callButton?.addEventListener(
     "click",
     () => {
+
+        console.log(
+            "GAPINO call button clicked"
+        );
+
+        if (
+            !currentChatUser
+        ) {
+            showToast(
+                "ابتدا یک کاربر را انتخاب کن."
+            );
+
+            return;
+        }
+
         if (
             window.GAPINO_CALL &&
             typeof
                 window.GAPINO_CALL.start ===
                 "function"
         ) {
+
             window.GAPINO_CALL.start();
+
         } else {
+
             showToast(
                 "سیستم تماس هنوز آماده نشده است."
             );
+
+            console.error(
+                "GAPINO_CALL.start is not available"
+            );
         }
+
     }
 );
+
 
 document.addEventListener(
     "keydown",
@@ -2999,6 +2915,7 @@ document.addEventListener(
 document.addEventListener(
     "visibilitychange",
     () => {
+
         if (
             document.visibilityState !==
                 "visible" ||
@@ -3015,9 +2932,11 @@ document.addEventListener(
                 WebSocket.OPEN
         ) {
             connectWebSocket();
+
         } else {
             sendSocket({
-                type: "ping"
+                type:
+                    "ping"
             });
         }
     }
@@ -3026,6 +2945,7 @@ document.addEventListener(
 window.addEventListener(
     "beforeunload",
     () => {
+
         clearTimeout(
             reconnectTimer
         );
@@ -3070,6 +2990,7 @@ function resizeMessageInput() {
    ========================================================= */
 
 async function initGapino() {
+
     loadTheme();
 
     setChatInputEnabled(
@@ -3113,7 +3034,8 @@ if (
         "DOMContentLoaded",
         initGapino,
         {
-            once: true
+            once:
+                true
         }
     );
 } else {
@@ -3126,6 +3048,7 @@ if (
    ========================================================= */
 
 window.GAPINO = {
+
     get currentUser() {
         return currentUser;
     },
@@ -3143,12 +3066,19 @@ window.GAPINO = {
     },
 
     connectWebSocket,
+
     loadUsers,
+
     openChat,
+
     sendTextMessage,
+
     toggleVoiceRecording,
+
     sendFile,
+
     showToast,
+
     markConversationRead
 };
 
