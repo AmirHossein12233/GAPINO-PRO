@@ -1,1358 +1,2594 @@
-```html
-<!DOCTYPE html>
-<html lang="fa" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="#111827">
-    <title>گپینو</title>
+(() => {
+    "use strict";
 
-    <style>
-        * {
-            box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        html,
-        body {
-            width: 100%;
-            height: 100%;
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            background: #0b1020;
-            color: #fff;
-            font-family: Tahoma, Arial, sans-serif;
-        }
-
-        body {
-            min-height: 100dvh;
-        }
-
-        button,
-        input,
-        textarea {
-            font-family: inherit;
-        }
-
-        button {
-            border: 0;
-            cursor: pointer;
-        }
-
-        .app-shell {
-            position: relative;
-            width: 100%;
-            height: 100dvh;
-            display: flex;
-            background: #0b1020;
-        }
-
-        /* SIDEBAR */
-
-        .sidebar {
-            width: 340px;
-            min-width: 340px;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            background: #111827;
-            border-left: 1px solid rgba(255,255,255,.08);
-        }
-
-        .brand {
-            padding: 18px 16px 12px;
-        }
-
-        .brand-title {
-            font-size: 25px;
-            font-weight: 900;
-        }
-
-        .brand-subtitle {
-            margin-top: 4px;
-            font-size: 12px;
-            color: #94a3b8;
-        }
-
-        .search-box {
-            padding: 0 14px 12px;
-        }
-
-        #userSearch {
-            width: 100%;
-            height: 46px;
-            padding: 0 14px;
-            border: 1px solid rgba(255,255,255,.08);
-            border-radius: 13px;
-            outline: none;
-            background: #1f2937;
-            color: #fff;
-            font-size: 14px;
-        }
-
-        #userSearch::placeholder {
-            color: #94a3b8;
-        }
-
-        /* LIVE */
-
-        .live-section {
-            padding: 0 12px 8px;
-        }
-
-        .live-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 5px 4px 8px;
-        }
-
-        .live-title {
-            color: #fca5a5;
-            font-size: 13px;
-            font-weight: 900;
-        }
-
-        #refreshLivesButton {
-            width: 34px;
-            height: 34px;
-            border-radius: 10px;
-            background: #1f2937;
-            color: #fff;
-            font-size: 18px;
-        }
-
-        #activeLivesList {
-            display: flex;
-            flex-direction: column;
-            gap: 7px;
-            max-height: 145px;
-            overflow-y: auto;
-        }
-
-        .live-card {
-            width: 100%;
-            display: flex;
-            align-items: center;
-            gap: 9px;
-            padding: 9px;
-            border-radius: 13px;
-            background: #1a1f2c;
-            border: 1px solid rgba(239,68,68,.18);
-            cursor: pointer;
-        }
-
-        .live-card:active {
-            transform: scale(.99);
-        }
-
-        .live-avatar {
-            width: 40px;
-            height: 40px;
-            flex: 0 0 40px;
-            border-radius: 50%;
-            object-fit: cover;
-            background: #374151;
-        }
-
-        .live-info {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .live-name {
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            font-size: 12px;
-            font-weight: 900;
-        }
-
-        .live-viewers {
-            margin-top: 3px;
-            color: #94a3b8;
-            font-size: 10px;
-        }
-
-        .live-badge {
-            padding: 5px 7px;
-            border-radius: 7px;
-            background: #ef4444;
-            color: #fff;
-            font-size: 9px;
-            font-weight: 900;
-        }
-
-        /* USERS */
-
-        .users-title {
-            padding: 5px 18px 8px;
-            color: #94a3b8;
-            font-size: 12px;
-            font-weight: 900;
-        }
-
-        #usersList {
-            flex: 1;
-            min-height: 0;
-            overflow-y: auto;
-            padding: 0 8px 8px;
-        }
-
-        .user-item {
-            width: 100%;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 4px;
-            padding: 10px;
-            border-radius: 13px;
-            background: transparent;
-            color: #fff;
-            text-align: right;
-        }
-
-        .user-item:hover,
-        .user-item.active {
-            background: #1f2937;
-        }
-
-        .user-avatar-wrap {
-            position: relative;
-            flex: 0 0 auto;
-        }
-
-        .user-avatar {
-            width: 47px;
-            height: 47px;
-            border-radius: 50%;
-            object-fit: cover;
-            background: #374151;
-        }
-
-        .online-dot {
-            position: absolute;
-            left: 1px;
-            bottom: 1px;
-            width: 10px;
-            height: 10px;
-            border: 2px solid #111827;
-            border-radius: 50%;
-            background: #64748b;
-        }
-
-        .online-dot.online {
-            background: #22c55e;
-        }
-
-        .user-info {
-            min-width: 0;
-            flex: 1;
-        }
-
-        .user-name {
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            font-size: 14px;
-            font-weight: 900;
-        }
-
-        .user-status {
-            margin-top: 4px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            color: #94a3b8;
-            font-size: 11px;
-        }
-
-        /* FOOTER */
-
-        .sidebar-footer {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 7px;
-            padding: 9px;
-            border-top: 1px solid rgba(255,255,255,.08);
-        }
-
-        .footer-button {
-            min-height: 48px;
-            border-radius: 12px;
-            background: #1f2937;
-            color: #fff;
-            font-size: 13px;
-            font-weight: 900;
-        }
-
-        .footer-button.live {
-            background: #991b1b;
-        }
-
-        .footer-button.logout {
-            grid-column: 1 / -1;
-            background: #3f1d1d;
-        }
-
-        /* CHAT */
-
-        .chat-area {
-            flex: 1;
-            min-width: 0;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            background: #0f172a;
-        }
-
-        .chat-header {
-            min-height: 72px;
-            display: flex;
-            align-items: center;
-            gap: 9px;
-            padding: 9px 12px;
-            background: #111827;
-            border-bottom: 1px solid rgba(255,255,255,.08);
-        }
-
-        #mobileBackButton {
-            display: none;
-            width: 40px;
-            height: 40px;
-            border-radius: 10px;
-            background: #1f2937;
-            color: #fff;
-            font-size: 22px;
-        }
-
-        #chatAvatar {
-            width: 45px;
-            height: 45px;
-            border-radius: 50%;
-            object-fit: cover;
-            background: #374151;
-        }
-
-        .chat-header-info {
-            flex: 1;
-            min-width: 0;
-        }
-
-        #chatUserName {
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            font-size: 15px;
-            font-weight: 900;
-        }
-
-        #chatUserStatus {
-            margin-top: 4px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            color: #94a3b8;
-            font-size: 11px;
-        }
-
-        .header-actions {
-            display: flex;
-            gap: 5px;
-        }
-
-        .header-button {
-            width: 40px;
-            height: 40px;
-            border-radius: 10px;
-            background: #1f2937;
-            color: #fff;
-            font-size: 17px;
-        }
-
-        /* MESSAGES */
-
-        #messagesContainer {
-            flex: 1;
-            min-height: 0;
-            overflow-y: auto;
-            padding: 12px;
-        }
-
-        #emptyChat {
-            width: min(420px, 92%);
-            margin: auto;
-            padding: 25px 20px;
-            border-radius: 20px;
-            background: #111827;
-            text-align: center;
-        }
-
-        .empty-icon {
-            font-size: 43px;
-        }
-
-        .empty-title {
-            margin-top: 9px;
-            font-size: 18px;
-            font-weight: 900;
-        }
-
-        .empty-text {
-            margin-top: 7px;
-            color: #94a3b8;
-            font-size: 12px;
-            line-height: 1.8;
-        }
-
-        #messagesList {
-            display: flex;
-            flex-direction: column;
-            gap: 7px;
-        }
-
-        .message-row {
-            display: flex;
-            width: 100%;
-        }
-
-        .message-row.mine {
-            justify-content: flex-start;
-        }
-
-        .message-row.other {
-            justify-content: flex-end;
-        }
-
-        .message-bubble {
-            max-width: 78%;
-            padding: 9px 12px;
-            border-radius: 15px;
-            word-break: break-word;
-            line-height: 1.7;
-            font-size: 14px;
-        }
-
-        .message-row.mine .message-bubble {
-            background: #2563eb;
-            border-bottom-right-radius: 5px;
-        }
-
-        .message-row.other .message-bubble {
-            background: #1f2937;
-            border-bottom-left-radius: 5px;
-        }
-
-        .message-time {
-            margin-top: 2px;
-            opacity: .65;
-            font-size: 9px;
-        }
-
-        #typingIndicator {
-            min-height: 22px;
-            padding: 0 13px;
-            color: #94a3b8;
-            font-size: 10px;
-        }
-
-        /* COMPOSER */
-
-        #attachmentPreview {
-            display: none;
-            padding: 7px 10px;
-            background: #111827;
-        }
-
-        #attachmentPreview.show {
-            display: block;
-        }
-
-        .attachment-inner {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 8px 10px;
-            border-radius: 11px;
-            background: #1f2937;
-        }
+    const API =
+        window.GAPINO_API_BASE ||
+        window.location.origin;
 
-        .composer {
-            padding: 8px;
-            padding-bottom: max(8px, env(safe-area-inset-bottom));
-            background: #111827;
-            border-top: 1px solid rgba(255,255,255,.08);
-        }
-
-        .composer-row {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .composer-button {
-            width: 43px;
-            min-width: 43px;
-            height: 43px;
-            border-radius: 11px;
-            background: #1f2937;
-            color: #fff;
-            font-size: 18px;
-        }
-
-        #messageInput {
-            flex: 1;
-            min-width: 0;
-            height: 43px;
-            padding: 0 12px;
-            border: 0;
-            border-radius: 11px;
-            outline: none;
-            background: #1f2937;
-            color: #fff;
-            font-size: 14px;
-        }
-
-        #messageInput:disabled {
-            opacity: .55;
-        }
-
-        #sendButton {
-            background: #2563eb;
-        }
-
-        /* MODAL */
-
-        .modal {
-            display: none;
-            position: fixed;
-            inset: 0;
-            z-index: 5000;
-            align-items: center;
-            justify-content: center;
-            padding: 15px;
-            background: rgba(0,0,0,.72);
-        }
-
-        .modal.show {
-            display: flex;
-        }
-
-        .modal-box {
-            width: min(520px, 100%);
-            max-height: 90dvh;
-            overflow-y: auto;
-            padding: 18px;
-            border-radius: 20px;
-            background: #111827;
-        }
-
-        .modal-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .modal-title {
-            font-size: 17px;
-            font-weight: 900;
-        }
-
-        .modal-close {
-            width: 38px;
-            height: 38px;
-            border-radius: 10px;
-            background: #1f2937;
-            color: #fff;
-            font-size: 18px;
-        }
-
-        #profileAvatarPreview {
-            display: block;
-            width: 88px;
-            height: 88px;
-            margin: 18px auto;
-            border-radius: 50%;
-            object-fit: cover;
-            background: #374151;
-        }
-
-        .form-label {
-            display: block;
-            margin: 12px 0 6px;
-            color: #cbd5e1;
-            font-size: 12px;
-        }
-
-        .form-input,
-        .form-textarea {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid rgba(255,255,255,.08);
-            border-radius: 11px;
-            outline: none;
-            background: #1f2937;
-            color: #fff;
-        }
-
-        .form-textarea {
-            min-height: 90px;
-            resize: vertical;
-        }
-
-        .modal-action {
-            width: 100%;
-            height: 44px;
-            margin-top: 14px;
-            border-radius: 11px;
-            background: #2563eb;
-            color: #fff;
-            font-weight: 900;
-        }
+    const WS_PROTOCOL =
+        location.protocol === "https:"
+            ? "wss:"
+            : "ws:";
 
-        /* TOAST */
+    const WS_URL =
+        `${WS_PROTOCOL}//${location.host}/ws`;
 
-        #toastContainer {
-            position: fixed;
-            top: 12px;
-            left: 12px;
-            right: 12px;
-            z-index: 9999;
-            pointer-events: none;
-        }
-
-        .toast {
-            width: fit-content;
-            max-width: 90%;
-            margin-bottom: 7px;
-            padding: 11px 14px;
-            border-radius: 11px;
-            background: #1f2937;
-            color: #fff;
-            font-size: 12px;
-            box-shadow: 0 10px 30px rgba(0,0,0,.3);
-        }
-
-        /* MOBILE */
-
-        @media (max-width: 800px) {
-
-            .app-shell {
-                display: block;
-                position: relative;
-            }
-
-            .sidebar {
-                width: 100%;
-                min-width: 100%;
-                height: 100dvh;
-                border: 0;
-            }
-
-            .chat-area {
-                position: absolute;
-                inset: 0;
-                z-index: 100;
-                display: none;
-                width: 100%;
-                height: 100dvh;
-            }
-
-            .app-shell.chat-open .sidebar {
-                display: none;
-            }
-
-            .app-shell.chat-open .chat-area {
-                display: flex;
-            }
-
-            #mobileBackButton {
-                display: block;
-            }
-
-            .header-button {
-                width: 37px;
-                height: 37px;
-                font-size: 15px;
-            }
-
-            .chat-header {
-                padding: 8px;
-            }
-
-            #messagesContainer {
-                padding: 9px;
-            }
-
-            .message-bubble {
-                max-width: 84%;
-            }
-
-            .brand {
-                padding-top: max(15px, env(safe-area-inset-top));
-            }
-
-            .sidebar-footer {
-                padding-bottom: max(9px, env(safe-area-inset-bottom));
-            }
-        }
-
-        @media (max-width: 430px) {
+    let currentUser = null;
+    let currentChatUser = null;
+    let users = [];
+    let socket = null;
 
-            .brand-title {
-                font-size: 22px;
-            }
+    let reconnectTimer = null;
+    let reconnectDelay = 1500;
 
-            .header-actions {
-                gap: 3px;
-            }
+    let typingTimer = null;
+    let lastTypingState = false;
 
-            #mobileBackButton {
-                width: 38px;
-                height: 38px;
-            }
+    let selectedFile = null;
+    let mediaRecorder = null;
+    let recordingChunks = [];
+    let isRecording = false;
 
-            #chatAvatar {
-                width: 41px;
-                height: 41px;
-            }
+    let messagesCache = [];
 
-            .header-button {
-                width: 35px;
-                height: 35px;
-                font-size: 14px;
-            }
+    const $ = (id) => document.getElementById(id);
 
-            .composer-button {
-                width: 41px;
-                min-width: 41px;
-                height: 41px;
-            }
+    function showToast(message) {
+        const container = $("toastContainer");
 
-            #messageInput {
-                height: 41px;
-            }
+        if (!container) {
+            return;
         }
-    </style>
-</head>
-
-<body>
-
-<div id="appShell" class="app-shell">
-
-    <aside id="sidebar" class="sidebar">
-
-        <div class="brand">
-            <div class="brand-title">گپینو 💬</div>
-            <div class="brand-subtitle">پیام‌رسان شما</div>
-        </div>
-
-        <div class="search-box">
-            <input
-                id="userSearch"
-                type="search"
-                autocomplete="off"
-                placeholder="🔎 جستجوی کاربران..."
-            >
-        </div>
-
-        <section id="activeLivesSection" class="live-section">
-
-            <div class="live-header">
-
-                <div class="live-title">
-                    🔴 لایوهای فعال
-                </div>
-
-                <button
-                    id="refreshLivesButton"
-                    type="button"
-                    aria-label="تازه کردن لایوها"
-                >
-                    ↻
-                </button>
-
-            </div>
-
-            <div id="activeLivesList">
-                <div style="padding:8px;color:#64748b;font-size:11px;">
-                    در حال بارگذاری...
-                </div>
-            </div>
-
-        </section>
-
-        <div class="users-title">
-            👥 کاربران
-        </div>
-
-        <div id="usersList">
-            <div style="padding:25px;text-align:center;color:#64748b;font-size:12px;">
-                در حال بارگذاری کاربران...
-            </div>
-        </div>
-
-        <div class="sidebar-footer">
-
-            <button
-                id="liveButton"
-                class="footer-button live"
-                type="button"
-            >
-                🔴 پخش زنده
-            </button>
-
-            <button
-                id="profileButton"
-                class="footer-button"
-                type="button"
-            >
-                👤 پروفایل
-            </button>
-
-            <button
-                id="logoutButton"
-                class="footer-button logout"
-                type="button"
-            >
-                🚪 خروج
-            </button>
-
-        </div>
-
-    </aside>
-
-    <main id="chatArea" class="chat-area">
-
-        <header class="chat-header">
-
-            <button
-                id="mobileBackButton"
-                type="button"
-                aria-label="بازگشت"
-            >
-                →
-            </button>
-
-            <img
-                id="chatAvatar"
-                src=""
-                alt=""
-            >
-
-            <div class="chat-header-info">
-
-                <div id="chatUserName">
-                    گفتگو
-                </div>
-
-                <div id="chatUserStatus">
-                    یک کاربر را انتخاب کنید
-                </div>
-
-            </div>
-
-            <div class="header-actions">
-
-                <button
-                    id="headerLiveButton"
-                    class="header-button"
-                    type="button"
-                    aria-label="لایو"
-                >
-                    🔴
-                </button>
-
-                <button
-                    id="callButton"
-                    class="header-button"
-                    type="button"
-                    aria-label="تماس"
-                >
-                    📞
-                </button>
-
-                <button
-                    id="chatSearchButton"
-                    class="header-button"
-                    type="button"
-                    aria-label="جستجو"
-                >
-                    🔎
-                </button>
-
-                <button
-                    id="chatMenuButton"
-                    class="header-button"
-                    type="button"
-                    aria-label="منو"
-                >
-                    ⋮
-                </button>
-
-            </div>
-
-        </header>
-
-        <section id="messagesContainer">
-
-            <div id="emptyChat">
-
-                <div class="empty-icon">
-                    💬
-                </div>
-
-                <div class="empty-title">
-                    به گپینو خوش آمدید
-                </div>
-
-                <div class="empty-text">
-                    یک کاربر را انتخاب کنید تا گفتگو شروع شود.
-                </div>
-
-            </div>
-
-            <div id="messagesList"></div>
-
-        </section>
-
-        <div id="typingIndicator"></div>
-
-        <div id="attachmentPreview">
-
-            <div class="attachment-inner">
-
-                <span id="attachmentName">
-                    فایل انتخاب شد
-                </span>
-
-                <button
-                    id="removeAttachmentButton"
-                    type="button"
-                    style="background:none;color:#fff;font-size:17px;"
-                >
-                    ✕
-                </button>
-
-            </div>
-
-        </div>
-
-        <div class="composer">
-
-            <div class="composer-row">
-
-                <button
-                    id="attachButton"
-                    class="composer-button"
-                    type="button"
-                    aria-label="فایل"
-                >
-                    📎
-                </button>
-
-                <input
-                    id="fileInput"
-                    type="file"
-                    hidden
-                    accept="image/*,video/*,audio/*,.pdf,.txt,.zip,.rar"
-                >
-
-                <input
-                    id="messageInput"
-                    type="text"
-                    maxlength="1000"
-                    autocomplete="off"
-                    placeholder="پیام خود را بنویسید..."
-                    disabled
-                >
-
-                <button
-                    id="voiceButton"
-                    class="composer-button"
-                    type="button"
-                    aria-label="ضبط صدا"
-                >
-                    🎤
-                </button>
-
-                <button
-                    id="sendButton"
-                    class="composer-button"
-                    type="button"
-                    aria-label="ارسال پیام"
-                >
-                    ➤
-                </button>
-
-            </div>
-
-        </div>
-
-    </main>
-
-</div>
-
-<!-- PROFILE -->
-
-<div id="profileModal" class="modal">
-
-    <div class="modal-box">
-
-        <div class="modal-header">
-
-            <div class="modal-title">
-                👤 پروفایل
-            </div>
-
-            <button
-                id="closeProfileModal"
-                class="modal-close"
-                type="button"
-            >
-                ✕
-            </button>
-
-        </div>
-
-        <img
-            id="profileAvatarPreview"
-            src=""
-            alt=""
-        >
-
-        <label
-            class="form-label"
-            for="profileDisplayName"
-        >
-            نام نمایشی
-        </label>
-
-        <input
-            id="profileDisplayName"
-            class="form-input"
-            type="text"
-            maxlength="50"
-        >
-
-        <label
-            class="form-label"
-            for="profileBio"
-        >
-            درباره من
-        </label>
-
-        <textarea
-            id="profileBio"
-            class="form-textarea"
-            maxlength="250"
-        ></textarea>
-
-        <button
-            id="saveProfileButton"
-            class="modal-action"
-            type="button"
-        >
-            💾 ذخیره
-        </button>
-
-    </div>
-
-</div>
-
-<!-- MESSAGE SEARCH -->
-
-<div id="messageSearchModal" class="modal">
-
-    <div class="modal-box">
-
-        <div class="modal-header">
-
-            <div class="modal-title">
-                🔎 جستجوی پیام
-            </div>
-
-            <button
-                id="closeMessageSearchModal"
-                class="modal-close"
-                type="button"
-            >
-                ✕
-            </button>
-
-        </div>
-
-        <input
-            id="messageSearchInput"
-            class="form-input"
-            type="search"
-            autocomplete="off"
-            placeholder="متن پیام..."
-        >
-
-        <div
-            id="messageSearchResults"
-            style="margin-top:12px;"
-        ></div>
-
-    </div>
 
-</div>
+        const toast =
+            document.createElement("div");
 
-<div id="toastContainer"></div>
+        toast.className = "toast";
+        toast.textContent = String(message);
 
-<script>
-    window.GAPINO_API_BASE = window.location.origin;
-    window.GAPINO_TURN_SERVERS = [];
+        container.appendChild(toast);
 
-    function openLivePage() {
-        window.location.href = "/live.html";
+        setTimeout(() => {
+            toast.remove();
+        }, 3000);
     }
 
-    function openChatOnMobile() {
-        var shell = document.getElementById("appShell");
+    function getDisplayName(user) {
+        if (!user) {
+            return "کاربر";
+        }
 
-        if (shell) {
-            shell.classList.add("chat-open");
+        return (
+            user.display_name ||
+            user.name ||
+            user.username ||
+            "کاربر"
+        );
+    }
+
+    function getAvatar(user) {
+        if (!user) {
+            return "";
+        }
+
+        return (
+            user.avatar ||
+            user.avatar_url ||
+            ""
+        );
+    }
+
+    function getUserId(user) {
+        if (!user) {
+            return null;
+        }
+
+        const value =
+            user.id ??
+            user.user_id ??
+            user.uid;
+
+        if (
+            value === null ||
+            value === undefined ||
+            value === ""
+        ) {
+            return null;
+        }
+
+        return Number(value);
+    }
+
+    function isOnline(user) {
+        if (!user) {
+            return false;
+        }
+
+        return (
+            user.online === true ||
+            user.is_online === true
+        );
+    }
+
+    function escapeHTML(value) {
+        return String(value ?? "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    function formatTime(value) {
+        if (!value) {
+            return "";
+        }
+
+        try {
+            const date =
+                new Date(value);
+
+            if (
+                Number.isNaN(
+                    date.getTime()
+                )
+            ) {
+                return String(value);
+            }
+
+            return date.toLocaleTimeString(
+                "fa-IR",
+                {
+                    hour: "2-digit",
+                    minute: "2-digit"
+                }
+            );
+        } catch {
+            return String(value);
         }
     }
 
-    function closeChatOnMobile() {
-        var shell = document.getElementById("appShell");
+    async function api(path, options = {}) {
+        const headers = {
+            ...(options.headers || {})
+        };
 
-        if (shell) {
-            shell.classList.remove("chat-open");
+        if (
+            options.body &&
+            typeof options.body === "object" &&
+            !(options.body instanceof FormData)
+        ) {
+            headers["Content-Type"] =
+                "application/json";
+
+            options.body =
+                JSON.stringify(options.body);
         }
+
+        const response =
+            await fetch(
+                API + path,
+                {
+                    credentials: "include",
+                    cache: "no-store",
+                    ...options,
+                    headers
+                }
+            );
+
+        let data = null;
+
+        try {
+            data = await response.json();
+        } catch {
+            data = null;
+        }
+
+        if (!response.ok) {
+
+            const message =
+                data?.detail ||
+                data?.message ||
+                `HTTP ${response.status}`;
+
+            throw new Error(message);
+        }
+
+        return data;
     }
 
-    document.addEventListener("DOMContentLoaded", function () {
+    async function loadCurrentUser() {
 
-        var backButton =
-            document.getElementById("mobileBackButton");
+        const data =
+            await api("/api/me");
 
-        var liveButton =
-            document.getElementById("liveButton");
+        if (
+            data &&
+            data.user
+        ) {
+            currentUser =
+                data.user;
+        } else {
+            currentUser =
+                data;
+        }
 
-        var headerLiveButton =
-            document.getElementById("headerLiveButton");
-
-        var refreshButton =
-            document.getElementById("refreshLivesButton");
-
-        if (backButton) {
-            backButton.addEventListener(
-                "click",
-                closeChatOnMobile
+        if (
+            !currentUser ||
+            getUserId(currentUser) === null
+        ) {
+            throw new Error(
+                "جلسه ورود پیدا نشد"
             );
         }
 
-        if (liveButton) {
-            liveButton.addEventListener(
-                "click",
-                openLivePage
-            );
+        window.GAPINO_CURRENT_USER =
+            currentUser;
+
+        return currentUser;
+    }
+
+    function renderCurrentUser() {
+
+        if (!currentUser) {
+            return;
         }
 
-        if (headerLiveButton) {
-            headerLiveButton.addEventListener(
-                "click",
-                openLivePage
-            );
+        const name =
+            getDisplayName(currentUser);
+
+        const avatar =
+            getAvatar(currentUser);
+
+        const profileName =
+            $("profileDisplayName");
+
+        const profileBio =
+            $("profileBio");
+
+        const profileAvatar =
+            $("profileAvatarPreview");
+
+        if (profileName) {
+            profileName.value =
+                currentUser.display_name ||
+                currentUser.username ||
+                "";
         }
 
-        if (refreshButton) {
-            refreshButton.addEventListener(
-                "click",
-                loadActiveLives
-            );
+        if (profileBio) {
+            profileBio.value =
+                currentUser.bio ||
+                currentUser.status ||
+                "";
         }
-    });
 
-    async function loadActiveLives() {
+        if (
+            profileAvatar &&
+            avatar
+        ) {
+            profileAvatar.src =
+                avatar;
+        }
 
-        var list =
-            document.getElementById("activeLivesList");
+        const chatName =
+            $("chatUserName");
+
+        if (
+            chatName &&
+            !currentChatUser
+        ) {
+            chatName.textContent =
+                "گفتگو";
+        }
+
+        console.debug(
+            "GAPINO user:",
+            name
+        );
+    }
+
+    async function loadUsers() {
+
+        const list =
+            $("usersList");
 
         if (!list) {
             return;
         }
 
+        list.innerHTML =
+            `
+            <div style="
+                padding:25px;
+                text-align:center;
+                color:#94a3b8;
+                font-size:12px;
+            ">
+                در حال بارگذاری کاربران...
+            </div>
+            `;
+
         try {
 
-            var response =
-                await fetch(
-                    "/api/live/active",
-                    {
-                        method: "GET",
-                        credentials: "include",
-                        cache: "no-store"
-                    }
-                );
-
-            if (!response.ok) {
-                throw new Error("Live API error");
-            }
-
-            var data =
-                await response.json();
-
-            var rooms = [];
+            const data =
+                await api("/api/users");
 
             if (Array.isArray(data)) {
-                rooms = data;
+                users = data;
             } else if (
-                data &&
-                Array.isArray(data.live_rooms)
+                Array.isArray(data?.users)
             ) {
-                rooms = data.live_rooms;
+                users = data.users;
+            } else if (
+                Array.isArray(data?.data)
+            ) {
+                users = data.data;
+            } else {
+                users = [];
             }
 
-            list.innerHTML = "";
+            const myId =
+                getUserId(currentUser);
 
-            if (rooms.length === 0) {
-
-                list.innerHTML =
-                    '<div style="padding:8px;color:#64748b;font-size:11px;">' +
-                    'لایو فعالی وجود ندارد.' +
-                    '</div>';
-
-                return;
-            }
-
-            rooms.forEach(function (room) {
-
-                var host =
-                    room.host || {};
-
-                var roomId =
-                    room.room_id ||
-                    room.id ||
-                    "";
-
-                var name =
-                    host.display_name ||
-                    host.username ||
-                    "کاربر گپینو";
-
-                var avatar =
-                    host.avatar ||
-                    host.avatar_url ||
-                    "";
-
-                var viewers =
-                    Number(room.viewer_count || 0);
-
-                var card =
-                    document.createElement("div");
-
-                card.className =
-                    "live-card";
-
-                var image =
-                    document.createElement("img");
-
-                image.className =
-                    "live-avatar";
-
-                image.src = avatar;
-                image.alt = "";
-
-                image.addEventListener(
-                    "error",
-                    function () {
-                        image.style.visibility =
-                            "hidden";
-                    }
+            users =
+                users.filter(
+                    user =>
+                        getUserId(user) !== myId
                 );
 
-                var info =
-                    document.createElement("div");
+            renderUsers(users);
 
-                info.className =
-                    "live-info";
-
-                var nameElement =
-                    document.createElement("div");
-
-                nameElement.className =
-                    "live-name";
-
-                nameElement.textContent =
-                    name;
-
-                var viewersElement =
-                    document.createElement("div");
-
-                viewersElement.className =
-                    "live-viewers";
-
-                viewersElement.textContent =
-                    "👁 " +
-                    viewers +
-                    " بیننده";
-
-                info.appendChild(
-                    nameElement
-                );
-
-                info.appendChild(
-                    viewersElement
-                );
-
-                var badge =
-                    document.createElement("div");
-
-                badge.className =
-                    "live-badge";
-
-                badge.textContent =
-                    "LIVE";
-
-                card.appendChild(image);
-                card.appendChild(info);
-                card.appendChild(badge);
-
-                if (roomId) {
-
-                    card.addEventListener(
-                        "click",
-                        function () {
-
-                            window.location.href =
-                                "/live.html?room=" +
-                                encodeURIComponent(roomId) +
-                                "&join=1";
-                        }
-                    );
-                }
-
-                list.appendChild(card);
-            });
+            window.GAPINO_USERS =
+                users;
 
         } catch (error) {
 
+            console.error(
+                "loadUsers error:",
+                error
+            );
+
             list.innerHTML =
-                '<div style="padding:8px;color:#64748b;font-size:11px;">' +
-                'لایوها فعلاً در دسترس نیستند.' +
-                '</div>';
+                `
+                <div style="
+                    padding:25px;
+                    text-align:center;
+                    color:#fca5a5;
+                    font-size:12px;
+                ">
+                    دریافت کاربران ناموفق بود.
+                    <br>
+                    <small>${escapeHTML(error.message)}</small>
+                </div>
+                `;
+
+            showToast(
+                "دریافت کاربران ناموفق بود"
+            );
         }
     }
 
-    window.GAPINO_REFRESH_LIVES =
-        loadActiveLives;
+    function renderUsers(items) {
 
-    loadActiveLives();
+        const list =
+            $("usersList");
 
-    setInterval(
-        loadActiveLives,
-        10000
-    );
-</script>
+        if (!list) {
+            return;
+        }
 
-<script src="/frontend/chat.js?v=313"></script>
-<script src="/frontend/call.js?v=9"></script>
+        list.innerHTML = "";
 
-</body>
-</html>
-```
+        if (!items.length) {
+
+            list.innerHTML =
+                `
+                <div style="
+                    padding:25px;
+                    text-align:center;
+                    color:#94a3b8;
+                    font-size:12px;
+                ">
+                    کاربر دیگری پیدا نشد.
+                </div>
+                `;
+
+            return;
+        }
+
+        items.forEach(
+            user => {
+
+                const id =
+                    getUserId(user);
+
+                if (id === null) {
+                    return;
+                }
+
+                const item =
+                    document.createElement("button");
+
+                item.type = "button";
+                item.className =
+                    "user-item";
+
+                if (
+                    currentChatUser &&
+                    getUserId(currentChatUser) === id
+                ) {
+                    item.classList.add("active");
+                }
+
+                const wrap =
+                    document.createElement("div");
+
+                wrap.className =
+                    "user-avatar-wrap";
+
+                const avatar =
+                    document.createElement("img");
+
+                avatar.className =
+                    "user-avatar";
+
+                avatar.alt =
+                    getDisplayName(user);
+
+                const avatarUrl =
+                    getAvatar(user);
+
+                if (avatarUrl) {
+                    avatar.src =
+                        avatarUrl;
+                }
+
+                avatar.addEventListener(
+                    "error",
+                    () => {
+                        avatar.removeAttribute("src");
+                    }
+                );
+
+                const dot =
+                    document.createElement("span");
+
+                dot.className =
+                    "online-dot";
+
+                if (isOnline(user)) {
+                    dot.classList.add(
+                        "online"
+                    );
+                }
+
+                wrap.appendChild(
+                    avatar
+                );
+
+                wrap.appendChild(
+                    dot
+                );
+
+                const info =
+                    document.createElement("div");
+
+                info.className =
+                    "user-info";
+
+                const name =
+                    document.createElement("div");
+
+                name.className =
+                    "user-name";
+
+                name.textContent =
+                    getDisplayName(user);
+
+                const status =
+                    document.createElement("div");
+
+                status.className =
+                    "user-status";
+
+                status.textContent =
+                    user.status ||
+                    (
+                        isOnline(user)
+                            ? "آنلاین"
+                            : "آفلاین"
+                    );
+
+                info.appendChild(name);
+                info.appendChild(status);
+
+                item.appendChild(wrap);
+                item.appendChild(info);
+
+                item.addEventListener(
+                    "click",
+                    () => {
+                        openChat(user);
+                    }
+                );
+
+                list.appendChild(item);
+            }
+        );
+    }
+
+    function setupUserSearch() {
+
+        const input =
+            $("userSearch");
+
+        if (!input) {
+            return;
+        }
+
+        input.addEventListener(
+            "input",
+            () => {
+
+                const text =
+                    input.value
+                        .trim()
+                        .toLowerCase();
+
+                if (!text) {
+                    renderUsers(users);
+                    return;
+                }
+
+                const filtered =
+                    users.filter(
+                        user => {
+
+                            const name =
+                                getDisplayName(
+                                    user
+                                ).toLowerCase();
+
+                            const username =
+                                String(
+                                    user.username || ""
+                                ).toLowerCase();
+
+                            return (
+                                name.includes(text) ||
+                                username.includes(text)
+                            );
+                        }
+                    );
+
+                renderUsers(filtered);
+            }
+        );
+    }
+
+    async function openChat(user) {
+
+        if (!user) {
+            return;
+        }
+
+        currentChatUser =
+            user;
+
+        window.GAPINO_CURRENT_CHAT =
+            user;
+
+        const shell =
+            $("appShell");
+
+        if (shell) {
+            shell.classList.add(
+                "chat-open"
+            );
+        }
+
+        updateChatHeader();
+
+        enableComposer();
+
+        renderUsers(
+            users
+        );
+
+        await loadMessages(
+            getUserId(user)
+        );
+    }
+
+    function updateChatHeader() {
+
+        if (!currentChatUser) {
+            return;
+        }
+
+        const name =
+            $("chatUserName");
+
+        const status =
+            $("chatUserStatus");
+
+        const avatar =
+            $("chatAvatar");
+
+        if (name) {
+            name.textContent =
+                getDisplayName(
+                    currentChatUser
+                );
+        }
+
+        if (status) {
+            status.textContent =
+                currentChatUser.status ||
+                (
+                    isOnline(currentChatUser)
+                        ? "آنلاین"
+                        : "آفلاین"
+                );
+        }
+
+        if (avatar) {
+
+            const url =
+                getAvatar(
+                    currentChatUser
+                );
+
+            if (url) {
+                avatar.src = url;
+                avatar.style.visibility =
+                    "visible";
+            } else {
+                avatar.removeAttribute(
+                    "src"
+                );
+            }
+        }
+    }
+
+    function enableComposer() {
+
+        const input =
+            $("messageInput");
+
+        if (input) {
+            input.disabled = false;
+            input.focus();
+        }
+    }
+
+    async function loadMessages(otherId) {
+
+        if (!otherId) {
+            return;
+        }
+
+        const container =
+            $("messagesList");
+
+        const empty =
+            $("emptyChat");
+
+        if (container) {
+            container.innerHTML = "";
+        }
+
+        if (empty) {
+            empty.style.display =
+                "none";
+        }
+
+        try {
+
+            const data =
+                await api(
+                    `/api/messages/${encodeURIComponent(otherId)}`
+                );
+
+            let messages = [];
+
+            if (Array.isArray(data)) {
+                messages = data;
+            } else if (
+                Array.isArray(data?.messages)
+            ) {
+                messages =
+                    data.messages;
+            } else if (
+                Array.isArray(data?.data)
+            ) {
+                messages =
+                    data.data;
+            }
+
+            messagesCache =
+                messages;
+
+            renderMessages(
+                messages
+            );
+
+        } catch (error) {
+
+            console.error(
+                "loadMessages error:",
+                error
+            );
+
+            if (container) {
+                container.innerHTML =
+                    `
+                    <div style="
+                        text-align:center;
+                        color:#94a3b8;
+                        padding:30px;
+                        font-size:12px;
+                    ">
+                        پیام‌ها بارگذاری نشدند.
+                    </div>
+                    `;
+            }
+        }
+    }
+
+    function renderMessages(messages) {
+
+        const container =
+            $("messagesList");
+
+        const empty =
+            $("emptyChat");
+
+        if (!container) {
+            return;
+        }
+
+        container.innerHTML = "";
+
+        if (
+            !messages ||
+            messages.length === 0
+        ) {
+
+            if (empty) {
+                empty.style.display =
+                    "block";
+            }
+
+            return;
+        }
+
+        if (empty) {
+            empty.style.display =
+                "none";
+        }
+
+        messages.forEach(
+            message => {
+
+                const senderId =
+                    Number(
+                        message.sender_id ??
+                        message.from_id ??
+                        message.sender ??
+                        0
+                    );
+
+                const myId =
+                    getUserId(
+                        currentUser
+                    );
+
+                const mine =
+                    senderId === myId;
+
+                const row =
+                    document.createElement("div");
+
+                row.className =
+                    "message-row " +
+                    (
+                        mine
+                            ? "mine"
+                            : "other"
+                    );
+
+                const bubble =
+                    document.createElement("div");
+
+                bubble.className =
+                    "message-bubble";
+
+                const text =
+                    message.text ??
+                    message.content ??
+                    "";
+
+                const type =
+                    message.message_type ||
+                    message.type ||
+                    "text";
+
+                if (
+                    type === "image" &&
+                    message.file_url
+                ) {
+
+                    const image =
+                        document.createElement("img");
+
+                    image.src =
+                        message.file_url;
+
+                    image.style.maxWidth =
+                        "240px";
+
+                    image.style.borderRadius =
+                        "12px";
+
+                    bubble.appendChild(
+                        image
+                    );
+
+                } else if (
+                    type === "audio" &&
+                    message.file_url
+                ) {
+
+                    const audio =
+                        document.createElement("audio");
+
+                    audio.controls = true;
+                    audio.src =
+                        message.file_url;
+
+                    bubble.appendChild(
+                        audio
+                    );
+
+                } else if (
+                    type === "video" &&
+                    message.file_url
+                ) {
+
+                    const video =
+                        document.createElement("video");
+
+                    video.controls = true;
+                    video.playsInline = true;
+                    video.src =
+                        message.file_url;
+
+                    video.style.maxWidth =
+                        "240px";
+
+                    video.style.borderRadius =
+                        "12px";
+
+                    bubble.appendChild(
+                        video
+                    );
+
+                } else if (
+                    message.file_url
+                ) {
+
+                    const link =
+                        document.createElement("a");
+
+                    link.href =
+                        message.file_url;
+
+                    link.target =
+                        "_blank";
+
+                    link.rel =
+                        "noopener noreferrer";
+
+                    link.textContent =
+                        message.file_name ||
+                        "باز کردن فایل";
+
+                    link.style.color =
+                        "#fff";
+
+                    bubble.appendChild(
+                        link
+                    );
+
+                    if (text) {
+                        const caption =
+                            document.createElement("div");
+
+                        caption.textContent =
+                            text;
+
+                        bubble.appendChild(
+                            caption
+                        );
+                    }
+
+                } else {
+
+                    bubble.textContent =
+                        text;
+                }
+
+                const time =
+                    document.createElement("div");
+
+                time.className =
+                    "message-time";
+
+                time.textContent =
+                    formatTime(
+                        message.created_at ||
+                        message.timestamp ||
+                        message.time
+                    );
+
+                bubble.appendChild(
+                    time
+                );
+
+                row.appendChild(
+                    bubble
+                );
+
+                container.appendChild(
+                    row
+                );
+            }
+        );
+
+        const messagesContainer =
+            $("messagesContainer");
+
+        if (messagesContainer) {
+            setTimeout(() => {
+                messagesContainer.scrollTop =
+                    messagesContainer.scrollHeight;
+            }, 0);
+        }
+    }
+
+    async function sendMessage() {
+
+        if (!currentChatUser) {
+            showToast(
+                "ابتدا یک کاربر را انتخاب کنید"
+            );
+            return;
+        }
+
+        const input =
+            $("messageInput");
+
+        if (!input) {
+            return;
+        }
+
+        const text =
+            input.value.trim();
+
+        if (!text) {
+            return;
+        }
+
+        const receiverId =
+            getUserId(
+                currentChatUser
+            );
+
+        if (!receiverId) {
+            return;
+        }
+
+        try {
+
+            const data =
+                await api(
+                    "/api/messages",
+                    {
+                        method: "POST",
+                        body: {
+                            receiver_id:
+                                Number(
+                                    receiverId
+                                ),
+                            text:
+                                text
+                        }
+                    }
+                );
+
+            input.value = "";
+
+            sendTyping(
+                false
+            );
+
+            if (data) {
+
+                const newMessage =
+                    data.message ||
+                    data;
+
+                if (
+                    newMessage &&
+                    (
+                        newMessage.id ||
+                        newMessage.message_id ||
+                        newMessage.text
+                    )
+                ) {
+
+                    messagesCache.push(
+                        newMessage
+                    );
+
+                    renderMessages(
+                        messagesCache
+                    );
+
+                } else {
+
+                    await loadMessages(
+                        receiverId
+                    );
+                }
+
+            } else {
+
+                await loadMessages(
+                    receiverId
+                );
+            }
+
+        } catch (error) {
+
+            console.error(
+                "sendMessage error:",
+                error
+            );
+
+            showToast(
+                "ارسال پیام انجام نشد"
+            );
+        }
+    }
+
+    function sendTyping(value) {
+
+        if (
+            !socket ||
+            socket.readyState !==
+                WebSocket.OPEN ||
+            !currentChatUser
+        ) {
+            return;
+        }
+
+        const receiverId =
+            getUserId(
+                currentChatUser
+            );
+
+        if (!receiverId) {
+            return;
+        }
+
+        if (
+            lastTypingState === value
+        ) {
+            return;
+        }
+
+        lastTypingState =
+            value;
+
+        try {
+
+            socket.send(
+                JSON.stringify({
+                    type: "typing",
+                    receiver_id:
+                        Number(receiverId),
+                    value:
+                        Boolean(value)
+                })
+            );
+
+        } catch (error) {
+
+            console.error(
+                "typing error:",
+                error
+            );
+        }
+    }
+
+    function setupMessageInput() {
+
+        const input =
+            $("messageInput");
+
+        const send =
+            $("sendButton");
+
+        if (send) {
+            send.addEventListener(
+                "click",
+                sendMessage
+            );
+        }
+
+        if (!input) {
+            return;
+        }
+
+        input.addEventListener(
+            "keydown",
+            event => {
+
+                if (
+                    event.key === "Enter"
+                ) {
+
+                    event.preventDefault();
+
+                    sendMessage();
+
+                    return;
+                }
+            }
+        );
+
+        input.addEventListener(
+            "input",
+            () => {
+
+                sendTyping(
+                    true
+                );
+
+                clearTimeout(
+                    typingTimer
+                );
+
+                typingTimer =
+                    setTimeout(
+                        () => {
+                            sendTyping(
+                                false
+                            );
+                        },
+                        900
+                    );
+            }
+        );
+    }
+
+    function connectWebSocket() {
+
+        if (
+            socket &&
+            (
+                socket.readyState ===
+                    WebSocket.OPEN ||
+                socket.readyState ===
+                    WebSocket.CONNECTING
+            )
+        ) {
+            return;
+        }
+
+        try {
+
+            socket =
+                new WebSocket(
+                    WS_URL
+                );
+
+        } catch (error) {
+
+            console.error(
+                "WebSocket create error:",
+                error
+            );
+
+            scheduleReconnect();
+
+            return;
+        }
+
+        window.GAPINO_SOCKET =
+            socket;
+
+        socket.addEventListener(
+            "open",
+            () => {
+
+                console.log(
+                    "GAPINO WebSocket connected"
+                );
+
+                reconnectDelay =
+                    1500;
+
+                try {
+
+                    socket.send(
+                        JSON.stringify({
+                            type: "ping"
+                        })
+                    );
+
+                } catch {
+                    // ignore
+                }
+            }
+        );
+
+        socket.addEventListener(
+            "message",
+            event => {
+
+                handleSocketMessage(
+                    event.data
+                );
+            }
+        );
+
+        socket.addEventListener(
+            "close",
+            () => {
+
+                console.warn(
+                    "GAPINO WebSocket disconnected"
+                );
+
+                scheduleReconnect();
+            }
+        );
+
+        socket.addEventListener(
+            "error",
+            error => {
+
+                console.error(
+                    "GAPINO WebSocket error:",
+                    error
+                );
+            }
+        );
+    }
+
+    function scheduleReconnect() {
+
+        clearTimeout(
+            reconnectTimer
+        );
+
+        reconnectTimer =
+            setTimeout(
+                () => {
+
+                    connectWebSocket();
+
+                },
+                reconnectDelay
+            );
+
+        reconnectDelay =
+            Math.min(
+                reconnectDelay * 2,
+                15000
+            );
+    }
+
+    function handleSocketMessage(raw) {
+
+        let data = null;
+
+        try {
+            data =
+                JSON.parse(raw);
+        } catch {
+            return;
+        }
+
+        if (!data) {
+            return;
+        }
+
+        const type =
+            data.type;
+
+        switch (type) {
+
+            case "ready":
+                break;
+
+            case "pong":
+                break;
+
+            case "user_online":
+                updateOnlineUser(
+                    data.user_id,
+                    true
+                );
+                break;
+
+            case "user_offline":
+                updateOnlineUser(
+                    data.user_id,
+                    false
+                );
+                break;
+
+            case "typing":
+                handleTypingEvent(
+                    data
+                );
+                break;
+
+            case "message":
+                handleIncomingMessage(
+                    data
+                );
+                break;
+
+            case "call_offer":
+            case "call_answer":
+            case "call_ice":
+            case "call_reject":
+            case "call_busy":
+            case "call_end":
+
+                document.dispatchEvent(
+                    new CustomEvent(
+                        "gapino-call-event",
+                        {
+                            detail: data
+                        }
+                    )
+                );
+
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    function updateOnlineUser(
+        userId,
+        online
+    ) {
+
+        const id =
+            Number(userId);
+
+        if (!id) {
+            return;
+        }
+
+        users =
+            users.map(
+                user => {
+
+                    if (
+                        getUserId(user) === id
+                    ) {
+                        return {
+                            ...user,
+                            online:
+                                Boolean(online)
+                        };
+                    }
+
+                    return user;
+                }
+            );
+
+        renderUsers(
+            users
+        );
+
+        if (
+            currentChatUser &&
+            getUserId(
+                currentChatUser
+            ) === id
+        ) {
+
+            currentChatUser = {
+                ...currentChatUser,
+                online:
+                    Boolean(online)
+            };
+
+            updateChatHeader();
+        }
+    }
+
+    function handleTypingEvent(data) {
+
+        const senderId =
+            Number(
+                data.sender_id ??
+                data.user_id ??
+                data.from_id ??
+                0
+            );
+
+        const myId =
+            getUserId(
+                currentUser
+            );
+
+        if (
+            !senderId ||
+            senderId === myId
+        ) {
+            return;
+        }
+
+        if (
+            !currentChatUser ||
+            getUserId(
+                currentChatUser
+            ) !== senderId
+        ) {
+            return;
+        }
+
+        const indicator =
+            $("typingIndicator");
+
+        if (!indicator) {
+            return;
+        }
+
+        const active =
+            Boolean(
+                data.value ??
+                data.is_typing
+            );
+
+        indicator.textContent =
+            active
+                ? "در حال نوشتن..."
+                : "";
+    }
+
+    function handleIncomingMessage(data) {
+
+        const message =
+            data.message ||
+            data;
+
+        if (!message) {
+            return;
+        }
+
+        const senderId =
+            Number(
+                message.sender_id ??
+                data.sender_id ??
+                message.from_id ??
+                data.user_id ??
+                0
+            );
+
+        const receiverId =
+            Number(
+                message.receiver_id ??
+                data.receiver_id ??
+                0
+            );
+
+        const myId =
+            getUserId(
+                currentUser
+            );
+
+        if (!myId) {
+            return;
+        }
+
+        const belongsToCurrentChat =
+            currentChatUser &&
+            (
+                senderId ===
+                    getUserId(
+                        currentChatUser
+                    ) ||
+                (
+                    receiverId ===
+                        getUserId(
+                            currentChatUser
+                        ) &&
+                    senderId === myId
+                )
+            );
+
+        if (!belongsToCurrentChat) {
+            showToast(
+                "پیام جدید دریافت شد"
+            );
+            return;
+        }
+
+        messagesCache.push(
+            message
+        );
+
+        renderMessages(
+            messagesCache
+        );
+    }
+
+    /* FILE UPLOAD */
+
+    function setupAttachment() {
+
+        const attach =
+            $("attachButton");
+
+        const input =
+            $("fileInput");
+
+        if (attach && input) {
+
+            attach.addEventListener(
+                "click",
+                () => {
+                    input.click();
+                }
+            );
+
+            input.addEventListener(
+                "change",
+                () => {
+
+                    selectedFile =
+                        input.files?.[0] ||
+                        null;
+
+                    updateAttachmentPreview();
+                }
+            );
+        }
+
+        const remove =
+            $("removeAttachmentButton");
+
+        if (remove) {
+
+            remove.addEventListener(
+                "click",
+                () => {
+
+                    selectedFile = null;
+
+                    if (input) {
+                        input.value = "";
+                    }
+
+                    updateAttachmentPreview();
+                }
+            );
+        }
+    }
+
+    function updateAttachmentPreview() {
+
+        const preview =
+            $("attachmentPreview");
+
+        const name =
+            $("attachmentName");
+
+        if (!preview) {
+            return;
+        }
+
+        if (!selectedFile) {
+
+            preview.classList.remove(
+                "show"
+            );
+
+            return;
+        }
+
+        preview.classList.add(
+            "show"
+        );
+
+        if (name) {
+            name.textContent =
+                selectedFile.name;
+        }
+    }
+
+    async function uploadSelectedFile() {
+
+        if (!selectedFile) {
+            return null;
+        }
+
+        const formData =
+            new FormData();
+
+        formData.append(
+            "file",
+            selectedFile
+        );
+
+        const response =
+            await fetch(
+                API + "/api/upload",
+                {
+                    method: "POST",
+                    credentials: "include",
+                    body: formData
+                }
+            );
+
+        let data = null;
+
+        try {
+            data = await response.json();
+        } catch {
+            data = null;
+        }
+
+        if (!response.ok) {
+
+            throw new Error(
+                data?.detail ||
+                "آپلود فایل ناموفق بود"
+            );
+        }
+
+        selectedFile = null;
+
+        const input =
+            $("fileInput");
+
+        if (input) {
+            input.value = "";
+        }
+
+        updateAttachmentPreview();
+
+        return data;
+    }
+
+    /* VOICE */
+
+    function setupVoice() {
+
+        const button =
+            $("voiceButton");
+
+        if (!button) {
+            return;
+        }
+
+        button.addEventListener(
+            "click",
+            async () => {
+
+                if (isRecording) {
+
+                    stopRecording();
+
+                    return;
+                }
+
+                await startRecording();
+            }
+        );
+    }
+
+    async function startRecording() {
+
+        if (
+            !navigator.mediaDevices ||
+            !navigator.mediaDevices.getUserMedia
+        ) {
+
+            showToast(
+                "ضبط صدا روی این مرورگر در دسترس نیست"
+            );
+
+            return;
+        }
+
+        try {
+
+            const stream =
+                await navigator.mediaDevices
+                    .getUserMedia({
+                        audio: true
+                    });
+
+            recordingChunks = [];
+
+            mediaRecorder =
+                new MediaRecorder(
+                    stream
+                );
+
+            isRecording = true;
+
+            const button =
+                $("voiceButton");
+
+            if (button) {
+                button.textContent =
+                    "⏹";
+            }
+
+            mediaRecorder.addEventListener(
+                "dataavailable",
+                event => {
+
+                    if (
+                        event.data &&
+                        event.data.size > 0
+                    ) {
+                        recordingChunks.push(
+                            event.data
+                        );
+                    }
+                }
+            );
+
+            mediaRecorder.addEventListener(
+                "stop",
+                async () => {
+
+                    stream
+                        .getTracks()
+                        .forEach(
+                            track =>
+                                track.stop()
+                        );
+
+                    isRecording =
+                        false;
+
+                    const button =
+                        $("voiceButton");
+
+                    if (button) {
+                        button.textContent =
+                            "🎤";
+                    }
+
+                    if (
+                        recordingChunks.length === 0
+                    ) {
+                        return;
+                    }
+
+                    try {
+
+                        const blob =
+                            new Blob(
+                                recordingChunks,
+                                {
+                                    type:
+                                        "audio/webm"
+                                }
+                            );
+
+                        await sendAudioBlob(
+                            blob
+                        );
+
+                    } catch (error) {
+
+                        console.error(
+                            "voice send error:",
+                            error
+                        );
+
+                        showToast(
+                            "ارسال صدا انجام نشد"
+                        );
+                    }
+                }
+            );
+
+            mediaRecorder.start();
+
+        } catch (error) {
+
+            console.error(
+                "recording error:",
+                error
+            );
+
+            showToast(
+                "دسترسی به میکروفون داده نشد"
+            );
+        }
+    }
+
+    function stopRecording() {
+
+        if (
+            mediaRecorder &&
+            mediaRecorder.state !==
+                "inactive"
+        ) {
+            mediaRecorder.stop();
+        }
+    }
+
+    async function sendAudioBlob(
+        blob
+    ) {
+
+        if (!currentChatUser) {
+            return;
+        }
+
+        const file =
+            new File(
+                [blob],
+                `voice-${Date.now()}.webm`,
+                {
+                    type:
+                        "audio/webm"
+                }
+            );
+
+        const formData =
+            new FormData();
+
+        formData.append(
+            "file",
+            file
+        );
+
+        const uploadResponse =
+            await fetch(
+                API + "/api/upload",
+                {
+                    method: "POST",
+                    credentials: "include",
+                    body: formData
+                }
+            );
+
+        const uploadData =
+            await uploadResponse.json();
+
+        if (!uploadResponse.ok) {
+            throw new Error(
+                uploadData?.detail ||
+                "آپلود صدا ناموفق بود"
+            );
+        }
+
+        const fileUrl =
+            uploadData.url ||
+            uploadData.file_url ||
+            uploadData.path;
+
+        if (!fileUrl) {
+            throw new Error(
+                "آدرس فایل دریافت نشد"
+            );
+        }
+
+        const receiverId =
+            getUserId(
+                currentChatUser
+            );
+
+        await api(
+            "/api/messages",
+            {
+                method: "POST",
+                body: {
+                    receiver_id:
+                        Number(receiverId),
+                    text:
+                        "",
+                    file_url:
+                        fileUrl,
+                    message_type:
+                        "audio"
+                }
+            }
+        );
+
+        await loadMessages(
+            receiverId
+        );
+    }
+
+    /* PROFILE */
+
+    function setupProfile() {
+
+        const button =
+            $("profileButton");
+
+        const modal =
+            $("profileModal");
+
+        const close =
+            $("closeProfileModal");
+
+        const save =
+            $("saveProfileButton");
+
+        if (
+            button &&
+            modal
+        ) {
+
+            button.addEventListener(
+                "click",
+                () => {
+
+                    renderCurrentUser();
+
+                    modal.classList.add(
+                        "show"
+                    );
+                }
+            );
+        }
+
+        if (close && modal) {
+
+            close.addEventListener(
+                "click",
+                () => {
+                    modal.classList.remove(
+                        "show"
+                    );
+                }
+            );
+        }
+
+        if (
+            save &&
+            modal
+        ) {
+
+            save.addEventListener(
+                "click",
+                saveProfile
+            );
+        }
+    }
+
+    async function saveProfile() {
+
+        const name =
+            $("profileDisplayName");
+
+        const bio =
+            $("profileBio");
+
+        try {
+
+            const data =
+                await api(
+                    "/api/profile",
+                    {
+                        method: "PUT",
+                        body: {
+                            display_name:
+                                name?.value.trim() ||
+                                "",
+                            bio:
+                                bio?.value.trim() ||
+                                ""
+                        }
+                    }
+                );
+
+            currentUser =
+                data?.user ||
+                data ||
+                currentUser;
+
+            renderCurrentUser();
+
+            const modal =
+                $("profileModal");
+
+            if (modal) {
+                modal.classList.remove(
+                    "show"
+                );
+            }
+
+            await loadUsers();
+
+            showToast(
+                "پروفایل ذخیره شد"
+            );
+
+        } catch (error) {
+
+            console.error(
+                "saveProfile error:",
+                error
+            );
+
+            showToast(
+                "ذخیره پروفایل انجام نشد"
+            );
+        }
+    }
+
+    /* SEARCH MESSAGES */
+
+    function setupMessageSearch() {
+
+        const button =
+            $("chatSearchButton");
+
+        const modal =
+            $("messageSearchModal");
+
+        const close =
+            $("closeMessageSearchModal");
+
+        const input =
+            $("messageSearchInput");
+
+        const results =
+            $("messageSearchResults");
+
+        if (
+            button &&
+            modal
+        ) {
+
+            button.addEventListener(
+                "click",
+                () => {
+
+                    modal.classList.add(
+                        "show"
+                    );
+
+                    if (input) {
+                        input.focus();
+                    }
+                }
+            );
+        }
+
+        if (
+            close &&
+            modal
+        ) {
+
+            close.addEventListener(
+                "click",
+                () => {
+                    modal.classList.remove(
+                        "show"
+                    );
+                }
+            );
+        }
+
+        if (
+            input &&
+            results
+        ) {
+
+            input.addEventListener(
+                "input",
+                () => {
+
+                    const text =
+                        input.value
+                            .trim()
+                            .toLowerCase();
+
+                    results.innerHTML =
+                        "";
+
+                    if (!text) {
+                        return;
+                    }
+
+                    const found =
+                        messagesCache.filter(
+                            message =>
+                                String(
+                                    message.text ??
+                                    message.content ??
+                                    ""
+                                )
+                                .toLowerCase()
+                                .includes(text)
+                        );
+
+                    if (!found.length) {
+
+                        results.innerHTML =
+                            `
+                            <div style="
+                                padding:15px;
+                                color:#94a3b8;
+                                text-align:center;
+                            ">
+                                پیامی پیدا نشد.
+                            </div>
+                            `;
+
+                        return;
+                    }
+
+                    found.forEach(
+                        message => {
+
+                            const row =
+                                document.createElement(
+                                    "div"
+                                );
+
+                            row.style.padding =
+                                "10px";
+
+                            row.style.marginBottom =
+                                "6px";
+
+                            row.style.borderRadius =
+                                "10px";
+
+                            row.style.background =
+                                "#1f2937";
+
+                            row.textContent =
+                                message.text ??
+                                message.content ??
+                                "";
+
+                            results.appendChild(
+                                row
+                            );
+                        }
+                    );
+                }
+            );
+        }
+    }
+
+    /* LOGOUT */
+
+    function setupLogout() {
+
+        const button =
+            $("logoutButton");
+
+        if (!button) {
+            return;
+        }
+
+        button.addEventListener(
+            "click",
+            async () => {
+
+                try {
+
+                    await api(
+                        "/api/logout",
+                        {
+                            method: "POST"
+                        }
+                    );
+
+                } catch (error) {
+
+                    console.warn(
+                        "logout API error:",
+                        error
+                    );
+                }
+
+                try {
+                    localStorage.clear();
+                    sessionStorage.clear();
+                } catch {
+                    // ignore
+                }
+
+                if (socket) {
+
+                    try {
+                        socket.close();
+                    } catch {
+                        // ignore
+                    }
+                }
+
+                window.location.href =
+                    "/login.html";
+            }
+        );
+    }
+
+    /* MOBILE BACK */
+
+    function setupMobileBack() {
+
+        const button =
+            $("mobileBackButton");
+
+        const shell =
+            $("appShell");
+
+        if (
+            !button ||
+            !shell
+        ) {
+            return;
+        }
+
+        button.addEventListener(
+            "click",
+            () => {
+
+                shell.classList.remove(
+                    "chat-open"
+                );
+
+                currentChatUser =
+                    null;
+
+                const input =
+                    $("messageInput");
+
+                if (input) {
+                    input.disabled =
+                        true;
+                    input.value = "";
+                }
+
+                const name =
+                    $("chatUserName");
+
+                const status =
+                    $("chatUserStatus");
+
+                if (name) {
+                    name.textContent =
+                        "گفتگو";
+                }
+
+                if (status) {
+                    status.textContent =
+                        "یک کاربر را انتخاب کنید";
+                }
+            }
+        );
+    }
+
+    /* MENU */
+
+    function setupMenu() {
+
+        const button =
+            $("chatMenuButton");
+
+        if (!button) {
+            return;
+        }
+
+        button.addEventListener(
+            "click",
+            () => {
+
+                showToast(
+                    "منوی گپینو"
+                );
+            }
+        );
+    }
+
+    /* LIVE */
+
+    function setupLiveButtons() {
+
+        const liveButton =
+            $("liveButton");
+
+        const headerLive =
+            $("headerLiveButton");
+
+        if (liveButton) {
+
+            liveButton.addEventListener(
+                "click",
+                () => {
+                    location.href =
+                        "/live.html";
+                }
+            );
+        }
+
+        if (headerLive) {
+
+            headerLive.addEventListener(
+                "click",
+                () => {
+                    location.href =
+                        "/live.html";
+                }
+            );
+        }
+    }
+
+    /* REFRESH */
+
+    function setupRefreshLives() {
+
+        const button =
+            $("refreshLivesButton");
+
+        if (
+            button &&
+            typeof window.GAPINO_REFRESH_LIVES ===
+                "function"
+        ) {
+
+            button.addEventListener(
+                "click",
+                () => {
+                    window.GAPINO_REFRESH_LIVES();
+                }
+            );
+        }
+    }
+
+    /* CALL SUPPORT */
+
+    function setupCallBridge() {
+
+        document.addEventListener(
+            "gapino-call-event",
+            event => {
+
+                if (
+                    typeof window.GAPINO_CALL_HANDLE_EVENT ===
+                        "function"
+                ) {
+
+                    try {
+                        window.GAPINO_CALL_HANDLE_EVENT(
+                            event.detail
+                        );
+                    } catch (error) {
+
+                        console.error(
+                            "Call bridge error:",
+                            error
+                        );
+                    }
+                }
+            }
+        );
+
+        const button =
+            $("callButton");
+
+        if (
+            button &&
+            typeof window.GAPINO_CALL_START ===
+                "function"
+        ) {
+
+            button.addEventListener(
+                "click",
+                () => {
+
+                    if (!currentChatUser) {
+
+                        showToast(
+                            "ابتدا یک کاربر را انتخاب کنید"
+                        );
+
+                        return;
+                    }
+
+                    try {
+
+                        window.GAPINO_CALL_START(
+                            getUserId(
+                                currentChatUser
+                            )
+                        );
+
+                    } catch (error) {
+
+                        console.error(
+                            "Call start error:",
+                            error
+                        );
+                    }
+                }
+            );
+        }
+    }
+
+    /* TIMERS */
+
+    function startRefreshTimers() {
+
+        setInterval(
+            async () => {
+
+                if (
+                    document.hidden
+                ) {
+                    return;
+                }
+
+                try {
+                    await loadUsers();
+                } catch {
+                    // ignore
+                }
+
+            },
+            10000
+        );
+
+        setInterval(
+            async () => {
+
+                if (
+                    typeof window.GAPINO_REFRESH_LIVES ===
+                        "function"
+                ) {
+
+                    try {
+                        await window.GAPINO_REFRESH_LIVES();
+                    } catch {
+                        // ignore
+                    }
+                }
+
+            },
+            10000
+        );
+    }
+
+    async function boot() {
+
+        try {
+
+            await loadCurrentUser();
+
+            renderCurrentUser();
+
+            setupUserSearch();
+            setupMessageInput();
+            setupAttachment();
+            setupVoice();
+            setupProfile();
+            setupMessageSearch();
+            setupLogout();
+            setupMobileBack();
+            setupMenu();
+            setupLiveButtons();
+            setupRefreshLives();
+            setupCallBridge();
+
+            await loadUsers();
+
+            connectWebSocket();
+
+            startRefreshTimers();
+
+            const input =
+                $("messageInput");
+
+            if (input) {
+                input.disabled = true;
+            }
+
+            console.log(
+                "GAPINO chat loaded successfully"
+            );
+
+        } catch (error) {
+
+            console.error(
+                "GAPINO boot error:",
+                error
+            );
+
+            showToast(
+                "خطا در بارگذاری گپینو"
+            );
+
+            /*
+             * فقط در صورتی که واقعاً وارد نشده باشیم
+             * به صفحه ورود برگرد.
+             */
+            if (
+                String(
+                    error.message || ""
+                ).includes(
+                    "جلسه ورود پیدا نشد"
+                )
+            ) {
+
+                setTimeout(
+                    () => {
+                        location.href =
+                            "/login.html";
+                    },
+                    1200
+                );
+            }
+        }
+    }
+
+    window.GAPINO = {
+        get currentUser() {
+            return currentUser;
+        },
+
+        get currentChatUser() {
+            return currentChatUser;
+        },
+
+        get users() {
+            return users;
+        },
+
+        get socket() {
+            return socket;
+        },
+
+        openChat,
+        loadUsers,
+        loadMessages,
+        sendMessage,
+        connectWebSocket,
+        sendTyping
+    };
+
+    if (
+        document.readyState ===
+        "loading"
+    ) {
+
+        document.addEventListener(
+            "DOMContentLoaded",
+            boot
+        );
+
+    } else {
+
+        boot();
+    }
+
+})();
