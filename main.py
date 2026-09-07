@@ -23,15 +23,12 @@ from fastapi import (
     WebSocket,
     WebSocketDisconnect,
 )
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from passlib.context import CryptContext
 from starlette.middleware.sessions import SessionMiddleware
 
-
-# =========================================================
-# PATHS
-# =========================================================
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -45,10 +42,6 @@ FRONTEND_DIR.mkdir(parents=True, exist_ok=True)
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 
-# =========================================================
-# CONFIG
-# =========================================================
-
 SESSION_SECRET = os.getenv(
     "GAPINO_SESSION_SECRET",
     "change-this-gapino-secret-before-production",
@@ -61,10 +54,6 @@ WS_TICKET_TTL = 10 * 60
 AUTH_TOKEN_TTL = 60 * 60 * 24 * 30
 
 
-# =========================================================
-# APP
-# =========================================================
-
 app = FastAPI(
     title="GAPINO Pro",
     version="1.0.0",
@@ -73,13 +62,25 @@ app = FastAPI(
 
 
 # =========================================================
-# SESSION
+# CORS
 # =========================================================
-#
-# برای HTTPS واقعی روی mygapino.shop:
-# secure cookie فعال است.
-#
-# same_site="none" برای ارتباط Frontend/Backend در HTTPS
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://mygapino.shop",
+        "https://localhost",
+        "http://localhost",
+        "capacitor://localhost",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# =========================================================
+# SESSION
 # =========================================================
 
 app.add_middleware(
@@ -93,24 +94,7 @@ app.add_middleware(
 
 
 # =========================================================
-# STATIC FILES
-# =========================================================
-#
-# /static/...
-# /frontend/...
-#
-# مهم:
-# قبلاً فقط /static وجود داشت.
-# حالا /frontend هم مستقیماً به پوشه frontend متصل است.
-#
-# بنابراین:
-#
-# https://mygapino.shop/frontend/chat.js
-# https://mygapino.shop/frontend/chat.css
-# https://mygapino.shop/frontend/app.js
-# https://mygapino.shop/frontend/call.js
-#
-# کار خواهند کرد.
+# STATIC
 # =========================================================
 
 app.mount(
@@ -132,39 +116,19 @@ app.mount(
 )
 
 
-# =========================================================
-# PASSWORD HASH
-# =========================================================
-
 pwd = CryptContext(
     schemes=["pbkdf2_sha256"],
     deprecated="auto",
 )
 
 
-# =========================================================
-# WEBSOCKET STATE
-# =========================================================
-
 connections: dict[int, set[WebSocket]] = {}
-
 ws_tickets: dict[str, dict[str, Any]] = {}
 
 
-# =========================================================
-# TIME
-# =========================================================
-
 def now() -> str:
-    """
-    زمان فعلی UTC به صورت ISO.
-    """
     return datetime.now(timezone.utc).isoformat()
 
-
-# =========================================================
-# DATABASE
-# =========================================================
 
 def db() -> sqlite3.Connection:
     conn = sqlite3.connect(
@@ -173,17 +137,10 @@ def db() -> sqlite3.Connection:
     )
 
     conn.row_factory = sqlite3.Row
-
-    conn.execute(
-        "PRAGMA foreign_keys = ON"
-    )
+    conn.execute("PRAGMA foreign_keys = ON")
 
     return conn
 
-
-# =========================================================
-# DATABASE INIT
-# =========================================================
 
 def init_db() -> None:
     conn = db()
@@ -274,14 +231,7 @@ def init_db() -> None:
 init_db()
 
 
-# =========================================================
-# USERS
-# =========================================================
-
-def user_by_id(
-    user_id: int,
-) -> dict[str, Any] | None:
-
+def user_by_id(user_id: int) -> dict[str, Any] | None:
     conn = db()
 
     row = conn.execute(
@@ -302,20 +252,10 @@ def user_by_id(
 
     conn.close()
 
-    if not row:
-        return None
-
-    return dict(row)
+    return dict(row) if row else None
 
 
-# =========================================================
-# PUBLIC USER
-# =========================================================
-
-def public_user(
-    user: dict[str, Any],
-) -> dict[str, Any]:
-
+def public_user(user: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": user["id"],
         "username": user["username"],
@@ -327,14 +267,7 @@ def public_user(
     }
 
 
-# =========================================================
-# ACCESS TOKEN
-# =========================================================
-
-def make_access_token(
-    user_id: int,
-) -> str:
-
+def make_access_token(user_id: int) -> str:
     payload = (
         f"{int(user_id)}:"
         f"{int(time.time()) + AUTH_TOKEN_TTL}"
@@ -346,10 +279,7 @@ def make_access_token(
         hashlib.sha256,
     ).hexdigest()
 
-    raw = (
-        f"{payload}:{signature}"
-        .encode("utf-8")
-    )
+    raw = f"{payload}:{signature}".encode("utf-8")
 
     return (
         base64.urlsafe_b64encode(raw)
@@ -358,14 +288,7 @@ def make_access_token(
     )
 
 
-# =========================================================
-# VERIFY ACCESS TOKEN
-# =========================================================
-
-def verify_access_token(
-    token: str,
-) -> int | None:
-
+def verify_access_token(token: str) -> int | None:
     try:
         padded = (
             token
@@ -379,13 +302,9 @@ def verify_access_token(
             .decode("utf-8")
         )
 
-        user_part, expiry_part, signature = (
-            raw.split(":", 2)
-        )
+        user_part, expiry_part, signature = raw.split(":", 2)
 
-        payload = (
-            f"{user_part}:{expiry_part}"
-        )
+        payload = f"{user_part}:{expiry_part}"
 
         expected = hmac.new(
             SESSION_SECRET.encode("utf-8"),
@@ -404,10 +323,7 @@ def verify_access_token(
 
         user_id = int(user_part)
 
-        if not user_by_id(user_id):
-            return None
-
-        return user_id
+        return user_id if user_by_id(user_id) else None
 
     except (
         ValueError,
@@ -417,10 +333,6 @@ def verify_access_token(
     ):
         return None
 
-
-# =========================================================
-# BEARER USER
-# =========================================================
 
 def bearer_user(
     request: Request,
@@ -441,27 +353,22 @@ def bearer_user(
 
     user_id = verify_access_token(token)
 
-    if user_id is None:
-        return None
+    return (
+        user_by_id(user_id)
+        if user_id is not None
+        else None
+    )
 
-    return user_by_id(user_id)
-
-
-# =========================================================
-# CURRENT USER
-# =========================================================
 
 def current_user(
     request: Request,
 ) -> dict[str, Any] | None:
 
-    # اول Bearer Token
     token_user = bearer_user(request)
 
     if token_user:
         return token_user
 
-    # سپس Session
     uid = request.session.get("uid")
 
     if uid is None:
@@ -469,18 +376,11 @@ def current_user(
 
     try:
         uid = int(uid)
-    except (
-        TypeError,
-        ValueError,
-    ):
+    except (TypeError, ValueError):
         return None
 
     return user_by_id(uid)
 
-
-# =========================================================
-# REQUIRE USER
-# =========================================================
 
 def require_user(
     request: Request,
@@ -497,12 +397,7 @@ def require_user(
     return user
 
 
-# =========================================================
-# WEBSOCKET TICKETS
-# =========================================================
-
 def cleanup_tickets() -> None:
-
     current = time.time()
 
     for ticket in list(ws_tickets):
@@ -520,18 +415,14 @@ def cleanup_tickets() -> None:
             )
 
 
-def make_ws_ticket(
-    user_id: int,
-) -> str:
-
+def make_ws_ticket(user_id: int) -> str:
     cleanup_tickets()
 
     ticket = secrets.token_urlsafe(32)
 
     ws_tickets[ticket] = {
         "uid": int(user_id),
-        "expires": time.time()
-        + WS_TICKET_TTL,
+        "expires": time.time() + WS_TICKET_TTL,
     }
 
     return ticket
@@ -565,10 +456,6 @@ def consume_ws_ticket(
         return None
 
 
-# =========================================================
-# WS COOKIE
-# =========================================================
-
 def set_ws_cookie(
     user_id: int,
     response: JSONResponse,
@@ -585,10 +472,6 @@ def set_ws_cookie(
         secure=True,
     )
 
-
-# =========================================================
-# BROADCAST
-# =========================================================
 
 async def broadcast(
     user_id: int,
@@ -608,28 +491,19 @@ async def broadcast(
         ensure_ascii=False,
     )
 
-    dead: list[WebSocket] = []
+    dead = []
 
     for websocket in list(sockets):
 
         try:
-
-            await websocket.send_text(
-                text
-            )
-
+            await websocket.send_text(text)
         except Exception:
-
             dead.append(websocket)
 
     for websocket in dead:
-
-        sockets.discard(
-            websocket
-        )
+        sockets.discard(websocket)
 
     if not sockets:
-
         connections.pop(
             int(user_id),
             None,
@@ -637,16 +511,14 @@ async def broadcast(
 
 
 # =========================================================
-# HOME
+# HTML
 # =========================================================
 
 @app.get(
     "/",
     response_class=HTMLResponse,
 )
-def root(
-    request: Request,
-):
+def root(request: Request):
 
     filename = (
         "chat.html"
@@ -657,7 +529,6 @@ def root(
     path = FRONTEND_DIR / filename
 
     if not path.exists():
-
         raise HTTPException(
             status_code=500,
             detail=f"{filename} پیدا نشد",
@@ -669,10 +540,6 @@ def root(
     )
 
 
-# =========================================================
-# LOGIN.HTML
-# =========================================================
-
 @app.get(
     "/login.html",
     response_class=HTMLResponse,
@@ -682,7 +549,6 @@ def login_page():
     path = FRONTEND_DIR / "login.html"
 
     if not path.exists():
-
         raise HTTPException(
             status_code=404,
             detail="login.html پیدا نشد",
@@ -694,10 +560,6 @@ def login_page():
     )
 
 
-# =========================================================
-# REGISTER.HTML
-# =========================================================
-
 @app.get(
     "/register.html",
     response_class=HTMLResponse,
@@ -707,7 +569,6 @@ def register_page():
     path = FRONTEND_DIR / "register.html"
 
     if not path.exists():
-
         raise HTTPException(
             status_code=404,
             detail="register.html پیدا نشد",
@@ -719,10 +580,6 @@ def register_page():
     )
 
 
-# =========================================================
-# CHAT.HTML
-# =========================================================
-
 @app.get(
     "/chat.html",
     response_class=HTMLResponse,
@@ -732,7 +589,6 @@ def chat_page():
     path = FRONTEND_DIR / "chat.html"
 
     if not path.exists():
-
         raise HTTPException(
             status_code=404,
             detail="chat.html پیدا نشد",
@@ -744,10 +600,6 @@ def chat_page():
     )
 
 
-# =========================================================
-# PROFILE.HTML
-# =========================================================
-
 @app.get(
     "/profile.html",
     response_class=HTMLResponse,
@@ -757,7 +609,6 @@ def profile_page():
     path = FRONTEND_DIR / "profile.html"
 
     if not path.exists():
-
         raise HTTPException(
             status_code=404,
             detail="profile.html پیدا نشد",
@@ -783,16 +634,11 @@ def health():
         "time": now(),
         "database": DB_PATH.exists(),
         "frontend": FRONTEND_DIR.exists(),
-        "frontend_files": sorted(
-            file.name
-            for file in FRONTEND_DIR.iterdir()
-            if file.is_file()
-        ),
     }
 
 
 # =========================================================
-# REGISTER API
+# REGISTER
 # =========================================================
 
 @app.post("/api/register")
@@ -804,30 +650,21 @@ def register(
 ):
 
     username = username.strip().lower()
+    display_name = display_name.strip() or username
 
-    display_name = (
-        display_name.strip()
-        or username
-    )
-
-    if (
-        len(username) < 3
-        or len(username) > 32
-    ):
+    if len(username) < 3 or len(username) > 32:
         raise HTTPException(
             status_code=400,
             detail="نام کاربری باید بین ۳ تا ۳۲ کاراکتر باشد",
         )
 
     if len(password) < 6:
-
         raise HTTPException(
             status_code=400,
             detail="رمز عبور حداقل ۶ کاراکتر باشد",
         )
 
     if len(display_name) > 60:
-
         raise HTTPException(
             status_code=400,
             detail="نام نمایشی خیلی طولانی است",
@@ -857,9 +694,7 @@ def register(
 
         conn.commit()
 
-        user_id = int(
-            cursor.lastrowid
-        )
+        user_id = int(cursor.lastrowid)
 
     except sqlite3.IntegrityError:
 
@@ -871,25 +706,32 @@ def register(
         )
 
     finally:
-
         conn.close()
 
     request.session.clear()
-
     request.session["uid"] = user_id
 
     user = user_by_id(user_id)
 
-    return {
-        "ok": True,
-        "success": True,
-        "token": make_access_token(user_id),
-        "user": public_user(user),
-    }
+    response = JSONResponse(
+        {
+            "ok": True,
+            "success": True,
+            "token": make_access_token(user_id),
+            "user": public_user(user),
+        }
+    )
+
+    set_ws_cookie(
+        user_id,
+        response,
+    )
+
+    return response
 
 
 # =========================================================
-# LOGIN API
+# LOGIN
 # =========================================================
 
 @app.post("/api/login")
@@ -915,25 +757,20 @@ def login(
     conn.close()
 
     if not row:
-
         raise HTTPException(
             status_code=401,
             detail="نام کاربری یا رمز عبور نادرست است",
         )
 
     try:
-
         valid = pwd.verify(
             password,
             row["password"],
         )
-
     except Exception:
-
         valid = False
 
     if not valid:
-
         raise HTTPException(
             status_code=401,
             detail="نام کاربری یا رمز عبور نادرست است",
@@ -942,7 +779,6 @@ def login(
     user_id = int(row["id"])
 
     request.session.clear()
-
     request.session["uid"] = user_id
 
     user = user_by_id(user_id)
@@ -956,6 +792,11 @@ def login(
         }
     )
 
+    set_ws_cookie(
+        user_id,
+        response,
+    )
+
     return response
 
 
@@ -964,27 +805,19 @@ def login(
 # =========================================================
 
 @app.post("/api/logout")
-def logout(
-    request: Request,
-):
+def logout(request: Request):
 
     uid = request.session.get("uid")
 
     request.session.clear()
 
     if uid is not None:
-
         try:
-
             connections.pop(
                 int(uid),
                 None,
             )
-
-        except (
-            TypeError,
-            ValueError,
-        ):
+        except (TypeError, ValueError):
             pass
 
     response = JSONResponse(
@@ -1007,9 +840,7 @@ def logout(
 # =========================================================
 
 @app.get("/api/me")
-def me(
-    request: Request,
-):
+def me(request: Request):
 
     user = require_user(request)
 
@@ -1031,195 +862,11 @@ def me(
 
 
 # =========================================================
-# UPDATE PROFILE
-# =========================================================
-
-@app.put("/api/profile")
-async def update_profile(
-    request: Request,
-):
-
-    user = require_user(request)
-
-    try:
-
-        data = await request.json()
-
-    except Exception:
-
-        raise HTTPException(
-            status_code=400,
-            detail="داده پروفایل نامعتبر است",
-        )
-
-    display_name = str(
-        data.get(
-            "display_name",
-            user["display_name"],
-        )
-        or ""
-    ).strip()
-
-    bio = str(
-        data.get(
-            "bio",
-            user["bio"],
-        )
-        or ""
-    ).strip()
-
-    status = str(
-        data.get(
-            "status",
-            user["status"],
-        )
-        or ""
-    ).strip()
-
-    if not display_name:
-
-        raise HTTPException(
-            status_code=400,
-            detail="نام نمایشی نمی‌تواند خالی باشد",
-        )
-
-    if len(display_name) > 60:
-
-        raise HTTPException(
-            status_code=400,
-            detail="نام نمایشی خیلی طولانی است",
-        )
-
-    if len(bio) > 250:
-
-        raise HTTPException(
-            status_code=400,
-            detail="بیوگرافی حداکثر ۲۵۰ کاراکتر است",
-        )
-
-    if len(status) > 40:
-
-        raise HTTPException(
-            status_code=400,
-            detail="وضعیت خیلی طولانی است",
-        )
-
-    conn = db()
-
-    conn.execute(
-        """
-        UPDATE users
-        SET
-            display_name = ?,
-            bio = ?,
-            status = ?
-        WHERE id = ?
-        """,
-        (
-            display_name,
-            bio,
-            status,
-            int(user["id"]),
-        ),
-    )
-
-    conn.commit()
-    conn.close()
-
-    updated = user_by_id(
-        int(user["id"])
-    )
-
-    return {
-        "ok": True,
-        "user": public_user(updated),
-    }
-
-
-# =========================================================
-# AVATAR
-# =========================================================
-
-@app.post("/api/profile/avatar")
-async def update_avatar(
-    request: Request,
-    file: UploadFile = File(...),
-):
-
-    user = require_user(request)
-
-    extension = Path(
-        file.filename or ""
-    ).suffix.lower()
-
-    allowed = {
-        ".png",
-        ".jpg",
-        ".jpeg",
-        ".webp",
-    }
-
-    if extension not in allowed:
-
-        raise HTTPException(
-            status_code=400,
-            detail="فقط PNG، JPG، JPEG و WEBP مجاز است",
-        )
-
-    content = await file.read()
-
-    if len(content) > MAX_AVATAR_SIZE:
-
-        raise HTTPException(
-            status_code=413,
-            detail="حجم عکس نباید بیشتر از ۵ مگابایت باشد",
-        )
-
-    filename = (
-        f"{user['id']}_"
-        f"{secrets.token_hex(8)}"
-        f"{extension}"
-    )
-
-    path = UPLOADS_DIR / filename
-
-    path.write_bytes(content)
-
-    avatar_url = (
-        f"/uploads/{filename}"
-    )
-
-    conn = db()
-
-    conn.execute(
-        """
-        UPDATE users
-        SET avatar = ?
-        WHERE id = ?
-        """,
-        (
-            avatar_url,
-            int(user["id"]),
-        ),
-    )
-
-    conn.commit()
-    conn.close()
-
-    return {
-        "ok": True,
-        "avatar": avatar_url,
-    }
-
-
-# =========================================================
 # USERS
 # =========================================================
 
 @app.get("/api/users")
-def users(
-    request: Request,
-):
+def users(request: Request):
 
     user = require_user(request)
 
@@ -1316,7 +963,7 @@ def users(
 
 
 # =========================================================
-# GET MESSAGES
+# MESSAGES
 # =========================================================
 
 @app.get("/api/messages/{other_id}")
@@ -1328,14 +975,12 @@ def get_messages(
     user = require_user(request)
 
     if other_id == int(user["id"]):
-
         raise HTTPException(
             status_code=400,
             detail="گفتگو با خودتان مجاز نیست",
         )
 
     if not user_by_id(other_id):
-
         raise HTTPException(
             status_code=404,
             detail="کاربر پیدا نشد",
@@ -1379,10 +1024,6 @@ def get_messages(
     ]
 
 
-# =========================================================
-# CREATE MESSAGE
-# =========================================================
-
 @app.post("/api/messages")
 async def create_message(
     request: Request,
@@ -1415,28 +1056,24 @@ async def create_message(
     ).strip()
 
     if not text:
-
         raise HTTPException(
             status_code=400,
             detail="پیام خالی است",
         )
 
     if len(text) > 5000:
-
         raise HTTPException(
             status_code=400,
             detail="پیام نمی‌تواند بیشتر از ۵۰۰۰ کاراکتر باشد",
         )
 
     if receiver_id == int(user["id"]):
-
         raise HTTPException(
             status_code=400,
             detail="ارسال پیام به خودتان مجاز نیست",
         )
 
     if not user_by_id(receiver_id):
-
         raise HTTPException(
             status_code=404,
             detail="کاربر گیرنده پیدا نشد",
@@ -1492,10 +1129,6 @@ async def create_message(
     return payload
 
 
-# =========================================================
-# EDIT MESSAGE
-# =========================================================
-
 @app.post(
     "/api/messages/{message_id}/edit"
 )
@@ -1507,11 +1140,8 @@ async def edit_message(
     user = require_user(request)
 
     try:
-
         data = await request.json()
-
     except Exception:
-
         raise HTTPException(
             status_code=400,
             detail="داده ویرایش نامعتبر است",
@@ -1523,14 +1153,12 @@ async def edit_message(
     ).strip()
 
     if not text:
-
         raise HTTPException(
             status_code=400,
             detail="متن جدید نمی‌تواند خالی باشد",
         )
 
     if len(text) > 5000:
-
         raise HTTPException(
             status_code=400,
             detail="پیام خیلی طولانی است",
@@ -1548,9 +1176,7 @@ async def edit_message(
     ).fetchone()
 
     if not row:
-
         conn.close()
-
         raise HTTPException(
             status_code=404,
             detail="پیام پیدا نشد",
@@ -1560,20 +1186,14 @@ async def edit_message(
         int(row["sender_id"])
         != int(user["id"])
     ):
-
         conn.close()
-
         raise HTTPException(
             status_code=403,
             detail="اجازه ویرایش این پیام را ندارید",
         )
 
-    if int(
-        row["deleted"] or 0
-    ) == 1:
-
+    if int(row["deleted"] or 0) == 1:
         conn.close()
-
         raise HTTPException(
             status_code=400,
             detail="پیام حذف شده قابل ویرایش نیست",
@@ -1625,10 +1245,6 @@ async def edit_message(
     return payload
 
 
-# =========================================================
-# DELETE MESSAGE
-# =========================================================
-
 @app.delete(
     "/api/messages/{message_id}"
 )
@@ -1651,9 +1267,7 @@ async def delete_message(
     ).fetchone()
 
     if not row:
-
         conn.close()
-
         raise HTTPException(
             status_code=404,
             detail="پیام پیدا نشد",
@@ -1663,9 +1277,7 @@ async def delete_message(
         int(row["sender_id"])
         != int(user["id"])
     ):
-
         conn.close()
-
         raise HTTPException(
             status_code=403,
             detail="اجازه حذف این پیام را ندارید",
@@ -1719,7 +1331,7 @@ async def delete_message(
 
 
 # =========================================================
-# FILE UPLOAD
+# UPLOAD
 # =========================================================
 
 @app.post("/api/upload")
@@ -1732,14 +1344,12 @@ async def upload(
     user = require_user(request)
 
     if receiver_id == int(user["id"]):
-
         raise HTTPException(
             status_code=400,
             detail="نمی‌توانید فایل را برای خودتان ارسال کنید",
         )
 
     if not user_by_id(receiver_id):
-
         raise HTTPException(
             status_code=404,
             detail="کاربر گیرنده پیدا نشد",
@@ -1748,7 +1358,6 @@ async def upload(
     content = await file.read()
 
     if len(content) > MAX_UPLOAD_SIZE:
-
         raise HTTPException(
             status_code=413,
             detail="حداکثر اندازه فایل ۱۰ مگابایت است",
@@ -1792,7 +1401,6 @@ async def upload(
         extension
         and extension not in allowed
     ):
-
         raise HTTPException(
             status_code=400,
             detail="فرمت این فایل مجاز نیست",
@@ -1807,9 +1415,7 @@ async def upload(
 
     path.write_bytes(content)
 
-    file_url = (
-        f"/uploads/{filename}"
-    )
+    file_url = f"/uploads/{filename}"
 
     mime_type = (
         file.content_type
@@ -1874,7 +1480,7 @@ async def upload(
 
 
 # =========================================================
-# CREATE GROUP
+# GROUPS
 # =========================================================
 
 @app.post("/api/groups")
@@ -1885,11 +1491,8 @@ async def create_group(
     user = require_user(request)
 
     try:
-
         data = await request.json()
-
     except Exception:
-
         raise HTTPException(
             status_code=400,
             detail="داده گروه نامعتبر است",
@@ -1901,14 +1504,12 @@ async def create_group(
     ).strip()
 
     if not name:
-
         raise HTTPException(
             status_code=400,
             detail="نام گروه الزامی است",
         )
 
     if len(name) > 80:
-
         raise HTTPException(
             status_code=400,
             detail="نام گروه خیلی طولانی است",
@@ -1930,23 +1531,17 @@ async def create_group(
     for value in raw_members:
 
         try:
-
             member_id = int(value)
-
         except (
             TypeError,
             ValueError,
         ):
-
             continue
 
         if member_id != int(
             user["id"]
         ):
-
-            members.add(
-                member_id
-            )
+            members.add(member_id)
 
     conn = db()
 
@@ -2045,9 +1640,7 @@ async def websocket_endpoint(
 
         return
 
-    uid = consume_ws_ticket(
-        ticket
-    )
+    uid = consume_ws_ticket(ticket)
 
     if (
         uid is None
@@ -2068,10 +1661,6 @@ async def websocket_endpoint(
 
     try:
 
-        # -------------------------------------------------
-        # READY
-        # -------------------------------------------------
-
         await websocket.send_text(
             json.dumps(
                 {
@@ -2083,10 +1672,6 @@ async def websocket_endpoint(
                 ensure_ascii=False,
             )
         )
-
-        # -------------------------------------------------
-        # ONLINE NOTIFICATION
-        # -------------------------------------------------
 
         for other_uid in list(
             connections.keys()
@@ -2102,27 +1687,19 @@ async def websocket_endpoint(
                     },
                 )
 
-        # -------------------------------------------------
-        # MAIN LOOP
-        # -------------------------------------------------
-
         while True:
 
             raw = await websocket.receive_text()
 
             try:
-
                 data = json.loads(raw)
-
             except json.JSONDecodeError:
-
                 continue
 
             if not isinstance(
                 data,
                 dict,
             ):
-
                 continue
 
             message_type = str(
@@ -2132,26 +1709,16 @@ async def websocket_endpoint(
                 )
             ).strip().lower()
 
-            # =====================================================
-            # PING
-            # =====================================================
-
             if message_type == "ping":
 
                 await websocket.send_text(
                     json.dumps(
-                        {
-                            "type": "pong"
-                        },
+                        {"type": "pong"},
                         ensure_ascii=False,
                     )
                 )
 
                 continue
-
-            # =====================================================
-            # VOICE CALL SIGNALING
-            # =====================================================
 
             if message_type in {
                 "call_offer",
@@ -2178,20 +1745,16 @@ async def websocket_endpoint(
                     continue
 
                 if receiver_id == int(uid):
-
                     continue
 
                 if not user_by_id(
                     receiver_id
                 ):
-
                     continue
 
                 payload = dict(data)
 
-                payload["sender_id"] = int(
-                    uid
-                )
+                payload["sender_id"] = int(uid)
 
                 await broadcast(
                     receiver_id,
@@ -2200,10 +1763,6 @@ async def websocket_endpoint(
 
                 continue
 
-            # =====================================================
-            # TYPING
-            # =====================================================
-
             if message_type == "typing":
 
                 try:
@@ -2211,9 +1770,7 @@ async def websocket_endpoint(
                     target_id = int(
                         data.get(
                             "receiver_id",
-                            data.get(
-                                "to"
-                            ),
+                            data.get("to"),
                         )
                     )
 
@@ -2226,11 +1783,8 @@ async def websocket_endpoint(
 
                 if (
                     target_id == int(uid)
-                    or not user_by_id(
-                        target_id
-                    )
+                    or not user_by_id(target_id)
                 ):
-
                     continue
 
                 await broadcast(
@@ -2249,10 +1803,6 @@ async def websocket_endpoint(
 
                 continue
 
-            # =====================================================
-            # TEXT MESSAGE
-            # =====================================================
-
             if message_type in {
                 "message",
                 "send_message",
@@ -2263,9 +1813,7 @@ async def websocket_endpoint(
                     receiver_id = int(
                         data.get(
                             "receiver_id",
-                            data.get(
-                                "to"
-                            ),
+                            data.get("to"),
                         )
                     )
 
@@ -2288,16 +1836,12 @@ async def websocket_endpoint(
                     not text
                     or len(text) > 5000
                 ):
-
                     continue
 
                 if (
                     receiver_id == int(uid)
-                    or not user_by_id(
-                        receiver_id
-                    )
+                    or not user_by_id(receiver_id)
                 ):
-
                     continue
 
                 conn = db()
@@ -2329,9 +1873,7 @@ async def websocket_endpoint(
                     WHERE id = ?
                     """,
                     (
-                        int(
-                            cursor.lastrowid
-                        ),
+                        int(cursor.lastrowid),
                     ),
                 ).fetchone()
 
@@ -2344,13 +1886,11 @@ async def websocket_endpoint(
                         "message": dict(row),
                     }
 
-                    # گیرنده
                     await broadcast(
                         receiver_id,
                         outgoing,
                     )
 
-                    # فرستنده
                     await websocket.send_text(
                         json.dumps(
                             outgoing,
@@ -2359,10 +1899,6 @@ async def websocket_endpoint(
                     )
 
                 continue
-
-            # =====================================================
-            # ONLINE USERS
-            # =====================================================
 
             if message_type in {
                 "online",
@@ -2384,7 +1920,6 @@ async def websocket_endpoint(
                 continue
 
     except WebSocketDisconnect:
-
         pass
 
     except Exception as exc:
