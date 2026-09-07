@@ -59,10 +59,12 @@ SESSION_SECRET = os.getenv(
 COOKIE_SECURE = (
     os.getenv(
         "GAPINO_COOKIE_SECURE",
-        "false",
+        "true",
     ).lower()
     == "true"
 )
+
+SESSION_MAX_AGE = 60 * 60 * 24 * 365
 
 
 # =========================================================
@@ -78,6 +80,7 @@ app.add_middleware(
     SessionMiddleware,
     secret_key=SESSION_SECRET,
     session_cookie="gapino_session",
+    max_age=SESSION_MAX_AGE,
     same_site="lax",
     https_only=COOKIE_SECURE,
 )
@@ -129,6 +132,7 @@ def get_db() -> sqlite3.Connection:
 
 
 def init_database() -> None:
+
     connection = get_db()
 
     connection.executescript(
@@ -168,7 +172,10 @@ def init_database() -> None:
         CREATE TABLE IF NOT EXISTS group_members (
             group_id INTEGER NOT NULL,
             user_id INTEGER NOT NULL,
-            PRIMARY KEY (group_id, user_id)
+            PRIMARY KEY (
+                group_id,
+                user_id
+            )
         );
 
         CREATE TABLE IF NOT EXISTS reactions (
@@ -205,13 +212,13 @@ def now_iso() -> str:
 # PASSWORD
 # =========================================================
 
-def hash_password(password: str) -> str:
-    """
-    فرمت جدید رمزهای GAPINO:
-    $pbkdf2$<salt hex>$<digest hex>
-    """
+def hash_password(
+    password: str,
+) -> str:
 
-    salt = secrets.token_bytes(16)
+    salt = secrets.token_bytes(
+        16
+    )
 
     digest = hashlib.pbkdf2_hmac(
         "sha256",
@@ -234,6 +241,7 @@ def verify_pbkdf2_password(
 ) -> bool:
 
     try:
+
         parts = stored_password.split("$")
 
         if len(parts) != 4:
@@ -242,9 +250,9 @@ def verify_pbkdf2_password(
         if parts[1].lower() != "pbkdf2":
             return False
 
-        salt = bytes.fromhex(parts[2])
-
-        expected_digest = parts[3].strip().lower()
+        salt = bytes.fromhex(
+            parts[2]
+        )
 
         calculated = hashlib.pbkdf2_hmac(
             "sha256",
@@ -255,10 +263,11 @@ def verify_pbkdf2_password(
 
         return hmac.compare_digest(
             calculated.hex().lower(),
-            expected_digest,
+            parts[3].strip().lower(),
         )
 
     except Exception:
+
         return False
 
 
@@ -267,34 +276,30 @@ def verify_pbkdf2_legacy_password(
     stored_password: str,
 ) -> bool:
 
-    """
-    پشتیبانی از چند فرمت احتمالی PBKDF2 قدیمی.
-
-    مثال‌های پشتیبانی‌شده:
-    $pbkdf2$...
-    pbkdf2$...
-    """
-
     try:
+
         value = stored_password.strip()
 
-        if value.startswith("$pbkdf2$"):
+        if value.startswith(
+            "$pbkdf2$"
+        ):
+
             return verify_pbkdf2_password(
                 password,
                 value,
             )
 
-        if value.startswith("pbkdf2$"):
+        if value.startswith(
+            "pbkdf2$"
+        ):
+
             parts = value.split("$")
 
             if len(parts) != 3:
                 return False
 
-            salt_hex = parts[1]
-            digest_hex = parts[2]
-
             salt = bytes.fromhex(
-                salt_hex
+                parts[1]
             )
 
             calculated = hashlib.pbkdf2_hmac(
@@ -306,10 +311,11 @@ def verify_pbkdf2_legacy_password(
 
             return hmac.compare_digest(
                 calculated.hex().lower(),
-                digest_hex.lower(),
+                parts[2].strip().lower(),
             )
 
     except Exception:
+
         return False
 
     return False
@@ -320,11 +326,8 @@ def verify_argon2_password(
     stored_password: str,
 ) -> bool:
 
-    # -----------------------------------------------------
-    # pwdlib
-    # -----------------------------------------------------
-
     try:
+
         from pwdlib import PasswordHash
 
         password_hash = PasswordHash()
@@ -337,13 +340,11 @@ def verify_argon2_password(
         )
 
     except Exception:
+
         pass
 
-    # -----------------------------------------------------
-    # argon2-cffi
-    # -----------------------------------------------------
-
     try:
+
         from argon2 import PasswordHasher
 
         password_hasher = PasswordHasher()
@@ -356,6 +357,7 @@ def verify_argon2_password(
         return True
 
     except Exception:
+
         return False
 
 
@@ -365,6 +367,7 @@ def verify_bcrypt_password(
 ) -> bool:
 
     try:
+
         import bcrypt
 
         return bool(
@@ -375,21 +378,7 @@ def verify_bcrypt_password(
         )
 
     except Exception:
-        return False
 
-
-def is_hex_string(
-    value: str,
-) -> bool:
-
-    if not value:
-        return False
-
-    try:
-        int(value, 16)
-        return True
-
-    except Exception:
         return False
 
 
@@ -399,10 +388,7 @@ def verify_sha256_password(
 ) -> bool:
 
     value = stored_password.strip()
-
-    # -----------------------------------------------------
-    # sha256:<hash>
-    # -----------------------------------------------------
+    digest = None
 
     if value.lower().startswith(
         "sha256:"
@@ -413,26 +399,7 @@ def verify_sha256_password(
             1,
         )[1].strip().lower()
 
-        if len(digest) != 64:
-            return False
-
-        if not is_hex_string(digest):
-            return False
-
-        calculated = hashlib.sha256(
-            password.encode("utf-8")
-        ).hexdigest().lower()
-
-        return hmac.compare_digest(
-            calculated,
-            digest,
-        )
-
-    # -----------------------------------------------------
-    # sha256$<hash>
-    # -----------------------------------------------------
-
-    if value.lower().startswith(
+    elif value.lower().startswith(
         "sha256$"
     ):
 
@@ -441,11 +408,23 @@ def verify_sha256_password(
             1,
         )[1].strip().lower()
 
-        if len(digest) != 64:
-            return False
+    elif (
+        len(value) == 64
+        and all(
+            c in "0123456789abcdefABCDEF"
+            for c in value
+        )
+    ):
 
-        if not is_hex_string(digest):
-            return False
+        digest = value.lower()
+
+    if not digest:
+        return False
+
+    if len(digest) != 64:
+        return False
+
+    try:
 
         calculated = hashlib.sha256(
             password.encode("utf-8")
@@ -456,25 +435,9 @@ def verify_sha256_password(
             digest,
         )
 
-    # -----------------------------------------------------
-    # hash خام 64 کاراکتری
-    # -----------------------------------------------------
+    except Exception:
 
-    if (
-        len(value) == 64
-        and is_hex_string(value)
-    ):
-
-        calculated = hashlib.sha256(
-            password.encode("utf-8")
-        ).hexdigest().lower()
-
-        return hmac.compare_digest(
-            calculated,
-            value.lower(),
-        )
-
-    return False
+        return False
 
 
 def looks_like_hash(
@@ -483,7 +446,7 @@ def looks_like_hash(
 
     value = value.strip().lower()
 
-    known_prefixes = (
+    prefixes = (
         "$pbkdf2$",
         "pbkdf2$",
         "$argon2",
@@ -496,27 +459,24 @@ def looks_like_hash(
     )
 
     if value.startswith(
-        known_prefixes
+        prefixes
     ):
         return True
 
-    if (
-        len(value) == 32
-        and is_hex_string(value)
+    if len(value) in (
+        32,
+        40,
+        64,
     ):
-        return True
 
-    if (
-        len(value) == 40
-        and is_hex_string(value)
-    ):
-        return True
+        try:
 
-    if (
-        len(value) == 64
-        and is_hex_string(value)
-    ):
-        return True
+            int(value, 16)
+            return True
+
+        except Exception:
+
+            pass
 
     return False
 
@@ -536,86 +496,53 @@ def verify_password(
     if not stored_password:
         return False
 
-    # -----------------------------------------------------
-    # GAPINO PBKDF2
-    # -----------------------------------------------------
-
     if stored_password.startswith(
         "$pbkdf2$"
     ):
+
         return verify_pbkdf2_password(
             password,
             stored_password,
         )
 
-    # -----------------------------------------------------
-    # PBKDF2 قدیمی
-    # -----------------------------------------------------
-
     if stored_password.startswith(
         "pbkdf2$"
     ):
+
         return verify_pbkdf2_legacy_password(
             password,
             stored_password,
         )
 
-    # -----------------------------------------------------
-    # ARGON2
-    # -----------------------------------------------------
-
     if stored_password.startswith(
         "$argon2"
     ):
+
         return verify_argon2_password(
             password,
             stored_password,
         )
-
-    # -----------------------------------------------------
-    # BCRYPT
-    # -----------------------------------------------------
 
     if stored_password.startswith(
         (
             "$2a$",
             "$2b$",
             "$2y$",
+            "$2$",
         )
     ):
+
         return verify_bcrypt_password(
             password,
             stored_password,
         )
-
-    # -----------------------------------------------------
-    # bcrypt قدیمی
-    # -----------------------------------------------------
-
-    if stored_password.startswith(
-        "$2$"
-    ):
-        return verify_bcrypt_password(
-            password,
-            stored_password,
-        )
-
-    # -----------------------------------------------------
-    # SHA-256
-    # -----------------------------------------------------
 
     if verify_sha256_password(
         password,
         stored_password,
     ):
-        return True
 
-    # -----------------------------------------------------
-    # حالت قدیمی: رمز به صورت ساده ذخیره شده
-    #
-    # فقط برای مهاجرت حساب‌های قدیمی.
-    # بعد از ورود، رمز فوراً هش می‌شود.
-    # -----------------------------------------------------
+        return True
 
     if not looks_like_hash(
         stored_password
@@ -642,19 +569,12 @@ def password_needs_upgrade(
 
 
 # =========================================================
-# CREDENTIAL HELPERS
+# REQUEST DATA
 # =========================================================
 
 async def read_request_data(
     request: Request,
 ) -> dict:
-
-    """
-    دریافت داده هم از JSON و هم از Form.
-
-    این کار مشکل رایج Frontendهایی که به جای Form
-    از fetch + JSON استفاده می‌کنند را حل می‌کند.
-    """
 
     content_type = (
         request.headers.get(
@@ -664,19 +584,14 @@ async def read_request_data(
         .lower()
     )
 
-    # -----------------------------------------------------
-    # JSON
-    # -----------------------------------------------------
-
-    if (
-        "application/json"
-        in content_type
-    ):
+    if "application/json" in content_type:
 
         try:
+
             data = await request.json()
 
         except Exception:
+
             raise HTTPException(
                 status_code=400,
                 detail="داده ارسالی نامعتبر است.",
@@ -686,6 +601,7 @@ async def read_request_data(
             data,
             dict,
         ):
+
             raise HTTPException(
                 status_code=400,
                 detail="داده ارسالی نامعتبر است.",
@@ -693,20 +609,18 @@ async def read_request_data(
 
         return data
 
-    # -----------------------------------------------------
-    # FORM
-    # -----------------------------------------------------
-
     try:
+
         form = await request.form()
 
+        return dict(form)
+
     except Exception:
+
         raise HTTPException(
             status_code=400,
             detail="فرم ارسالی نامعتبر است.",
         )
-
-    return dict(form)
 
 
 def clean_username(
@@ -722,9 +636,6 @@ def clean_password(
     value: object,
 ) -> str:
 
-    # مهم:
-    # عمداً strip() نمی‌کنیم تا فاصله‌های معتبر
-    # اول یا آخر رمز خراب نشود.
     return str(
         value or ""
     )
@@ -766,12 +677,16 @@ def get_current_user(
         return None
 
     try:
-        user_id = int(raw_id)
+
+        user_id = int(
+            raw_id
+        )
 
     except (
         TypeError,
         ValueError,
     ):
+
         return None
 
     connection = get_db()
@@ -811,6 +726,7 @@ def require_user(
     )
 
     if not user:
+
         raise HTTPException(
             status_code=401,
             detail="نیاز به ورود دارید.",
@@ -853,12 +769,14 @@ def get_user_from_ticket(
         return None
 
     try:
+
         return int(value)
 
     except (
         TypeError,
         ValueError,
     ):
+
         return None
 
 
@@ -871,6 +789,7 @@ def remove_user_tickets(
     ):
 
         try:
+
             if int(owner_id) == int(
                 user_id
             ):
@@ -1022,16 +941,19 @@ async def send_to_user(
     ):
 
         try:
+
             await websocket.send_text(
                 message
             )
 
         except Exception:
+
             dead.append(
                 websocket
             )
 
     for websocket in dead:
+
         sockets.discard(
             websocket
         )
@@ -1204,8 +1126,10 @@ def root(
         <html lang="fa" dir="rtl">
         <head>
             <meta charset="utf-8">
-            <meta name="viewport"
-                content="width=device-width, initial-scale=1">
+            <meta
+                name="viewport"
+                content="width=device-width, initial-scale=1"
+            >
             <title>گپینو | GAPINO</title>
         </head>
         <body>
@@ -1462,6 +1386,8 @@ def health():
         "live_streams": len(
             live_rooms
         ),
+        "session_max_age":
+            SESSION_MAX_AGE,
     }
 
 
@@ -1543,8 +1469,7 @@ async def register(
         )
 
     display_name = (
-        display_name
-        or username
+        display_name or username
     )
 
     if len(display_name) > 60:
@@ -1555,10 +1480,6 @@ async def register(
         )
 
     connection = get_db()
-
-    # -----------------------------------------------------
-    # بررسی نام کاربری قبلی
-    # -----------------------------------------------------
 
     existing = connection.execute(
         """
@@ -1612,7 +1533,6 @@ async def register(
     except sqlite3.IntegrityError:
 
         connection.rollback()
-
         connection.close()
 
         raise HTTPException(
@@ -1624,10 +1544,10 @@ async def register(
 
         try:
             connection.close()
-
         except Exception:
             pass
 
+    request.session.clear()
     request.session["uid"] = user_id
 
     remove_user_tickets(
@@ -1639,20 +1559,26 @@ async def register(
     )
 
     user = {
-        "id": user_id,
-        "username": username,
-        "display_name": display_name,
-        "bio": "",
-        "avatar": "",
-        "status": "در دسترس",
+        "id":
+            user_id,
+        "username":
+            username,
+        "display_name":
+            display_name,
+        "bio":
+            "",
+        "avatar":
+            "",
+        "status":
+            "در دسترس",
     }
 
     response = JSONResponse(
         {
-            "ok": True,
-            "user": public_user(
-                user
-            ),
+            "ok":
+                True,
+            "user":
+                public_user(user),
         }
     )
 
@@ -1662,7 +1588,7 @@ async def register(
         httponly=True,
         secure=COOKIE_SECURE,
         samesite="lax",
-        max_age=7 * 24 * 60 * 60,
+        max_age=SESSION_MAX_AGE,
         path="/",
     )
 
@@ -1722,10 +1648,6 @@ async def login(
         )
 
     connection = get_db()
-
-    # -----------------------------------------------------
-    # پیدا کردن کاربر بدون حساسیت به حروف بزرگ و کوچک
-    # -----------------------------------------------------
 
     row = connection.execute(
         """
@@ -1797,6 +1719,7 @@ async def login(
 
         connection.commit()
 
+        # این خط عمداً در یک خط است
         user["password"] = new_password
 
     connection.close()
@@ -1804,6 +1727,8 @@ async def login(
     user_id = int(
         user["id"]
     )
+
+    request.session.clear()
 
     request.session["uid"] = user_id
 
@@ -1817,10 +1742,10 @@ async def login(
 
     response = JSONResponse(
         {
-            "ok": True,
-            "user": public_user(
-                user
-            ),
+            "ok":
+                True,
+            "user":
+                public_user(user),
         }
     )
 
@@ -1830,7 +1755,7 @@ async def login(
         httponly=True,
         secure=COOKIE_SECURE,
         samesite="lax",
-        max_age=7 * 24 * 60 * 60,
+        max_age=SESSION_MAX_AGE,
         path="/",
     )
 
@@ -1903,6 +1828,7 @@ async def logout(
         ):
 
             try:
+
                 await websocket.close()
 
             except Exception:
@@ -1915,8 +1841,10 @@ async def logout(
             await send_to_user(
                 int(other_id),
                 {
-                    "type": "user_offline",
-                    "user_id": user_id,
+                    "type":
+                        "user_offline",
+                    "user_id":
+                        user_id,
                 },
             )
 
@@ -1983,9 +1911,7 @@ def me(
         )
 
     response = JSONResponse(
-        public_user(
-            user
-        )
+        public_user(user)
     )
 
     response.set_cookie(
@@ -1994,7 +1920,7 @@ def me(
         httponly=True,
         secure=COOKIE_SECURE,
         samesite="lax",
-        max_age=7 * 24 * 60 * 60,
+        max_age=SESSION_MAX_AGE,
         path="/",
     )
 
@@ -2224,8 +2150,10 @@ async def upload_avatar(
     )
 
     return {
-        "ok": True,
-        "avatar": avatar_url,
+        "ok":
+            True,
+        "avatar":
+            avatar_url,
     }
 
 
@@ -2314,9 +2242,9 @@ def users(
     return [
         {
             **dict(row),
-            "online": int(
-                row["id"]
-            ) in online_ids,
+            "online":
+                int(row["id"])
+                in online_ids,
         }
         for row in rows
     ]
@@ -2521,8 +2449,10 @@ async def send_message(
     await send_to_user(
         receiver_id,
         {
-            "type": "message",
-            "message": payload,
+            "type":
+                "message",
+            "message":
+                payload,
         },
     )
 
@@ -2658,17 +2588,23 @@ async def edit_message(
             detail="پیام ویرایش نشد.",
         )
 
-    payload = dict(updated)
+    payload = dict(
+        updated
+    )
 
-    receiver_id = row["receiver_id"]
+    receiver_id = row[
+        "receiver_id"
+    ]
 
     if receiver_id:
 
         await send_to_user(
             int(receiver_id),
             {
-                "type": "message:update",
-                "message": payload,
+                "type":
+                    "message:update",
+                "message":
+                    payload,
             },
         )
 
@@ -2764,17 +2700,23 @@ async def delete_message(
             detail="حذف پیام انجام نشد.",
         )
 
-    payload = dict(updated)
+    payload = dict(
+        updated
+    )
 
-    receiver_id = row["receiver_id"]
+    receiver_id = row[
+        "receiver_id"
+    ]
 
     if receiver_id:
 
         await send_to_user(
             int(receiver_id),
             {
-                "type": "message:update",
-                "message": payload,
+                "type":
+                    "message:update",
+                "message":
+                    payload,
             },
         )
 
@@ -2919,8 +2861,10 @@ async def upload_file(
     await send_to_user(
         receiver_id,
         {
-            "type": "message",
-            "message": payload,
+            "type":
+                "message",
+            "message":
+                payload,
         },
     )
 
@@ -3034,6 +2978,7 @@ async def create_group(
             TypeError,
             ValueError,
         ):
+
             pass
 
     for member_id in member_ids:
@@ -3070,12 +3015,14 @@ async def create_group(
     db.close()
 
     return {
-        "ok": True,
-        "id": group_id,
-        "name": name,
-        "owner_id": int(
-            current["id"]
-        ),
+        "ok":
+            True,
+        "id":
+            group_id,
+        "name":
+            name,
+        "owner_id":
+            int(current["id"]),
     }
 
 
@@ -3210,10 +3157,6 @@ async def websocket_endpoint(
 
     try:
 
-        # =====================================================
-        # ONLINE
-        # =====================================================
-
         if first_connection:
 
             for other_id in list(
@@ -3223,28 +3166,27 @@ async def websocket_endpoint(
                 if int(
                     other_id
                 ) == user_id:
-
                     continue
 
                 await send_to_user(
                     int(other_id),
                     {
-                        "type": "user_online",
-                        "user_id": user_id,
+                        "type":
+                            "user_online",
+                        "user_id":
+                            user_id,
                     },
                 )
-
-        # =====================================================
-        # READY
-        # =====================================================
 
         await websocket.send_text(
             json.dumps(
                 {
-                    "type": "ready",
+                    "type":
+                        "ready",
                     "online": [
                         int(item)
-                        for item in active_connections.keys()
+                        for item in
+                        active_connections.keys()
                     ],
                     "live_streams":
                         live_public_list(),
@@ -3252,10 +3194,6 @@ async def websocket_endpoint(
                 ensure_ascii=False,
             )
         )
-
-        # =====================================================
-        # LOOP
-        # =====================================================
 
         while True:
 
@@ -3284,6 +3222,7 @@ async def websocket_endpoint(
                 "type"
             )
 
+
             # =================================================
             # PING
             # =================================================
@@ -3293,11 +3232,13 @@ async def websocket_endpoint(
                 await websocket.send_text(
                     json.dumps(
                         {
-                            "type": "pong"
+                            "type":
+                                "pong"
                         },
                         ensure_ascii=False,
                     )
                 )
+
 
             # =================================================
             # TYPING
@@ -3308,9 +3249,7 @@ async def websocket_endpoint(
                 try:
 
                     target_id = int(
-                        data.get(
-                            "to"
-                        )
+                        data.get("to")
                     )
 
                 except (
@@ -3323,16 +3262,20 @@ async def websocket_endpoint(
                 await send_to_user(
                     target_id,
                     {
-                        "type": "typing",
-                        "from": user_id,
-                        "value": bool(
-                            data.get(
-                                "value",
-                                False,
-                            )
-                        ),
+                        "type":
+                            "typing",
+                        "from":
+                            user_id,
+                        "value":
+                            bool(
+                                data.get(
+                                    "value",
+                                    False,
+                                )
+                            ),
                     },
                 )
+
 
             # =================================================
             # LIVE CREATE
@@ -3404,6 +3347,7 @@ async def websocket_endpoint(
                 )
 
                 await broadcast_live_list()
+
 
             # =================================================
             # LIVE JOIN
@@ -3505,6 +3449,7 @@ async def websocket_endpoint(
 
                 await broadcast_live_list()
 
+
             # =================================================
             # LIVE LEAVE
             # =================================================
@@ -3563,6 +3508,7 @@ async def websocket_endpoint(
 
                 await broadcast_live_list()
 
+
             # =================================================
             # LIVE END
             # =================================================
@@ -3589,11 +3535,13 @@ async def websocket_endpoint(
                         0,
                     )
                 ) != user_id:
+
                     continue
 
                 await end_live_room(
                     room_id
                 )
+
 
             # =================================================
             # LIVE OFFER
@@ -3632,6 +3580,7 @@ async def websocket_endpoint(
                     outgoing,
                 )
 
+
             # =================================================
             # LIVE ANSWER
             # =================================================
@@ -3666,6 +3615,7 @@ async def websocket_endpoint(
                     outgoing,
                 )
 
+
             # =================================================
             # LIVE ICE
             # =================================================
@@ -3699,6 +3649,7 @@ async def websocket_endpoint(
                     target_id,
                     outgoing,
                 )
+
 
             # =================================================
             # MESSAGE THROUGH WEBSOCKET
@@ -3820,6 +3771,7 @@ async def websocket_endpoint(
                     )
 
     except WebSocketDisconnect:
+
         pass
 
     except Exception as error:
@@ -3846,10 +3798,6 @@ async def websocket_endpoint(
                 user_id,
                 None,
             )
-
-            # ---------------------------------------------
-            # LIVE CLEANUP
-            # ---------------------------------------------
 
             for room_id, room in list(
                 live_rooms.items()
@@ -3906,10 +3854,6 @@ async def websocket_endpoint(
                                     ),
                             },
                         )
-
-            # ---------------------------------------------
-            # OFFLINE
-            # ---------------------------------------------
 
             for other_id in list(
                 active_connections.keys()
