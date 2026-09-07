@@ -81,7 +81,7 @@ WS_TICKET_TTL = 10 * 60
 
 app = FastAPI(
     title="GAPINO Pro",
-    version="1.1.0",
+    version="1.2.0",
     description="GAPINO Messenger + Live",
 )
 
@@ -163,25 +163,11 @@ ws_tickets: dict[
 # LIVE ROOMS
 # =========================================================
 
-# room_id -> {
-#     room_id,
-#     host_uid,
-#     host_peer_id,
-#     active,
-#     created_at,
-#     peers: {
-#         peer_id: uid
-#     }
-# }
-
 live_rooms: dict[
     str,
     dict[str, Any]
 ] = {}
 
-
-# websocket ->
-# {(room_id, peer_id), ...}
 
 live_socket_peers: dict[
     WebSocket,
@@ -342,6 +328,7 @@ ensure_recovery_column()
 def hash_password(
     password: str,
 ) -> str:
+
     return pwd.hash(
         password
     )
@@ -356,13 +343,13 @@ def verify_password(
         not password
         or not stored_hash
     ):
+
         return False
 
     stored_hash = str(
         stored_hash
     ).strip()
 
-    # Old custom PBKDF2 format
     if (
         stored_hash.startswith(
             "$pbkdf2$"
@@ -414,11 +401,10 @@ def verify_password(
 
         pass
 
-    # Compatibility with old hashes
     for scheme_name, prefixes in (
         (
             "argon2",
-            ("$argon2"),
+            ("$argon2",),
         ),
         (
             "bcrypt",
@@ -434,13 +420,6 @@ def verify_password(
 
             matches = (
                 stored_hash.startswith(
-                    prefixes
-                )
-                if isinstance(
-                    prefixes,
-                    tuple,
-                )
-                else stored_hash.startswith(
                     prefixes
                 )
             )
@@ -582,38 +561,25 @@ def public_user(
 ) -> dict[str, Any]:
 
     return {
-        "id":
-            user["id"],
-
-        "username":
-            user["username"],
-
-        "display_name":
-            user["display_name"],
-
-        "bio":
-            user.get(
-                "bio",
-                "",
-            ),
-
-        "avatar":
-            user.get(
-                "avatar",
-                "",
-            ),
-
-        "status":
-            user.get(
-                "status",
-                "در دسترس",
-            ),
-
-        "created_at":
-            user.get(
-                "created_at",
-                "",
-            ),
+        "id": user["id"],
+        "username": user["username"],
+        "display_name": user["display_name"],
+        "bio": user.get(
+            "bio",
+            "",
+        ),
+        "avatar": user.get(
+            "avatar",
+            "",
+        ),
+        "status": user.get(
+            "status",
+            "در دسترس",
+        ),
+        "created_at": user.get(
+            "created_at",
+            "",
+        ),
     }
 
 
@@ -876,7 +842,9 @@ def live_peer_uid(
     try:
 
         return int(
-            room["peers"].get(
+            room[
+                "peers"
+            ].get(
                 peer_id
             )
         )
@@ -1040,7 +1008,6 @@ async def remove_live_peer(
     if uid is None:
         return
 
-    # Host left
     if (
         int(uid)
         == int(
@@ -1072,7 +1039,6 @@ async def remove_live_peer(
 
         return
 
-    # Viewer left
     if notify:
 
         await broadcast_live_room(
@@ -1336,7 +1302,7 @@ def health():
             "GAPINO Pro",
 
         "version":
-            "1.1.0",
+            "1.2.0",
 
         "time":
             now(),
@@ -1659,19 +1625,10 @@ def logout(
 
         try:
 
-            sockets = connections.pop(
+            connections.pop(
                 int(uid),
-                set(),
+                None,
             )
-
-            for websocket in list(
-                sockets
-            ):
-
-                try:
-                    pass
-                except Exception:
-                    pass
 
         except (
             TypeError,
@@ -2684,6 +2641,124 @@ def users(
 
 
 # =========================================================
+# ACTIVE LIVE ROOMS
+# =========================================================
+
+@app.get(
+    "/api/live/active"
+)
+def active_live_rooms(
+    request: Request,
+):
+
+    require_user(
+        request
+    )
+
+    result = []
+
+    for (
+        room_id,
+        room,
+    ) in list(
+        live_rooms.items()
+    ):
+
+        if not room:
+            continue
+
+        if not room.get(
+            "active",
+            False,
+        ):
+            continue
+
+        host_user = live_host_user(
+            room
+        )
+
+        if not host_user:
+            continue
+
+        total_connections = (
+            live_peer_count(
+                room
+            )
+        )
+
+        # خود صاحب Live جزو بیننده‌ها نیست
+        viewer_count = max(
+            0,
+            total_connections - 1
+        )
+
+        result.append(
+            {
+                "room_id":
+                    str(
+                        room_id
+                    ),
+
+                "host_id":
+                    int(
+                        room[
+                            "host_uid"
+                        ]
+                    ),
+
+                "host":
+                    public_user(
+                        host_user
+                    ),
+
+                "viewer_count":
+                    viewer_count,
+
+                "total_connections":
+                    total_connections,
+
+                "created_at":
+                    room.get(
+                        "created_at",
+                        0,
+                    ),
+
+                "url":
+                    (
+                        "/live.html?"
+                        f"room={room_id}"
+                        "&join=1"
+                    ),
+            }
+        )
+
+    result.sort(
+        key=lambda item:
+            float(
+                item.get(
+                    "created_at",
+                    0,
+                )
+            ),
+        reverse=True,
+    )
+
+    return {
+        "ok":
+            True,
+
+        "success":
+            True,
+
+        "count":
+            len(result),
+
+        "live_rooms":
+            result,
+    }
+
+
+# =========================================================
 # MESSAGES
 # =========================================================
 
@@ -3642,7 +3717,6 @@ async def websocket_endpoint(
             },
         )
 
-        # Notify others
         for other_uid in list(
             connections.keys()
         ):
@@ -3961,7 +4035,6 @@ async def websocket_endpoint(
                     },
                 )
 
-                # Notify host about new viewer
                 await send_live_to_uid(
                     int(
                         room[
@@ -4171,7 +4244,6 @@ async def websocket_endpoint(
                     None,
                 )
 
-                # Remove room references
                 for (
                     ws,
                     peer_set,
@@ -4290,7 +4362,6 @@ async def websocket_endpoint(
                 )
 
                 if not room:
-
                     continue
 
                 if (
