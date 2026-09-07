@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
+
 <head>
     <meta charset="UTF-8">
 
@@ -10,566 +11,652 @@
 
     <meta
         name="theme-color"
-        content="#0f172a"
+        content="#070b16"
     >
 
     <title>GAPINO - گپینو</title>
 
     <link
         rel="stylesheet"
-        href="/frontend/chat.css?v=505"
+        href="/frontend/chat.css?v=506"
     >
 </head>
 
 <body>
 
-<div
-    id="toastContainer"
-    class="toast-container"
-></div>
-
-
-<div
-    id="appShell"
-    class="app-shell"
->
-
     <!-- =====================================================
-         SIDEBAR
+         TOAST
     ====================================================== -->
 
-    <aside class="sidebar">
-
-        <div class="sidebar-header">
-
-            <div class="brand">
-                <div class="brand-logo">
-                    G
-                </div>
-
-                <div>
-                    <div class="brand-title">
-                        گپینو
-                    </div>
-
-                    <div class="brand-subtitle">
-                        پیام‌رسان
-                    </div>
-                </div>
-            </div>
-
-            <div class="sidebar-actions">
-
-                <button
-                    id="profileButton"
-                    type="button"
-                    class="icon-button"
-                    title="پروفایل"
-                    aria-label="پروفایل"
-                >
-                    👤
-                </button>
-
-                <button
-                    id="logoutButton"
-                    type="button"
-                    class="icon-button"
-                    title="خروج"
-                    aria-label="خروج"
-                >
-                    🚪
-                </button>
-
-            </div>
-
-        </div>
-
-
-        <!-- SEARCH -->
-
-        <div class="search-box">
-
-            <span class="search-icon">
-                🔍
-            </span>
-
-            <input
-                id="userSearch"
-                type="text"
-                placeholder="جستجوی کاربر..."
-                autocomplete="off"
-            >
-
-        </div>
-
-
-        <!-- LIVE -->
-
-        <button
-            id="liveButton"
-            type="button"
-            class="live-button"
-        >
-            <span>
-                🔴
-            </span>
-
-            <span>
-                پخش زنده
-            </span>
-        </button>
-
-
-        <!-- USERS -->
-
-        <div
-            id="usersList"
-            class="users-list"
-        >
-            <div class="users-loading">
-                در حال بارگذاری کاربران...
-            </div>
-        </div>
-
-    </aside>
+    <div
+        id="toastContainer"
+        class="toast-container"
+    ></div>
 
 
     <!-- =====================================================
-         MAIN CHAT
+         APP
     ====================================================== -->
 
-    <main class="chat-area">
+    <div
+        id="appShell"
+        class="app-shell"
+    >
 
-        <!-- CHAT HEADER -->
+        <!-- =================================================
+             SIDEBAR
+        ================================================== -->
 
-        <header class="chat-header">
+        <aside class="sidebar">
 
-            <div class="chat-header-right">
+            <div class="sidebar-header">
 
-                <button
-                    id="mobileBackButton"
-                    type="button"
-                    class="mobile-back-button"
-                    aria-label="بازگشت"
-                    title="بازگشت"
-                >
-                    ‹
-                </button>
+                <div class="brand">
 
-
-                <div class="chat-avatar-wrap">
-
-                    <img
-                        id="chatAvatar"
-                        class="chat-avatar"
-                        alt="تصویر کاربر"
-                    >
-
-                    <span
-                        id="chatOnlineDot"
-                        class="chat-online-dot"
-                    ></span>
-
-                </div>
-
-
-                <div class="chat-user-info">
-
-                    <div
-                        id="chatUserName"
-                        class="chat-user-name"
-                    >
-                        گفتگو
+                    <div class="brand-logo">
+                        G
                     </div>
 
-                    <div
-                        id="chatUserStatus"
-                        class="chat-user-status"
-                    >
-                        یک کاربر را انتخاب کنید
+                    <div>
+                        <div class="brand-title">
+                            گپینو
+                        </div>
+
+                        <div class="brand-subtitle">
+                            پیام‌رسان
+                        </div>
                     </div>
 
-                    <div
-                        id="typingIndicator"
-                        class="typing-indicator"
-                    ></div>
-
                 </div>
 
-            </div>
 
+                <div class="sidebar-actions">
 
-            <div class="chat-header-actions">
-
-                <button
-                    id="chatSearchButton"
-                    type="button"
-                    class="icon-button"
-                    title="جستجوی پیام"
-                    aria-label="جستجوی پیام"
-                >
-                    🔍
-                </button>
-
-
-                <button
-                    id="headerLiveButton"
-                    type="button"
-                    class="icon-button"
-                    title="پخش زنده"
-                    aria-label="پخش زنده"
-                >
-                    🔴
-                </button>
-
-
-                <button
-                    id="chatMenuButton"
-                    type="button"
-                    class="icon-button"
-                    title="منو"
-                    aria-label="منو"
-                >
-                    ⋮
-                </button>
-
-            </div>
-
-        </header>
-
-
-        <!-- =================================================
-             MESSAGES
-        ================================================== -->
-
-        <div
-            id="messagesContainer"
-            class="messages-container"
-        >
-
-            <div
-                id="messagesList"
-                class="messages-list"
-            ></div>
-
-
-            <div
-                id="emptyChat"
-                class="empty-chat"
-            >
-
-                <div class="empty-chat-icon">
-                    💬
-                </div>
-
-                <h2>
-                    خوش آمدی به گپینو
-                </h2>
-
-                <p>
-                    برای شروع گفتگو یک کاربر را انتخاب کن.
-                </p>
-
-            </div>
-
-        </div>
-
-
-        <!-- =================================================
-             ATTACHMENT PREVIEW
-        ================================================== -->
-
-        <div
-            id="attachmentPreview"
-            class="attachment-preview"
-        >
-
-            <div class="attachment-preview-info">
-
-                <span class="attachment-icon">
-                    📎
-                </span>
-
-                <span
-                    id="attachmentName"
-                    class="attachment-name"
-                ></span>
-
-            </div>
-
-            <button
-                id="removeAttachmentButton"
-                type="button"
-                class="attachment-remove"
-                aria-label="حذف فایل"
-            >
-                ×
-            </button>
-
-        </div>
-
-
-        <!-- =================================================
-             MESSAGE COMPOSER
-        ================================================== -->
-
-        <div class="composer">
-
-            <button
-                id="attachButton"
-                type="button"
-                class="composer-button"
-                title="پیوست فایل"
-                aria-label="پیوست فایل"
-            >
-                📎
-            </button>
-
-            <input
-                id="fileInput"
-                type="file"
-                hidden
-            >
-
-
-            <button
-                id="voiceButton"
-                type="button"
-                class="composer-button"
-                title="ضبط پیام صوتی"
-                aria-label="ضبط پیام صوتی"
-            >
-                🎤
-            </button>
-
-
-            <input
-                id="messageInput"
-                type="text"
-                class="message-input"
-                placeholder="پیامت را بنویس..."
-                autocomplete="off"
-                disabled
-            >
-
-
-            <button
-                id="sendButton"
-                type="button"
-                class="send-button"
-                title="ارسال پیام"
-                aria-label="ارسال پیام"
-            >
-                ➤
-            </button>
-
-        </div>
-
-    </main>
-
-</div>
-
-
-<!-- =========================================================
-     PROFILE MODAL
-========================================================== -->
-
-<div
-    id="profileModal"
-    class="modal"
->
-
-    <div class="modal-content">
-
-        <div class="modal-header">
-
-            <h2>
-                پروفایل من
-            </h2>
-
-            <button
-                id="closeProfileModal"
-                type="button"
-                class="modal-close"
-                aria-label="بستن"
-            >
-                ×
-            </button>
-
-        </div>
-
-
-        <div class="profile-content">
-
-            <div class="profile-avatar-section">
-
-                <div class="profile-avatar-wrapper">
-
-                    <img
-                        id="profileAvatarPreview"
-                        class="profile-avatar-preview"
-                        alt="عکس پروفایل"
-                    >
-
-                    <div
-                        id="profileAvatarFallback"
-                        class="profile-avatar-fallback"
+                    <button
+                        id="profileButton"
+                        type="button"
+                        class="icon-button"
+                        title="پروفایل"
+                        aria-label="پروفایل"
                     >
                         👤
-                    </div>
+                    </button>
+
+
+                    <button
+                        id="logoutButton"
+                        type="button"
+                        class="icon-button"
+                        title="خروج"
+                        aria-label="خروج"
+                    >
+                        🚪
+                    </button>
 
                 </div>
-
-
-                <button
-                    id="changeProfileAvatarButton"
-                    type="button"
-                    class="avatar-change-button"
-                >
-                    📷 تغییر عکس
-                </button>
-
-                <input
-                    id="profileAvatarInput"
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp"
-                    hidden
-                >
-
-
-                <div
-                    id="profileAvatarStatus"
-                    class="profile-avatar-status"
-                ></div>
 
             </div>
 
 
-            <label
-                class="field-label"
-                for="profileDisplayName"
-            >
-                نام نمایشی
-            </label>
+            <!-- =================================================
+                 SEARCH USERS
+            ================================================== -->
 
-            <input
-                id="profileDisplayName"
-                type="text"
-                class="profile-input"
-                maxlength="60"
-                placeholder="نام نمایشی"
-            >
-
-
-            <label
-                class="field-label"
-                for="profileBio"
-            >
-                درباره من
-            </label>
-
-            <textarea
-                id="profileBio"
-                class="profile-textarea"
-                maxlength="200"
-                rows="4"
-                placeholder="چند کلمه درباره خودت..."
-            ></textarea>
-
-
-            <button
-                id="saveProfileButton"
-                type="button"
-                class="save-profile-button"
-            >
-                💾 ذخیره
-            </button>
-
-        </div>
-
-    </div>
-
-</div>
-
-
-<!-- =========================================================
-     MESSAGE SEARCH MODAL
-========================================================== -->
-
-<div
-    id="messageSearchModal"
-    class="modal"
->
-
-    <div class="modal-content">
-
-        <div class="modal-header">
-
-            <h2>
-                جستجوی پیام
-            </h2>
-
-            <button
-                id="closeMessageSearchModal"
-                type="button"
-                class="modal-close"
-                aria-label="بستن"
-            >
-                ×
-            </button>
-
-        </div>
-
-
-        <div class="message-search-content">
-
-            <div class="search-box modal-search">
+            <div class="search-box">
 
                 <span class="search-icon">
                     🔍
                 </span>
 
                 <input
-                    id="messageSearchInput"
+                    id="userSearch"
                     type="text"
-                    placeholder="متن پیام را جستجو کن..."
+                    placeholder="جستجوی کاربر..."
                     autocomplete="off"
                 >
 
             </div>
 
 
+            <!-- =================================================
+                 LIVE
+            ================================================== -->
+
+            <button
+                id="liveButton"
+                type="button"
+                class="live-button"
+            >
+                <span>🔴</span>
+                <span>پخش زنده</span>
+            </button>
+
+
+            <!-- =================================================
+                 USERS
+            ================================================== -->
+
             <div
-                id="messageSearchResults"
-                class="message-search-results"
-            ></div>
+                id="usersList"
+                class="users-list"
+            >
+
+                <div
+                    class="loading-users"
+                    style="
+                        padding:25px;
+                        text-align:center;
+                        color:#94a3b8;
+                        font-size:12px;
+                    "
+                >
+                    در حال بارگذاری کاربران...
+                </div>
+
+            </div>
+
+        </aside>
+
+
+        <!-- =====================================================
+             CHAT AREA
+        ====================================================== -->
+
+        <main class="chat-area">
+
+            <!-- =================================================
+                 CHAT HEADER
+            ================================================== -->
+
+            <header class="chat-header">
+
+                <div class="chat-header-right">
+
+                    <button
+                        id="mobileBackButton"
+                        type="button"
+                        class="mobile-back-button"
+                        title="بازگشت"
+                        aria-label="بازگشت"
+                    >
+                        ‹
+                    </button>
+
+
+                    <div class="chat-avatar-wrap">
+
+                        <img
+                            id="chatAvatar"
+                            class="chat-avatar"
+                            alt="تصویر کاربر"
+                        >
+
+                        <span
+                            id="chatOnlineDot"
+                            class="chat-online-dot"
+                        ></span>
+
+                    </div>
+
+
+                    <div class="chat-user-info">
+
+                        <div
+                            id="chatUserName"
+                            class="chat-user-name"
+                        >
+                            گفتگو
+                        </div>
+
+
+                        <div
+                            id="chatUserStatus"
+                            class="chat-user-status"
+                        >
+                            یک کاربر را انتخاب کنید
+                        </div>
+
+
+                        <div
+                            id="typingIndicator"
+                            class="typing-indicator"
+                        ></div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- =================================================
+                     CHAT ACTIONS
+                ================================================== -->
+
+                <div class="chat-header-actions">
+
+                    <!-- تماس صوتی -->
+
+                    <button
+                        id="callButton"
+                        type="button"
+                        class="icon-button"
+                        title="تماس صوتی"
+                        aria-label="تماس صوتی"
+                    >
+                        📞
+                    </button>
+
+
+                    <!-- جستجوی پیام -->
+
+                    <button
+                        id="chatSearchButton"
+                        type="button"
+                        class="icon-button"
+                        title="جستجوی پیام"
+                        aria-label="جستجوی پیام"
+                    >
+                        🔍
+                    </button>
+
+
+                    <!-- پخش زنده -->
+
+                    <button
+                        id="headerLiveButton"
+                        type="button"
+                        class="icon-button"
+                        title="پخش زنده"
+                        aria-label="پخش زنده"
+                    >
+                        🔴
+                    </button>
+
+
+                    <!-- منو -->
+
+                    <button
+                        id="chatMenuButton"
+                        type="button"
+                        class="icon-button"
+                        title="منو"
+                        aria-label="منو"
+                    >
+                        ⋮
+                    </button>
+
+                </div>
+
+            </header>
+
+
+            <!-- =================================================
+                 MESSAGES
+            ================================================== -->
+
+            <div
+                id="messagesContainer"
+                class="messages-container"
+            >
+
+                <div
+                    id="messagesList"
+                    class="messages-list"
+                ></div>
+
+
+                <div
+                    id="emptyChat"
+                    class="empty-chat"
+                >
+
+                    <div class="empty-chat-icon">
+                        💬
+                    </div>
+
+
+                    <h2>
+                        خوش آمدی به گپینو
+                    </h2>
+
+
+                    <p>
+                        برای شروع گفتگو یک کاربر را انتخاب کن.
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <!-- =================================================
+                 FILE PREVIEW
+            ================================================== -->
+
+            <div
+                id="attachmentPreview"
+                class="attachment-preview"
+            >
+
+                <div class="attachment-preview-info">
+
+                    <span class="attachment-icon">
+                        📎
+                    </span>
+
+
+                    <span
+                        id="attachmentName"
+                        class="attachment-name"
+                    ></span>
+
+                </div>
+
+
+                <button
+                    id="removeAttachmentButton"
+                    type="button"
+                    class="attachment-remove"
+                    title="حذف فایل"
+                    aria-label="حذف فایل"
+                >
+                    ×
+                </button>
+
+            </div>
+
+
+            <!-- =================================================
+                 COMPOSER
+            ================================================== -->
+
+            <div class="composer">
+
+                <!-- فایل -->
+
+                <button
+                    id="attachButton"
+                    type="button"
+                    class="composer-button"
+                    title="پیوست فایل"
+                    aria-label="پیوست فایل"
+                >
+                    📎
+                </button>
+
+
+                <input
+                    id="fileInput"
+                    type="file"
+                    hidden
+                >
+
+
+                <!-- پیام صوتی -->
+
+                <button
+                    id="voiceButton"
+                    type="button"
+                    class="composer-button"
+                    title="ضبط پیام صوتی"
+                    aria-label="ضبط پیام صوتی"
+                >
+                    🎤
+                </button>
+
+
+                <!-- متن پیام -->
+
+                <input
+                    id="messageInput"
+                    class="message-input"
+                    type="text"
+                    placeholder="پیامت را بنویس..."
+                    autocomplete="off"
+                    disabled
+                >
+
+
+                <!-- ارسال -->
+
+                <button
+                    id="sendButton"
+                    type="button"
+                    class="send-button"
+                    title="ارسال پیام"
+                    aria-label="ارسال پیام"
+                >
+                    ➤
+                </button>
+
+            </div>
+
+        </main>
+
+    </div>
+
+
+    <!-- =====================================================
+         PROFILE MODAL
+    ====================================================== -->
+
+    <div
+        id="profileModal"
+        class="modal"
+    >
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+
+                <h2>
+                    پروفایل من
+                </h2>
+
+
+                <button
+                    id="closeProfileModal"
+                    type="button"
+                    class="modal-close"
+                    title="بستن"
+                    aria-label="بستن"
+                >
+                    ×
+                </button>
+
+            </div>
+
+
+            <div class="profile-content">
+
+                <!-- آواتار -->
+
+                <div class="profile-avatar-section">
+
+                    <div class="profile-avatar-wrapper">
+
+                        <img
+                            id="profileAvatarPreview"
+                            class="profile-avatar-preview"
+                            alt="عکس پروفایل"
+                        >
+
+                        <div
+                            id="profileAvatarFallback"
+                            class="profile-avatar-fallback"
+                        >
+                            👤
+                        </div>
+
+                    </div>
+
+
+                    <button
+                        id="changeProfileAvatarButton"
+                        type="button"
+                        class="avatar-change-button"
+                    >
+                        📷 تغییر عکس
+                    </button>
+
+
+                    <input
+                        id="profileAvatarInput"
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        hidden
+                    >
+
+
+                    <div
+                        id="profileAvatarStatus"
+                        class="profile-avatar-status"
+                    ></div>
+
+                </div>
+
+
+                <!-- نام -->
+
+                <label
+                    class="field-label"
+                    for="profileDisplayName"
+                >
+                    نام نمایشی
+                </label>
+
+
+                <input
+                    id="profileDisplayName"
+                    class="profile-input"
+                    type="text"
+                    maxlength="60"
+                    placeholder="نام نمایشی"
+                >
+
+
+                <!-- بیو -->
+
+                <label
+                    class="field-label"
+                    for="profileBio"
+                >
+                    درباره من
+                </label>
+
+
+                <textarea
+                    id="profileBio"
+                    class="profile-textarea"
+                    maxlength="250"
+                    rows="4"
+                    placeholder="چند کلمه درباره خودت..."
+                ></textarea>
+
+
+                <!-- ذخیره -->
+
+                <button
+                    id="saveProfileButton"
+                    type="button"
+                    class="save-profile-button"
+                >
+                    💾 ذخیره
+                </button>
+
+            </div>
 
         </div>
 
     </div>
 
-</div>
+
+    <!-- =====================================================
+         MESSAGE SEARCH MODAL
+    ====================================================== -->
+
+    <div
+        id="messageSearchModal"
+        class="modal"
+    >
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+
+                <h2>
+                    جستجوی پیام
+                </h2>
 
 
-<!-- =========================================================
-     LIVE REFRESH PLACEHOLDER
-========================================================== -->
+                <button
+                    id="closeMessageSearchModal"
+                    type="button"
+                    class="modal-close"
+                    title="بستن"
+                    aria-label="بستن"
+                >
+                    ×
+                </button>
 
-<button
-    id="refreshLivesButton"
-    type="button"
-    hidden
->
-    بروزرسانی
-</button>
+            </div>
 
 
-<!-- =========================================================
-     SCRIPTS
-========================================================== -->
+            <div class="message-search-content">
 
-<script src="/frontend/chat.js?v=505"></script>
-<script src="/frontend/call.js?v=501"></script>
+                <div class="search-box modal-search">
+
+                    <span class="search-icon">
+                        🔍
+                    </span>
+
+
+                    <input
+                        id="messageSearchInput"
+                        type="text"
+                        placeholder="متن پیام را جستجو کن..."
+                        autocomplete="off"
+                    >
+
+                </div>
+
+
+                <div
+                    id="messageSearchResults"
+                    class="message-search-results"
+                ></div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- =====================================================
+         HIDDEN LIVE REFRESH BUTTON
+    ====================================================== -->
+
+    <button
+        id="refreshLivesButton"
+        type="button"
+        hidden
+    >
+        بروزرسانی
+    </button>
+
+
+    <!-- =====================================================
+         SCRIPTS
+    ====================================================== -->
+
+    <script
+        src="/frontend/chat.js?v=507"
+    ></script>
+
+    <script
+        src="/frontend/call.js?v=502"
+    ></script>
 
 </body>
+
 </html>
