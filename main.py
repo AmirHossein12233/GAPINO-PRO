@@ -112,6 +112,18 @@ def init_db() -> None:
 init_db()
 
 
+def ensure_recovery_column() -> None:
+    conn = db()
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()}
+    if "recovery_code" not in columns:
+        conn.execute("ALTER TABLE users ADD COLUMN recovery_code TEXT DEFAULT ''")
+        conn.commit()
+    conn.close()
+
+
+ensure_recovery_column()
+
+
 def user_by_id(user_id: int) -> dict[str, Any] | None:
     conn = db()
     row = conn.execute(
@@ -264,8 +276,8 @@ def register(request: Request, username: str = Form(...), password: str = Form(.
     conn = db()
     try:
         cursor = conn.execute(
-            "INSERT INTO users(username, password, display_name, created_at) VALUES(?,?,?,?)",
-            (username, pwd.hash(password), display_name, now()),
+            "INSERT INTO users(username, password, display_name, created_at, recovery_code) VALUES(?,?,?,?,?)",
+            (username, pwd.hash(password), display_name, now(), secrets.token_hex(8).upper()),
         )
         conn.commit()
         user_id = int(cursor.lastrowid)
@@ -277,7 +289,11 @@ def register(request: Request, username: str = Form(...), password: str = Form(.
     request.session.clear()
     request.session["uid"] = user_id
     user = user_by_id(user_id)
-    return {"ok": True, "user": public_user(user)}
+    conn = db()
+    recovery_row = conn.execute("SELECT recovery_code FROM users WHERE id = ?", (user_id,)).fetchone()
+    conn.close()
+    recovery_code = str(recovery_row["recovery_code"] if recovery_row else "").strip()
+    return {"ok": True, "success": True, "user": public_user(user), "recovery_code": recovery_code}
 
 
 @app.post("/api/login")
@@ -298,6 +314,75 @@ def login(request: Request, username: str = Form(...), password: str = Form(...)
     request.session["uid"] = int(row["id"])
     user = user_by_id(int(row["id"]))
     return {"ok": True, "user": public_user(user)}
+
+
+def normalize_recovery_code(value: Any) -> str:
+    return str(value or "").strip().replace("-", "").replace(" ", "").upper()
+
+
+@app.get("/recovery.html", response_class=HTMLResponse)
+def recovery_page():
+    path = FRONTEND_DIR / "recovery.html"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="recovery.html پیدا نشد")
+    return FileResponse(path, media_type="text/html; charset=utf-8")
+
+
+@app.post("/api/recover/username")
+async def recover_username(request: Request):
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="داده بازیابی نامعتبر است")
+    display_name = str(data.get("display_name", "") or "").strip()
+    recovery_code = normalize_recovery_code(data.get("recovery_code"))
+    if not display_name or not recovery_code:
+        raise HTTPException(status_code=400, detail="نام نمایشی و کد بازیابی الزامی هستند")
+    conn = db()
+    rows = conn.execute("SELECT username, recovery_code FROM users WHERE LOWER(display_name) = LOWER(?)", (display_name,)).fetchall()
+    conn.close()
+    for row in rows:
+        if normalize_recovery_code(row["recovery_code"]) == recovery_code:
+            return {"ok": True, "success": True, "username": row["username"]}
+    raise HTTPException(status_code=404, detail="اطلاعات بازیابی صحیح نیست")
+
+
+@app.post("/api/recover/password")
+async def recover_password(request: Request):
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="داده بازیابی نامعتبر است")
+    username = str(data.get("username", "") or "").strip().lower()
+    recovery_code = normalize_recovery_code(data.get("recovery_code"))
+    new_password = str(data.get("new_password", "") or "")
+    if not username or not recovery_code or not new_password:
+        raise HTTPException(status_code=400, detail="همه فیلدها را وارد کنید")
+    if len(new_password) < 6:
+        raise HTTPException(status_code=400, detail="رمز عبور جدید باید حداقل ۶ کاراکتر باشد")
+    conn = db()
+    row = conn.execute("SELECT id, recovery_code FROM users WHERE LOWER(username) = LOWER(?)", (username,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="کاربر پیدا نشد")
+    if normalize_recovery_code(row["recovery_code"]) != recovery_code:
+        conn.close()
+        raise HTTPException(status_code=403, detail="کد بازیابی نادرست است")
+    conn.execute("UPDATE users SET password = ? WHERE id = ?", (pwd.hash(new_password), int(row["id"])))
+    conn.commit()
+    conn.close()
+    return {"ok": True, "success": True, "message": "رمز عبور با موفقیت تغییر کرد."}
+
+
+@app.post("/api/account/recovery-code")
+async def create_recovery_code(request: Request):
+    user = require_user(request)
+    new_code = secrets.token_hex(8).upper()
+    conn = db()
+    conn.execute("UPDATE users SET recovery_code = ? WHERE id = ?", (new_code, int(user["id"])))
+    conn.commit()
+    conn.close()
+    return {"ok": True, "success": True, "recovery_code": new_code}
 
 
 @app.post("/api/logout")
@@ -350,6 +435,158 @@ async def update_profile(request: Request):
     conn.close()
     updated = user_by_id(int(user["id"]))
     return {"ok": True, "user": public_user(updated)}
+
+
+# =========================================================
+# ACCOUNT SECURITY
+# =========================================================
+
+@app.put("/api/account/security")
+async def update_account_security(request: Request):
+    user = require_user(request)
+
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="داده امنیتی نامعتبر است",
+        )
+
+    requested_username = data.get("username")
+    current_password = data.get("current_password")
+    new_password = data.get("new_password")
+
+    username_changed = (
+        requested_username is not None
+        and str(requested_username).strip().lower()
+        != str(user["username"]).strip().lower()
+    )
+
+    password_changed = (
+        new_password is not None
+        and str(new_password) != ""
+    )
+
+    if not username_changed and not password_changed:
+        raise HTTPException(
+            status_code=400,
+            detail="تغییری برای ذخیره وجود ندارد",
+        )
+
+    new_username = str(user["username"]).strip().lower()
+
+    if username_changed:
+        new_username = str(requested_username).strip().lower()
+
+        if len(new_username) < 3:
+            raise HTTPException(
+                status_code=400,
+                detail="نام کاربری باید حداقل ۳ کاراکتر باشد",
+            )
+
+        if len(new_username) > 32:
+            raise HTTPException(
+                status_code=400,
+                detail="نام کاربری خیلی طولانی است",
+            )
+
+        import re
+
+        if not re.fullmatch(r"[a-zA-Z0-9_.-]+", new_username):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "نام کاربری فقط می‌تواند شامل حروف انگلیسی، "
+                    "عدد، نقطه، خط تیره و زیرخط باشد"
+                ),
+            )
+
+        existing = user_by_username(new_username)
+
+        if existing and int(existing["id"]) != int(user["id"]):
+            raise HTTPException(
+                status_code=409,
+                detail="این نام کاربری قبلاً استفاده شده است",
+            )
+
+    hashed_password = None
+
+    if password_changed:
+        old_password = str(current_password or "")
+        new_password_value = str(new_password or "")
+
+        if not old_password:
+            raise HTTPException(
+                status_code=400,
+                detail="رمز عبور فعلی را وارد کنید",
+            )
+
+        if len(new_password_value) < 6:
+            raise HTTPException(
+                status_code=400,
+                detail="رمز عبور جدید باید حداقل ۶ کاراکتر باشد",
+            )
+
+        conn = db()
+        row = conn.execute(
+            "SELECT password FROM users WHERE id = ?",
+            (int(user["id"]),),
+        ).fetchone()
+        conn.close()
+
+        if not row:
+            raise HTTPException(
+                status_code=404,
+                detail="حساب پیدا نشد",
+            )
+
+        try:
+            password_ok = pwd.verify(old_password, row["password"])
+        except Exception:
+            password_ok = False
+
+        if not password_ok:
+            raise HTTPException(
+                status_code=401,
+                detail="رمز عبور فعلی اشتباه است",
+            )
+
+        hashed_password = pwd.hash(new_password_value)
+
+    conn = db()
+
+    try:
+        if password_changed:
+            conn.execute(
+                "UPDATE users SET username = ?, password = ? WHERE id = ?",
+                (new_username, hashed_password, int(user["id"])),
+            )
+        else:
+            conn.execute(
+                "UPDATE users SET username = ? WHERE id = ?",
+                (new_username, int(user["id"])),
+            )
+
+        conn.commit()
+
+    except sqlite3.IntegrityError:
+        conn.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="این نام کاربری قبلاً استفاده شده است",
+        )
+    finally:
+        conn.close()
+
+    updated = user_by_id(int(user["id"]))
+
+    return {
+        "ok": True,
+        "success": True,
+        "message": "اطلاعات امنیتی با موفقیت تغییر کرد.",
+        "user": public_user(updated),
+    }
 
 
 @app.post("/api/profile/avatar")

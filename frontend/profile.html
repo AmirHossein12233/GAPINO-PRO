@@ -22,9 +22,11 @@
     >
 
     <style>
+
         .profile-page {
             min-height: 100vh;
             overflow-y: auto;
+
             background:
                 radial-gradient(
                     circle at 20% 10%,
@@ -42,12 +44,19 @@
         .profile-topbar {
             height: 72px;
             padding: 0 24px;
+
             display: flex;
             align-items: center;
             justify-content: space-between;
-            border-bottom: 1px solid var(--border);
-            background: rgba(8, 13, 26, .75);
-            backdrop-filter: blur(18px);
+
+            border-bottom:
+                1px solid var(--border);
+
+            background:
+                rgba(8, 13, 26, .75);
+
+            backdrop-filter:
+                blur(18px);
         }
 
         .profile-topbar-title {
@@ -69,32 +78,50 @@
             display: flex;
             align-items: center;
             gap: 7px;
+
             padding: 10px 13px;
+
             border-radius: 11px;
+
             background: var(--surface);
             color: var(--text);
+
             cursor: pointer;
+
             font-size: 10px;
-            border: 1px solid var(--border);
+
+            border:
+                1px solid var(--border);
         }
 
         .profile-container {
             width: min(100%, 760px);
             margin: 35px auto;
-            padding: 0 18px 40px;
+
+            padding:
+                0 18px 40px;
         }
 
         .profile-card {
             overflow: hidden;
-            border: 1px solid var(--border);
+
+            border:
+                1px solid var(--border);
+
             border-radius: 25px;
-            background: var(--surface);
-            box-shadow: var(--shadow);
+
+            background:
+                var(--surface);
+
+            box-shadow:
+                var(--shadow);
         }
 
         .profile-cover {
             height: 155px;
+
             position: relative;
+
             background:
                 radial-gradient(
                     circle at 20% 20%,
@@ -110,8 +137,11 @@
 
         .profile-cover::after {
             content: "";
+
             position: absolute;
+
             inset: 0;
+
             background:
                 radial-gradient(
                     circle at 80% 30%,
@@ -122,9 +152,14 @@
 
         .profile-avatar-area {
             position: relative;
+
             margin-top: -58px;
-            padding: 0 28px;
+
+            padding:
+                0 28px;
+
             display: flex;
+
             align-items: flex-end;
             justify-content: space-between;
         }
@@ -132,48 +167,72 @@
         .profile-avatar-large {
             width: 115px;
             height: 115px;
+
             border-radius: 31px;
+
             display: flex;
             align-items: center;
             justify-content: center;
+
             overflow: hidden;
+
             background:
                 linear-gradient(
                     135deg,
                     var(--primary),
                     var(--primary-2)
                 );
-            border: 5px solid var(--surface);
+
+            border:
+                5px solid var(--surface);
+
             color: white;
+
             font-size: 39px;
+
             font-weight: 900;
-            box-shadow: 0 15px 40px rgba(0,0,0,.22);
+
+            box-shadow:
+                0 15px 40px rgba(0,0,0,.22);
         }
 
         .profile-avatar-large img {
             width: 100%;
             height: 100%;
+
             object-fit: cover;
         }
 
         .avatar-upload-button {
             position: absolute;
+
             bottom: 7px;
             right: 108px;
+
             width: 34px;
             height: 34px;
+
             border-radius: 11px;
-            border: 3px solid var(--surface);
+
+            border:
+                3px solid var(--surface);
+
             display: flex;
+
             align-items: center;
             justify-content: center;
-            background: var(--primary);
+
+            background:
+                var(--primary);
+
             color: white;
+
             cursor: pointer;
         }
 
         .profile-main-info {
-            padding: 15px 28px 25px;
+            padding:
+                15px 28px 25px;
         }
 
         .profile-main-info h1 {
@@ -183,20 +242,28 @@
 
         .profile-main-info .username {
             display: block;
+
             margin-top: 5px;
+
             color: var(--muted);
+
             font-size: 10px;
         }
 
         .profile-main-info .created {
             margin-top: 7px;
+
             color: var(--muted-2);
+
             font-size: 8px;
         }
 
         .profile-form {
-            padding: 25px 28px 30px;
-            border-top: 1px solid var(--border);
+            padding:
+                25px 28px 30px;
+
+            border-top:
+                1px solid var(--border);
         }
 
         .profile-section-title {
@@ -205,13 +272,17 @@
 
         .profile-section-title strong {
             display: block;
+
             font-size: 13px;
         }
 
         .profile-section-title span {
             display: block;
+
             margin-top: 4px;
+
             color: var(--muted);
+
             font-size: 9px;
         }
 
@@ -221,8 +292,11 @@
 
         .profile-field label {
             display: block;
+
             margin-bottom: 7px;
+
             color: var(--muted);
+
             font-size: 9px;
         }
 
@@ -230,69 +304,287 @@
         .profile-textarea,
         .profile-select {
             width: 100%;
-            border: 1px solid var(--border);
+
+            border:
+                1px solid var(--border);
+
             outline: none;
+
             border-radius: 13px;
-            background: rgba(255,255,255,.02);
-            color: var(--text);
+
+            background:
+                rgba(255,255,255,.02);
+
+            color:
+                var(--text);
+
             padding: 12px;
+
             font-size: 10px;
+
+            transition:
+                border-color .2s ease,
+                box-shadow .2s ease;
         }
 
         .profile-input:focus,
         .profile-textarea:focus,
         .profile-select:focus {
-            border-color: rgba(99,102,241,.7);
+            border-color:
+                rgba(99,102,241,.7);
+
             box-shadow:
                 0 0 0 4px
                 rgba(99,102,241,.07);
         }
 
+        .profile-input:disabled {
+            opacity: .65;
+            cursor: not-allowed;
+        }
+
         .profile-textarea {
             min-height: 110px;
+
             resize: vertical;
+
+            line-height: 1.8;
+        }
+
+        .profile-hint {
+            margin-top: 6px;
+
+            color: var(--muted-2);
+
+            font-size: 8px;
+
             line-height: 1.8;
         }
 
         .profile-actions {
             margin-top: 22px;
+
             display: flex;
+
             justify-content: flex-start;
+
             gap: 8px;
         }
 
         .profile-save-button {
             min-width: 150px;
+
             height: 48px;
+
             border-radius: 13px;
+
             border: 0;
+
             color: white;
+
             background:
                 linear-gradient(
                     135deg,
                     var(--primary),
                     var(--primary-2)
                 );
+
             cursor: pointer;
+
             font-size: 10px;
+
             font-weight: 700;
+        }
+
+        .profile-save-button:disabled {
+            opacity: .6;
+            cursor: not-allowed;
         }
 
         .profile-cancel-button {
             height: 48px;
+
             padding: 0 17px;
+
             border-radius: 13px;
+
             color: var(--muted);
-            background: var(--surface-2);
-            border: 1px solid var(--border);
+
+            background:
+                var(--surface-2);
+
+            border:
+                1px solid var(--border);
+
             cursor: pointer;
+
             font-size: 10px;
+        }
+
+        .security-section {
+            margin-top: 25px;
+
+            padding:
+                24px 28px 30px;
+
+            border-top:
+                1px solid var(--border);
+        }
+
+        .security-header strong {
+            display: block;
+
+            font-size: 13px;
+        }
+
+        .security-header span {
+            display: block;
+
+            margin-top: 4px;
+
+            color: var(--muted);
+
+            font-size: 9px;
+        }
+
+        .security-grid {
+            margin-top: 18px;
+
+            display: grid;
+
+            grid-template-columns:
+                1fr 1fr;
+
+            gap: 14px;
+        }
+
+        .security-field {
+            min-width: 0;
+        }
+
+        .security-field.full {
+            grid-column:
+                1 / -1;
+        }
+
+        .security-field label {
+            display: block;
+
+            margin-bottom: 7px;
+
+            color: var(--muted);
+
+            font-size: 9px;
+        }
+
+        .password-wrapper {
+            position: relative;
+        }
+
+        .password-wrapper input {
+            padding-left: 44px;
+        }
+
+        .show-password {
+            position: absolute;
+
+            left: 8px;
+
+            top: 50%;
+
+            transform:
+                translateY(-50%);
+
+            width: 32px;
+            height: 32px;
+
+            border-radius: 9px;
+
+            background:
+                transparent;
+
+            color:
+                var(--muted);
+
+            cursor:
+                pointer;
+
+            font-size: 14px;
+        }
+
+        .show-password:hover {
+            background:
+                rgba(99,102,241,.08);
+
+            color:
+                var(--text);
+        }
+
+        .security-actions {
+            margin-top: 18px;
+
+            display: flex;
+
+            justify-content: flex-start;
+        }
+
+        .security-button {
+            min-width: 170px;
+
+            height: 46px;
+
+            padding: 0 18px;
+
+            border-radius: 13px;
+
+            border: 0;
+
+            color: white;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    var(--primary),
+                    var(--primary-2)
+                );
+
+            cursor: pointer;
+
+            font-size: 10px;
+
+            font-weight: 700;
+        }
+
+        .security-button:disabled {
+            opacity: .6;
+            cursor: not-allowed;
+        }
+
+        .security-message {
+            min-height: 21px;
+
+            margin-top: 13px;
+
+            text-align: center;
+
+            font-size: 9px;
+        }
+
+        .security-message.success {
+            color: #86efac;
+        }
+
+        .security-message.error {
+            color: #fca5a5;
         }
 
         .profile-message {
             min-height: 20px;
+
             margin-top: 14px;
+
             text-align: center;
+
             font-size: 9px;
         }
 
@@ -306,11 +598,14 @@
 
         .avatar-file-name {
             margin-top: 6px;
+
             color: var(--muted-2);
+
             font-size: 8px;
         }
 
         @media (max-width: 600px) {
+
             .profile-topbar {
                 padding: 0 12px;
             }
@@ -331,6 +626,7 @@
             .profile-avatar-large {
                 width: 95px;
                 height: 95px;
+
                 border-radius: 26px;
             }
 
@@ -339,20 +635,33 @@
             }
 
             .profile-main-info,
-            .profile-form {
+            .profile-form,
+            .security-section {
                 padding-left: 18px;
                 padding-right: 18px;
             }
 
-            .profile-actions {
+            .profile-actions,
+            .security-actions {
                 flex-direction: column;
             }
 
             .profile-save-button,
-            .profile-cancel-button {
+            .profile-cancel-button,
+            .security-button {
                 width: 100%;
             }
+
+            .security-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .security-field.full {
+                grid-column:
+                    auto;
+            }
         }
+
     </style>
 
 </head>
@@ -362,6 +671,7 @@
 <header class="profile-topbar">
 
     <div class="profile-topbar-title">
+
         <strong>
             پروفایل من
         </strong>
@@ -369,6 +679,7 @@
         <span>
             GAPINO
         </span>
+
     </div>
 
     <button
@@ -387,6 +698,7 @@
     <section class="profile-card">
 
         <div class="profile-cover"></div>
+
 
         <div class="profile-avatar-area">
 
@@ -432,8 +744,7 @@
             <div
                 id="headerCreated"
                 class="created"
-            >
-            </div>
+            ></div>
 
             <div
                 id="avatarFileName"
@@ -442,6 +753,8 @@
 
         </div>
 
+
+        <!-- اطلاعات پروفایل -->
 
         <div class="profile-form">
 
@@ -477,7 +790,7 @@
             <div class="profile-field">
 
                 <label for="username">
-                    نام کاربری
+                    نام کاربری فعلی
                 </label>
 
                 <input
@@ -485,6 +798,10 @@
                     class="profile-input"
                     disabled
                 >
+
+                <div class="profile-hint">
+                    برای تغییر نام کاربری از بخش «امنیت حساب» استفاده کن.
+                </div>
 
             </div>
 
@@ -499,6 +816,7 @@
                     id="status"
                     class="profile-select"
                 >
+
                     <option value="در دسترس">
                         🟢 در دسترس
                     </option>
@@ -518,6 +836,7 @@
                     <option value="برمی‌گردم">
                         🔵 برمی‌گردم
                     </option>
+
                 </select>
 
             </div>
@@ -567,95 +886,307 @@
 
         </div>
 
+
+        <!-- امنیت حساب -->
+
+        <section class="security-section">
+
+            <div class="security-header">
+
+                <strong>
+                    🔐 امنیت حساب
+                </strong>
+
+                <span>
+                    نام کاربری و رمز عبور حسابت را تغییر بده.
+                </span>
+
+            </div>
+
+
+            <div class="security-grid">
+
+                <div class="security-field">
+
+                    <label for="newUsername">
+                        نام کاربری جدید
+                    </label>
+
+                    <input
+                        id="newUsername"
+                        class="profile-input"
+                        type="text"
+                        minlength="3"
+                        maxlength="32"
+                        autocomplete="username"
+                        placeholder="مثلاً amir123"
+                    >
+
+                </div>
+
+
+                <div class="security-field">
+
+                    <label for="currentPassword">
+                        رمز عبور فعلی
+                    </label>
+
+                    <div class="password-wrapper">
+
+                        <input
+                            id="currentPassword"
+                            class="profile-input"
+                            type="password"
+                            autocomplete="current-password"
+                            placeholder="رمز فعلی"
+                        >
+
+                        <button
+                            class="show-password"
+                            type="button"
+                            data-target="currentPassword"
+                        >
+                            👁️
+                        </button>
+
+                    </div>
+
+                </div>
+
+
+                <div class="security-field">
+
+                    <label for="newPassword">
+                        رمز عبور جدید
+                    </label>
+
+                    <div class="password-wrapper">
+
+                        <input
+                            id="newPassword"
+                            class="profile-input"
+                            type="password"
+                            minlength="6"
+                            autocomplete="new-password"
+                            placeholder="حداقل ۶ کاراکتر"
+                        >
+
+                        <button
+                            class="show-password"
+                            type="button"
+                            data-target="newPassword"
+                        >
+                            👁️
+                        </button>
+
+                    </div>
+
+                </div>
+
+
+                <div class="security-field">
+
+                    <label for="confirmPassword">
+                        تکرار رمز عبور جدید
+                    </label>
+
+                    <div class="password-wrapper">
+
+                        <input
+                            id="confirmPassword"
+                            class="profile-input"
+                            type="password"
+                            minlength="6"
+                            autocomplete="new-password"
+                            placeholder="تکرار رمز جدید"
+                        >
+
+                        <button
+                            class="show-password"
+                            type="button"
+                            data-target="confirmPassword"
+                        >
+                            👁️
+                        </button>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="security-actions">
+
+                <button
+                    id="securityButton"
+                    class="security-button"
+                    type="button"
+                >
+                    ذخیره اطلاعات امنیتی
+                </button>
+
+            </div>
+
+
+            <div
+                id="securityMessage"
+                class="security-message"
+                aria-live="polite"
+            ></div>
+
+        </section>
+
     </section>
 
 </main>
 
 
 <script>
+
 "use strict";
+
 
 const API_BASE =
     window.GAPINO_API_BASE ||
     window.location.origin;
+
 
 const avatarPreview =
     document.getElementById(
         "avatarPreview"
     );
 
+
 const avatarInput =
     document.getElementById(
         "avatarInput"
     );
+
 
 const avatarUploadButton =
     document.getElementById(
         "avatarUploadButton"
     );
 
+
 const avatarFileName =
     document.getElementById(
         "avatarFileName"
     );
+
 
 const headerName =
     document.getElementById(
         "headerName"
     );
 
+
 const headerUsername =
     document.getElementById(
         "headerUsername"
     );
+
 
 const headerCreated =
     document.getElementById(
         "headerCreated"
     );
 
+
 const displayName =
     document.getElementById(
         "displayName"
     );
+
 
 const username =
     document.getElementById(
         "username"
     );
 
+
 const status =
     document.getElementById(
         "status"
     );
+
 
 const bio =
     document.getElementById(
         "bio"
     );
 
+
 const saveButton =
     document.getElementById(
         "saveButton"
     );
+
 
 const profileMessage =
     document.getElementById(
         "profileMessage"
     );
 
-let currentUser = null;
+
+const newUsername =
+    document.getElementById(
+        "newUsername"
+    );
+
+
+const currentPassword =
+    document.getElementById(
+        "currentPassword"
+    );
+
+
+const newPassword =
+    document.getElementById(
+        "newPassword"
+    );
+
+
+const confirmPassword =
+    document.getElementById(
+        "confirmPassword"
+    );
+
+
+const securityButton =
+    document.getElementById(
+        "securityButton"
+    );
+
+
+const securityMessage =
+    document.getElementById(
+        "securityMessage"
+    );
+
+
+let currentUser =
+    null;
 
 
 function showMessage(
+    element,
     text,
     type = ""
 ) {
-    profileMessage.textContent =
+
+    element.textContent =
         text;
 
-    profileMessage.className =
-        `profile-message ${type}`;
+    element.className =
+        element.id ===
+            "securityMessage"
+
+            ? `security-message ${type}`
+
+            : `profile-message ${type}`;
+
 }
 
 
@@ -663,6 +1194,7 @@ async function api(
     path,
     options = {}
 ) {
+
     const response =
         await fetch(
             `${API_BASE}${path}`,
@@ -670,133 +1202,225 @@ async function api(
                 credentials:
                     "include",
 
+                cache:
+                    "no-store",
+
                 ...options
             }
         );
 
-    let data = null;
+
+    let data =
+        null;
+
 
     try {
+
         data =
             await response.json();
-    } catch {}
 
-    if (!response.ok) {
-        throw new Error(
-            data?.detail ||
-            "عملیات انجام نشد."
-        );
+    } catch (_) {
+
+        data =
+            null;
+
     }
 
+
+    if (!response.ok) {
+
+        throw new Error(
+            data?.detail ||
+            data?.message ||
+            "عملیات انجام نشد."
+        );
+
+    }
+
+
     return data;
+
 }
 
 
 function getInitials(
     name
 ) {
+
     return String(
         name ||
         "G"
     )
         .trim()
-        .slice(0, 2)
+        .slice(
+            0,
+            2
+        )
         .toUpperCase();
+
 }
 
 
 function renderUser(
     user
 ) {
-    currentUser = user;
+
+    currentUser =
+        user;
+
 
     const name =
         user.display_name ||
         user.username ||
         "کاربر";
 
+
     headerName.textContent =
         name;
+
 
     headerUsername.textContent =
         user.username
             ? `@${user.username}`
             : "";
 
+
     username.value =
         user.username ||
         "";
+
+
+    newUsername.value =
+        user.username ||
+        "";
+
 
     displayName.value =
         user.display_name ||
         "";
 
+
     bio.value =
         user.bio ||
         "";
+
 
     status.value =
         user.status ||
         "در دسترس";
 
-    if (user.created_at) {
+
+    if (
+        user.created_at
+    ) {
+
         const date =
             new Date(
                 user.created_at
             );
 
-        if (!Number.isNaN(
-            date.getTime()
-        )) {
+
+        if (
+            !Number.isNaN(
+                date.getTime()
+            )
+        ) {
+
             headerCreated.textContent =
                 `عضویت: ${date.toLocaleDateString("fa-IR")}`;
+
         }
+
     }
 
-    if (user.avatar) {
+
+    if (
+        user.avatar
+    ) {
+
         avatarPreview.innerHTML =
             `<img src="${user.avatar}" alt="">`;
+
     } else {
+
         avatarPreview.textContent =
-            getInitials(name);
+            getInitials(
+                name
+            );
+
     }
+
 }
 
 
 async function loadProfile() {
+
     try {
-        const user =
+
+        const data =
             await api(
                 "/api/me"
             );
+
+
+        const user =
+            data?.user ||
+            data;
+
+
+        if (
+            !user?.id
+        ) {
+
+            throw new Error(
+                "حساب کاربری پیدا نشد."
+            );
+
+        }
+
 
         renderUser(
             user
         );
 
+
     } catch (error) {
 
+        console.error(
+            "Profile load error:",
+            error
+        );
+
+
         showMessage(
+            profileMessage,
             error.message ||
             "دریافت پروفایل انجام نشد.",
             "error"
         );
 
+
         setTimeout(
             () => {
+
                 window.location.href =
                     "/login.html";
+
             },
-            700
+            900
         );
+
     }
+
 }
 
 
 avatarUploadButton.addEventListener(
     "click",
     () => {
+
         avatarInput.click();
+
     }
 );
 
@@ -808,9 +1432,15 @@ avatarInput.addEventListener(
         const file =
             avatarInput.files?.[0];
 
-        if (!file) {
+
+        if (
+            !file
+        ) {
+
             return;
+
         }
+
 
         const allowed = [
             "image/png",
@@ -818,12 +1448,15 @@ avatarInput.addEventListener(
             "image/webp"
         ];
 
+
         if (
             !allowed.includes(
                 file.type
             )
         ) {
+
             showMessage(
+                profileMessage,
                 "فقط PNG، JPG و WEBP مجاز است.",
                 "error"
             );
@@ -832,13 +1465,17 @@ avatarInput.addEventListener(
                 "";
 
             return;
+
         }
+
 
         if (
             file.size >
             5 * 1024 * 1024
         ) {
+
             showMessage(
+                profileMessage,
                 "حجم عکس نباید بیشتر از ۵ مگابایت باشد.",
                 "error"
             );
@@ -847,22 +1484,27 @@ avatarInput.addEventListener(
                 "";
 
             return;
+
         }
+
 
         try {
 
             showMessage(
-                "در حال آپلود عکس...",
-                ""
+                profileMessage,
+                "در حال آپلود عکس..."
             );
+
 
             const formData =
                 new FormData();
+
 
             formData.append(
                 "file",
                 file
             );
+
 
             const response =
                 await fetch(
@@ -879,48 +1521,73 @@ avatarInput.addEventListener(
                     }
                 );
 
-            let data = null;
+
+            let data =
+                null;
+
 
             try {
+
                 data =
                     await response.json();
-            } catch {}
 
-            if (!response.ok) {
+            } catch (_) {}
+
+
+            if (
+                !response.ok
+            ) {
+
                 throw new Error(
                     data?.detail ||
                     "آپلود عکس انجام نشد."
                 );
+
             }
 
-            if (data?.avatar) {
+
+            if (
+                data?.avatar
+            ) {
+
                 currentUser.avatar =
                     data.avatar;
 
+
                 avatarPreview.innerHTML =
                     `<img src="${data.avatar}" alt="">`;
+
             }
+
 
             avatarFileName.textContent =
                 file.name;
 
+
             showMessage(
-                "عکس پروفایل با موفقیت تغییر کرد.",
+                profileMessage,
+                "عکس پروفایل با موفقیت تغییر کرد. ✅",
                 "success"
             );
+
 
         } catch (error) {
 
             console.error(
+                "Avatar error:",
                 error
             );
 
+
             showMessage(
+                profileMessage,
                 error.message ||
                 "آپلود عکس ناموفق بود.",
                 "error"
             );
+
         }
+
     }
 );
 
@@ -933,64 +1600,94 @@ saveButton.addEventListener(
             displayName.value
                 .trim();
 
+
         const bioText =
             bio.value
                 .trim();
+
 
         const statusValue =
             status.value
                 .trim();
 
-        if (!name) {
+
+        if (
+            !name
+        ) {
+
             showMessage(
+                profileMessage,
                 "نام نمایشی نمی‌تواند خالی باشد.",
                 "error"
             );
 
             return;
+
         }
+
 
         saveButton.disabled =
             true;
 
+
         saveButton.textContent =
             "در حال ذخیره...";
 
+
         try {
 
-            await api(
-                "/api/profile",
-                {
-                    method:
-                        "PUT",
+            const data =
+                await api(
+                    "/api/profile",
+                    {
+                        method:
+                            "PUT",
 
-                    headers: {
-                        "Content-Type":
-                            "application/json"
-                    },
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
 
-                    body:
-                        JSON.stringify({
-                            display_name:
-                                name,
+                        body:
+                            JSON.stringify({
+                                display_name:
+                                    name,
 
-                            bio:
-                                bioText,
+                                bio:
+                                    bioText,
 
-                            status:
-                                statusValue
-                        })
-                }
-            );
+                                status:
+                                    statusValue
+                            })
+                    }
+                );
 
-            currentUser.display_name =
-                name;
 
-            currentUser.bio =
-                bioText;
+            const updatedUser =
+                data?.user;
 
-            currentUser.status =
-                statusValue;
+
+            if (
+                updatedUser
+            ) {
+
+                renderUser(
+                    updatedUser
+                );
+
+            } else {
+
+                currentUser.display_name =
+                    name;
+
+                currentUser.bio =
+                    bioText;
+
+                currentUser.status =
+                    statusValue;
+
+            }
+
 
             localStorage.setItem(
                 "gapino_user",
@@ -999,25 +1696,29 @@ saveButton.addEventListener(
                 )
             );
 
-            headerName.textContent =
-                name;
 
             showMessage(
-                "تغییرات با موفقیت ذخیره شد. ✅",
+                profileMessage,
+                "تغییرات پروفایل با موفقیت ذخیره شد. ✅",
                 "success"
             );
+
 
         } catch (error) {
 
             console.error(
+                "Profile save error:",
                 error
             );
 
+
             showMessage(
+                profileMessage,
                 error.message ||
                 "ذخیره تغییرات انجام نشد.",
                 "error"
             );
+
 
         } finally {
 
@@ -1026,12 +1727,310 @@ saveButton.addEventListener(
 
             saveButton.textContent =
                 "ذخیره تغییرات";
+
         }
+
+    }
+);
+
+
+document
+    .querySelectorAll(
+        ".show-password"
+    )
+    .forEach(
+        button => {
+
+            button.addEventListener(
+                "click",
+                () => {
+
+                    const target =
+                        document.getElementById(
+                            button.dataset.target
+                        );
+
+
+                    if (
+                        !target
+                    ) {
+
+                        return;
+
+                    }
+
+
+                    const hidden =
+                        target.type ===
+                        "password";
+
+
+                    target.type =
+                        hidden
+                            ? "text"
+                            : "password";
+
+
+                    button.textContent =
+                        hidden
+                            ? "🙈"
+                            : "👁️";
+
+                }
+            );
+
+        }
+    );
+
+
+securityButton.addEventListener(
+    "click",
+    async () => {
+
+        const desiredUsername =
+            newUsername.value
+                .trim()
+                .toLowerCase();
+
+
+        const oldPassword =
+            currentPassword.value;
+
+
+        const password1 =
+            newPassword.value;
+
+
+        const password2 =
+            confirmPassword.value;
+
+
+        const usernameChanged =
+            desiredUsername &&
+            desiredUsername !==
+                String(
+                    currentUser?.username ||
+                    ""
+                ).toLowerCase();
+
+
+        const passwordChanged =
+            Boolean(
+                password1 ||
+                password2
+            );
+
+
+        if (
+            !usernameChanged &&
+            !passwordChanged
+        ) {
+
+            showMessage(
+                securityMessage,
+                "تغییری برای ذخیره وجود ندارد.",
+                "error"
+            );
+
+            return;
+
+        }
+
+
+        if (
+            usernameChanged &&
+            (
+                desiredUsername.length < 3 ||
+                desiredUsername.length > 32 ||
+                !/^[a-zA-Z0-9_.-]+$/.test(
+                    desiredUsername
+                )
+            )
+        ) {
+
+            showMessage(
+                securityMessage,
+                "نام کاربری فقط باید شامل حروف انگلیسی، عدد، نقطه، خط تیره یا زیرخط باشد.",
+                "error"
+            );
+
+            newUsername.focus();
+
+            return;
+
+        }
+
+
+        if (
+            passwordChanged
+        ) {
+
+            if (
+                !oldPassword
+            ) {
+
+                showMessage(
+                    securityMessage,
+                    "برای تغییر رمز، رمز عبور فعلی را وارد کن.",
+                    "error"
+                );
+
+                currentPassword.focus();
+
+                return;
+
+            }
+
+
+            if (
+                password1.length < 6
+            ) {
+
+                showMessage(
+                    securityMessage,
+                    "رمز عبور جدید باید حداقل ۶ کاراکتر باشد.",
+                    "error"
+                );
+
+                newPassword.focus();
+
+                return;
+
+            }
+
+
+            if (
+                password1 !==
+                password2
+            ) {
+
+                showMessage(
+                    securityMessage,
+                    "رمزهای عبور جدید با هم یکسان نیستند.",
+                    "error"
+                );
+
+                confirmPassword.focus();
+
+                return;
+
+            }
+
+        }
+
+
+        securityButton.disabled =
+            true;
+
+
+        securityButton.textContent =
+            "در حال ذخیره...";
+
+
+        try {
+
+            const data =
+                await api(
+                    "/api/account/security",
+                    {
+                        method:
+                            "PUT",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body:
+                            JSON.stringify({
+                                username:
+                                    usernameChanged
+                                        ? desiredUsername
+                                        : undefined,
+
+                                current_password:
+                                    passwordChanged
+                                        ? oldPassword
+                                        : undefined,
+
+                                new_password:
+                                    passwordChanged
+                                        ? password1
+                                        : undefined
+                            })
+                    }
+                );
+
+
+            if (
+                data?.user
+            ) {
+
+                renderUser(
+                    data.user
+                );
+
+
+                localStorage.setItem(
+                    "gapino_user",
+                    JSON.stringify(
+                        data.user
+                    )
+                );
+
+            }
+
+
+            currentPassword.value =
+                "";
+
+            newPassword.value =
+                "";
+
+            confirmPassword.value =
+                "";
+
+
+            showMessage(
+                securityMessage,
+                data?.message ||
+                "اطلاعات امنیتی با موفقیت تغییر کرد. ✅",
+                "success"
+            );
+
+
+        } catch (error) {
+
+            console.error(
+                "Security update error:",
+                error
+            );
+
+
+            showMessage(
+                securityMessage,
+                error.message ||
+                "تغییر اطلاعات امنیتی انجام نشد.",
+                "error"
+            );
+
+
+        } finally {
+
+            securityButton.disabled =
+                false;
+
+            securityButton.textContent =
+                "ذخیره اطلاعات امنیتی";
+
+        }
+
     }
 );
 
 
 loadProfile();
+
 </script>
 
 </body>
