@@ -1,5 +1,4 @@
-fastapi
+﻿fastapi
 uvicorn[standard]
 python-multipart
-pwdlib[argon2]
-bcrypt
+itsdangerous
