@@ -25,21 +25,32 @@
     let lastTypingState = false;
 
     let selectedFile = null;
+
     let mediaRecorder = null;
     let recordingChunks = [];
     let isRecording = false;
 
     let messagesCache = [];
 
+    let selectedProfileAvatarFile = null;
+    let profileAvatarObjectUrl = null;
+
     const $ = (id) =>
         document.getElementById(id);
+
+    /* =========================================================
+       TOAST
+       ========================================================= */
 
     function showToast(message) {
         const container =
             $("toastContainer");
 
         if (!container) {
-            console.log("GAPINO:", message);
+            console.log(
+                "GAPINO:",
+                message
+            );
             return;
         }
 
@@ -47,14 +58,20 @@
             document.createElement("div");
 
         toast.className = "toast";
-        toast.textContent = String(message);
+
+        toast.textContent =
+            String(message);
 
         container.appendChild(toast);
 
         setTimeout(() => {
             toast.remove();
-        }, 3000);
+        }, 3500);
     }
+
+    /* =========================================================
+       USER HELPERS
+       ========================================================= */
 
     function getDisplayName(user) {
         if (!user) {
@@ -81,6 +98,30 @@
         );
     }
 
+    function getAvatarUrl(value) {
+        if (!value) {
+            return "";
+        }
+
+        const url =
+            String(value);
+
+        if (
+            url.startsWith("http://") ||
+            url.startsWith("https://") ||
+            url.startsWith("data:") ||
+            url.startsWith("blob:")
+        ) {
+            return url;
+        }
+
+        if (url.startsWith("/")) {
+            return API + url;
+        }
+
+        return API + "/" + url;
+    }
+
     function getUserId(user) {
         if (!user) {
             return null;
@@ -99,11 +140,11 @@
             return null;
         }
 
-        const number =
+        const id =
             Number(value);
 
-        return Number.isFinite(number)
-            ? number
+        return Number.isFinite(id)
+            ? id
             : null;
     }
 
@@ -151,13 +192,19 @@
                     minute: "2-digit"
                 }
             );
-
         } catch {
             return String(value);
         }
     }
 
-    async function api(path, options = {}) {
+    /* =========================================================
+       API
+       ========================================================= */
+
+    async function api(
+        path,
+        options = {}
+    ) {
         const headers = {
             ...(options.headers || {})
         };
@@ -201,33 +248,27 @@
         }
 
         if (!response.ok) {
-
-            const message =
+            throw new Error(
                 data?.detail ||
                 data?.message ||
-                `HTTP ${response.status}`;
-
-            throw new Error(message);
+                `HTTP ${response.status}`
+            );
         }
 
         return data;
     }
 
-    async function loadCurrentUser() {
+    /* =========================================================
+       CURRENT USER
+       ========================================================= */
 
+    async function loadCurrentUser() {
         const data =
             await api("/api/me");
 
-        if (
-            data &&
-            data.user
-        ) {
-            currentUser =
-                data.user;
-        } else {
-            currentUser =
-                data;
-        }
+        currentUser =
+            data?.user ||
+            data;
 
         if (
             !currentUser ||
@@ -245,59 +286,426 @@
     }
 
     function renderCurrentUser() {
-
         if (!currentUser) {
             return;
         }
 
-        const profileName =
+        const nameInput =
             $("profileDisplayName");
 
-        const profileBio =
+        const bioInput =
             $("profileBio");
 
-        const profileAvatar =
+        const avatarPreview =
             $("profileAvatarPreview");
 
-        const avatar =
-            getAvatar(currentUser);
-
-        if (profileName) {
-            profileName.value =
+        if (nameInput) {
+            nameInput.value =
                 currentUser.display_name ||
                 currentUser.username ||
                 "";
         }
 
-        if (profileBio) {
-            profileBio.value =
+        if (bioInput) {
+            bioInput.value =
                 currentUser.bio ||
                 currentUser.status ||
                 "";
         }
 
-        if (
-            profileAvatar &&
-            avatar
-        ) {
-            profileAvatar.src =
-                avatar;
-        }
+        if (avatarPreview) {
+            const avatar =
+                getAvatarUrl(
+                    getAvatar(
+                        currentUser
+                    )
+                );
 
-        const chatName =
-            $("chatUserName");
+            if (avatar) {
+                avatarPreview.src =
+                    avatar;
 
-        if (
-            chatName &&
-            !currentChatUser
-        ) {
-            chatName.textContent =
-                "گفتگو";
+                avatarPreview.style.visibility =
+                    "visible";
+            } else {
+                avatarPreview.removeAttribute(
+                    "src"
+                );
+
+                avatarPreview.style.visibility =
+                    "hidden";
+            }
         }
     }
 
-    async function loadUsers() {
+    /* =========================================================
+       PROFILE AVATAR
+       ========================================================= */
 
+    function setupProfileAvatar() {
+        const button =
+            $("changeProfileAvatarButton");
+
+        const input =
+            $("profileAvatarInput");
+
+        if (
+            !button ||
+            !input
+        ) {
+            return;
+        }
+
+        button.addEventListener(
+            "click",
+            event => {
+                event.preventDefault();
+                input.click();
+            }
+        );
+
+        input.addEventListener(
+            "change",
+            () => {
+                const file =
+                    input.files?.[0] ||
+                    null;
+
+                if (!file) {
+                    return;
+                }
+
+                const allowedTypes = [
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp"
+                ];
+
+                if (
+                    !allowedTypes.includes(
+                        file.type
+                    )
+                ) {
+                    showToast(
+                        "فقط PNG، JPG و WEBP مجاز است."
+                    );
+
+                    input.value = "";
+
+                    return;
+                }
+
+                if (
+                    file.size >
+                    5 * 1024 * 1024
+                ) {
+                    showToast(
+                        "حجم عکس نباید بیشتر از ۵ مگابایت باشد."
+                    );
+
+                    input.value = "";
+
+                    return;
+                }
+
+                selectedProfileAvatarFile =
+                    file;
+
+                if (
+                    profileAvatarObjectUrl
+                ) {
+                    try {
+                        URL.revokeObjectURL(
+                            profileAvatarObjectUrl
+                        );
+                    } catch {}
+                }
+
+                profileAvatarObjectUrl =
+                    URL.createObjectURL(
+                        file
+                    );
+
+                const preview =
+                    $("profileAvatarPreview");
+
+                if (preview) {
+                    preview.src =
+                        profileAvatarObjectUrl;
+
+                    preview.style.visibility =
+                        "visible";
+                }
+
+                const status =
+                    $("profileAvatarStatus");
+
+                if (status) {
+                    status.textContent =
+                        "✅ عکس انتخاب شد؛ روی ذخیره بزن.";
+                }
+            }
+        );
+    }
+
+    async function uploadProfileAvatar() {
+        if (
+            !selectedProfileAvatarFile
+        ) {
+            return null;
+        }
+
+        const status =
+            $("profileAvatarStatus");
+
+        if (status) {
+            status.textContent =
+                "⏳ در حال آپلود عکس...";
+        }
+
+        const formData =
+            new FormData();
+
+        formData.append(
+            "file",
+            selectedProfileAvatarFile
+        );
+
+        const response =
+            await fetch(
+                API +
+                "/api/profile/avatar",
+                {
+                    method: "POST",
+                    credentials: "include",
+                    cache: "no-store",
+                    body: formData
+                }
+            );
+
+        let data = null;
+
+        try {
+            data =
+                await response.json();
+        } catch {
+            data = null;
+        }
+
+        if (!response.ok) {
+            throw new Error(
+                data?.detail ||
+                "آپلود عکس پروفایل ناموفق بود"
+            );
+        }
+
+        const avatar =
+            data?.avatar ||
+            data?.avatar_url ||
+            data?.url ||
+            "";
+
+        if (!avatar) {
+            throw new Error(
+                "آدرس عکس پروفایل دریافت نشد."
+            );
+        }
+
+        selectedProfileAvatarFile =
+            null;
+
+        if (inputExists("profileAvatarInput")) {
+            $("profileAvatarInput").value = "";
+        }
+
+        if (status) {
+            status.textContent =
+                "✅ عکس پروفایل ذخیره شد.";
+        }
+
+        return avatar;
+    }
+
+    function inputExists(id) {
+        return !!$(id);
+    }
+
+    function setupProfile() {
+        const button =
+            $("profileButton");
+
+        const modal =
+            $("profileModal");
+
+        const close =
+            $("closeProfileModal");
+
+        const save =
+            $("saveProfileButton");
+
+        if (
+            button &&
+            modal
+        ) {
+            button.addEventListener(
+                "click",
+                () => {
+                    renderCurrentUser();
+
+                    selectedProfileAvatarFile =
+                        null;
+
+                    const input =
+                        $("profileAvatarInput");
+
+                    if (input) {
+                        input.value = "";
+                    }
+
+                    const status =
+                        $("profileAvatarStatus");
+
+                    if (status) {
+                        status.textContent = "";
+                    }
+
+                    modal.classList.add(
+                        "show"
+                    );
+                }
+            );
+        }
+
+        if (
+            close &&
+            modal
+        ) {
+            close.addEventListener(
+                "click",
+                () => {
+                    modal.classList.remove(
+                        "show"
+                    );
+                }
+            );
+        }
+
+        if (
+            save &&
+            modal
+        ) {
+            save.addEventListener(
+                "click",
+                saveProfile
+            );
+        }
+
+        setupProfileAvatar();
+    }
+
+    async function saveProfile() {
+        const nameInput =
+            $("profileDisplayName");
+
+        const bioInput =
+            $("profileBio");
+
+        const saveButton =
+            $("saveProfileButton");
+
+        try {
+            if (saveButton) {
+                saveButton.disabled = true;
+                saveButton.textContent =
+                    "⏳ در حال ذخیره...";
+            }
+
+            let uploadedAvatar =
+                null;
+
+            if (
+                selectedProfileAvatarFile
+            ) {
+                uploadedAvatar =
+                    await uploadProfileAvatar();
+            }
+
+            const data =
+                await api(
+                    "/api/profile",
+                    {
+                        method: "PUT",
+
+                        body: {
+                            display_name:
+                                nameInput?.value.trim() ||
+                                "",
+
+                            bio:
+                                bioInput?.value.trim() ||
+                                ""
+                        }
+                    }
+                );
+
+            currentUser =
+                data?.user ||
+                data ||
+                currentUser;
+
+            if (uploadedAvatar) {
+                currentUser = {
+                    ...currentUser,
+                    avatar:
+                        uploadedAvatar
+                };
+            }
+
+            window.GAPINO_CURRENT_USER =
+                currentUser;
+
+            renderCurrentUser();
+
+            await loadUsers();
+
+            const modal =
+                $("profileModal");
+
+            if (modal) {
+                modal.classList.remove(
+                    "show"
+                );
+            }
+
+            showToast(
+                "پروفایل با موفقیت ذخیره شد ✅"
+            );
+
+        } catch (error) {
+            console.error(
+                "GAPINO saveProfile:",
+                error
+            );
+
+            showToast(
+                error?.message ||
+                "ذخیره پروفایل انجام نشد"
+            );
+
+        } finally {
+            if (saveButton) {
+                saveButton.disabled = false;
+                saveButton.textContent =
+                    "💾 ذخیره";
+            }
+        }
+    }
+
+    /* =========================================================
+       USERS
+       ========================================================= */
+
+    async function loadUsers() {
         const list =
             $("usersList");
 
@@ -317,36 +725,34 @@
         `;
 
         try {
-
             const data =
-                await api("/api/users");
+                await api(
+                    "/api/users"
+                );
 
-            if (Array.isArray(data)) {
-
+            if (
+                Array.isArray(data)
+            ) {
                 users =
                     data;
-
             } else if (
                 Array.isArray(data?.users)
             ) {
-
                 users =
                     data.users;
-
             } else if (
                 Array.isArray(data?.data)
             ) {
-
                 users =
                     data.data;
-
             } else {
-
                 users = [];
             }
 
             const myId =
-                getUserId(currentUser);
+                getUserId(
+                    currentUser
+                );
 
             users =
                 users.filter(
@@ -355,13 +761,14 @@
                         myId
                 );
 
-            renderUsers(users);
-
             window.GAPINO_USERS =
                 users;
 
-        } catch (error) {
+            renderUsers(
+                users
+            );
 
+        } catch (error) {
             console.error(
                 "GAPINO loadUsers:",
                 error
@@ -391,7 +798,6 @@
     }
 
     function renderUsers(items) {
-
         const list =
             $("usersList");
 
@@ -402,7 +808,6 @@
         list.innerHTML = "";
 
         if (!items.length) {
-
             list.innerHTML = `
                 <div style="
                     padding:25px;
@@ -417,147 +822,165 @@
             return;
         }
 
-        items.forEach(user => {
+        items.forEach(
+            user => {
 
-            const id =
-                getUserId(user);
+                const id =
+                    getUserId(user);
 
-            if (id === null) {
-                return;
-            }
+                if (id === null) {
+                    return;
+                }
 
-            const item =
-                document.createElement(
-                    "button"
-                );
+                const item =
+                    document.createElement(
+                        "button"
+                    );
 
-            item.type = "button";
-            item.className =
-                "user-item";
+                item.type =
+                    "button";
 
-            if (
-                currentChatUser &&
-                getUserId(
-                    currentChatUser
-                ) === id
-            ) {
-                item.classList.add("active");
-            }
+                item.className =
+                    "user-item";
 
-            const wrap =
-                document.createElement(
-                    "div"
-                );
-
-            wrap.className =
-                "user-avatar-wrap";
-
-            const avatar =
-                document.createElement(
-                    "img"
-                );
-
-            avatar.className =
-                "user-avatar";
-
-            avatar.alt =
-                getDisplayName(user);
-
-            const avatarUrl =
-                getAvatar(user);
-
-            if (avatarUrl) {
-                avatar.src =
-                    avatarUrl;
-            }
-
-            avatar.addEventListener(
-                "error",
-                () => {
-                    avatar.removeAttribute(
-                        "src"
+                if (
+                    currentChatUser &&
+                    getUserId(
+                        currentChatUser
+                    ) === id
+                ) {
+                    item.classList.add(
+                        "active"
                     );
                 }
-            );
 
-            const dot =
-                document.createElement(
-                    "span"
-                );
+                const wrap =
+                    document.createElement(
+                        "div"
+                    );
 
-            dot.className =
-                "online-dot";
+                wrap.className =
+                    "user-avatar-wrap";
 
-            if (
-                isOnline(user)
-            ) {
-                dot.classList.add(
-                    "online"
-                );
-            }
+                const avatar =
+                    document.createElement(
+                        "img"
+                    );
 
-            wrap.appendChild(
-                avatar
-            );
+                avatar.className =
+                    "user-avatar";
 
-            wrap.appendChild(
-                dot
-            );
+                avatar.alt =
+                    getDisplayName(
+                        user
+                    );
 
-            const info =
-                document.createElement(
-                    "div"
-                );
+                const avatarUrl =
+                    getAvatarUrl(
+                        getAvatar(
+                            user
+                        )
+                    );
 
-            info.className =
-                "user-info";
+                if (avatarUrl) {
+                    avatar.src =
+                        avatarUrl;
 
-            const name =
-                document.createElement(
-                    "div"
-                );
-
-            name.className =
-                "user-name";
-
-            name.textContent =
-                getDisplayName(user);
-
-            const status =
-                document.createElement(
-                    "div"
-                );
-
-            status.className =
-                "user-status";
-
-            status.textContent =
-                user.status ||
-                (
-                    isOnline(user)
-                        ? "آنلاین"
-                        : "آفلاین"
-                );
-
-            info.appendChild(name);
-            info.appendChild(status);
-
-            item.appendChild(wrap);
-            item.appendChild(info);
-
-            item.addEventListener(
-                "click",
-                () => {
-                    openChat(user);
+                    avatar.style.visibility =
+                        "visible";
+                } else {
+                    avatar.style.visibility =
+                        "hidden";
                 }
-            );
 
-            list.appendChild(item);
-        });
+                avatar.addEventListener(
+                    "error",
+                    () => {
+                        avatar.style.visibility =
+                            "hidden";
+                    }
+                );
+
+                const dot =
+                    document.createElement(
+                        "span"
+                    );
+
+                dot.className =
+                    "online-dot";
+
+                if (
+                    isOnline(user)
+                ) {
+                    dot.classList.add(
+                        "online"
+                    );
+                }
+
+                wrap.appendChild(
+                    avatar
+                );
+
+                wrap.appendChild(
+                    dot
+                );
+
+                const info =
+                    document.createElement(
+                        "div"
+                    );
+
+                info.className =
+                    "user-info";
+
+                const name =
+                    document.createElement(
+                        "div"
+                    );
+
+                name.className =
+                    "user-name";
+
+                name.textContent =
+                    getDisplayName(
+                        user
+                    );
+
+                const status =
+                    document.createElement(
+                        "div"
+                    );
+
+                status.className =
+                    "user-status";
+
+                status.textContent =
+                    user.status ||
+                    (
+                        isOnline(user)
+                            ? "آنلاین"
+                            : "آفلاین"
+                    );
+
+                info.appendChild(name);
+                info.appendChild(status);
+
+                item.appendChild(wrap);
+                item.appendChild(info);
+
+                item.addEventListener(
+                    "click",
+                    () => {
+                        openChat(user);
+                    }
+                );
+
+                list.appendChild(item);
+            }
+        );
     }
 
     function setupUserSearch() {
-
         const input =
             $("userSearch");
 
@@ -575,7 +998,9 @@
                         .toLowerCase();
 
                 if (!text) {
-                    renderUsers(users);
+                    renderUsers(
+                        users
+                    );
                     return;
                 }
 
@@ -597,19 +1022,28 @@
                                     .toLowerCase();
 
                             return (
-                                name.includes(text) ||
-                                username.includes(text)
+                                name.includes(
+                                    text
+                                ) ||
+                                username.includes(
+                                    text
+                                )
                             );
                         }
                     );
 
-                renderUsers(filtered);
+                renderUsers(
+                    filtered
+                );
             }
         );
     }
 
-    async function openChat(user) {
+    /* =========================================================
+       CHAT
+       ========================================================= */
 
+    async function openChat(user) {
         if (!user) {
             return;
         }
@@ -631,7 +1065,9 @@
 
         updateChatHeader();
         enableComposer();
-        renderUsers(users);
+        renderUsers(
+            users
+        );
 
         await loadMessages(
             getUserId(user)
@@ -639,7 +1075,6 @@
     }
 
     function updateChatHeader() {
-
         if (!currentChatUser) {
             return;
         }
@@ -675,8 +1110,10 @@
         if (avatar) {
 
             const url =
-                getAvatar(
-                    currentChatUser
+                getAvatarUrl(
+                    getAvatar(
+                        currentChatUser
+                    )
                 );
 
             if (url) {
@@ -692,12 +1129,14 @@
                 avatar.removeAttribute(
                     "src"
                 );
+
+                avatar.style.visibility =
+                    "hidden";
             }
         }
     }
 
     function enableComposer() {
-
         const input =
             $("messageInput");
 
@@ -706,8 +1145,13 @@
         }
     }
 
-    async function loadMessages(otherId) {
+    /* =========================================================
+       MESSAGES
+       ========================================================= */
 
+    async function loadMessages(
+        otherId
+    ) {
         if (!otherId) {
             return;
         }
@@ -736,39 +1180,31 @@
                     )}`
                 );
 
-            let messages = [];
-
             if (
                 Array.isArray(data)
             ) {
-
-                messages =
+                messagesCache =
                     data;
-
             } else if (
                 Array.isArray(
                     data?.messages
                 )
             ) {
-
-                messages =
+                messagesCache =
                     data.messages;
-
             } else if (
                 Array.isArray(
                     data?.data
                 )
             ) {
-
-                messages =
+                messagesCache =
                     data.data;
+            } else {
+                messagesCache = [];
             }
 
-            messagesCache =
-                messages;
-
             renderMessages(
-                messages
+                messagesCache
             );
 
         } catch (error) {
@@ -793,8 +1229,9 @@
         }
     }
 
-    function renderMessages(messages) {
-
+    function renderMessages(
+        messages
+    ) {
         const container =
             $("messagesList");
 
@@ -826,216 +1263,235 @@
         }
 
         const myId =
-            getUserId(currentUser);
+            getUserId(
+                currentUser
+            );
 
-        messages.forEach(message => {
+        messages.forEach(
+            message => {
 
-            const senderId =
-                Number(
-                    message.sender_id ??
-                    message.from_id ??
-                    message.sender ??
-                    0
-                );
-
-            const mine =
-                senderId === myId;
-
-            const row =
-                document.createElement(
-                    "div"
-                );
-
-            row.className =
-                "message-row " +
-                (
-                    mine
-                        ? "mine"
-                        : "other"
-                );
-
-            const bubble =
-                document.createElement(
-                    "div"
-                );
-
-            bubble.className =
-                "message-bubble";
-
-            const text =
-                message.text ??
-                message.content ??
-                "";
-
-            const type =
-                message.message_type ||
-                message.type ||
-                "text";
-
-            if (
-                type === "image" &&
-                message.file_url
-            ) {
-
-                const image =
-                    document.createElement(
-                        "img"
+                const senderId =
+                    Number(
+                        message.sender_id ??
+                        message.from_id ??
+                        message.sender ??
+                        0
                     );
 
-                image.src =
-                    message.file_url;
+                const mine =
+                    senderId === myId;
 
-                image.style.maxWidth =
-                    "240px";
-
-                image.style.borderRadius =
-                    "12px";
-
-                bubble.appendChild(
-                    image
-                );
-
-            } else if (
-                type === "audio" &&
-                message.file_url
-            ) {
-
-                const audio =
+                const row =
                     document.createElement(
-                        "audio"
+                        "div"
                     );
 
-                audio.controls = true;
-                audio.src =
-                    message.file_url;
-
-                bubble.appendChild(
-                    audio
-                );
-
-            } else if (
-                type === "video" &&
-                message.file_url
-            ) {
-
-                const video =
-                    document.createElement(
-                        "video"
+                row.className =
+                    "message-row " +
+                    (
+                        mine
+                            ? "mine"
+                            : "other"
                     );
 
-                video.controls = true;
-                video.playsInline = true;
-                video.src =
-                    message.file_url;
-
-                video.style.maxWidth =
-                    "240px";
-
-                video.style.borderRadius =
-                    "12px";
-
-                bubble.appendChild(
-                    video
-                );
-
-            } else if (
-                message.file_url
-            ) {
-
-                const link =
+                const bubble =
                     document.createElement(
-                        "a"
+                        "div"
                     );
 
-                link.href =
-                    message.file_url;
+                bubble.className =
+                    "message-bubble";
 
-                link.target =
-                    "_blank";
+                const text =
+                    message.text ??
+                    message.content ??
+                    "";
 
-                link.rel =
-                    "noopener noreferrer";
+                const type =
+                    message.message_type ||
+                    message.type ||
+                    "text";
 
-                link.textContent =
-                    message.file_name ||
-                    "باز کردن فایل";
+                if (
+                    type === "image" &&
+                    message.file_url
+                ) {
 
-                link.style.color =
-                    "#fff";
-
-                bubble.appendChild(
-                    link
-                );
-
-                if (text) {
-
-                    const caption =
+                    const image =
                         document.createElement(
-                            "div"
+                            "img"
                         );
 
-                    caption.textContent =
-                        text;
+                    image.src =
+                        getAvatarUrl(
+                            message.file_url
+                        );
+
+                    image.style.maxWidth =
+                        "240px";
+
+                    image.style.borderRadius =
+                        "12px";
 
                     bubble.appendChild(
-                        caption
+                        image
                     );
+
+                } else if (
+                    type === "audio" &&
+                    message.file_url
+                ) {
+
+                    const audio =
+                        document.createElement(
+                            "audio"
+                        );
+
+                    audio.controls =
+                        true;
+
+                    audio.src =
+                        getAvatarUrl(
+                            message.file_url
+                        );
+
+                    bubble.appendChild(
+                        audio
+                    );
+
+                } else if (
+                    type === "video" &&
+                    message.file_url
+                ) {
+
+                    const video =
+                        document.createElement(
+                            "video"
+                        );
+
+                    video.controls =
+                        true;
+
+                    video.playsInline =
+                        true;
+
+                    video.src =
+                        getAvatarUrl(
+                            message.file_url
+                        );
+
+                    video.style.maxWidth =
+                        "240px";
+
+                    video.style.borderRadius =
+                        "12px";
+
+                    bubble.appendChild(
+                        video
+                    );
+
+                } else if (
+                    message.file_url
+                ) {
+
+                    const link =
+                        document.createElement(
+                            "a"
+                        );
+
+                    link.href =
+                        getAvatarUrl(
+                            message.file_url
+                        );
+
+                    link.target =
+                        "_blank";
+
+                    link.rel =
+                        "noopener noreferrer";
+
+                    link.textContent =
+                        message.file_name ||
+                        "باز کردن فایل";
+
+                    link.style.color =
+                        "#fff";
+
+                    bubble.appendChild(
+                        link
+                    );
+
+                    if (text) {
+
+                        const caption =
+                            document.createElement(
+                                "div"
+                            );
+
+                        caption.textContent =
+                            text;
+
+                        bubble.appendChild(
+                            caption
+                        );
+                    }
+
+                } else {
+
+                    bubble.textContent =
+                        text;
                 }
 
-            } else {
+                const time =
+                    document.createElement(
+                        "div"
+                    );
 
-                bubble.textContent =
-                    text;
+                time.className =
+                    "message-time";
+
+                time.textContent =
+                    formatTime(
+                        message.created_at ||
+                        message.timestamp ||
+                        message.time
+                    );
+
+                bubble.appendChild(
+                    time
+                );
+
+                row.appendChild(
+                    bubble
+                );
+
+                container.appendChild(
+                    row
+                );
             }
-
-            const time =
-                document.createElement(
-                    "div"
-                );
-
-            time.className =
-                "message-time";
-
-            time.textContent =
-                formatTime(
-                    message.created_at ||
-                    message.timestamp ||
-                    message.time
-                );
-
-            bubble.appendChild(time);
-
-            row.appendChild(
-                bubble
-            );
-
-            container.appendChild(
-                row
-            );
-        });
+        );
 
         const messagesContainer =
             $("messagesContainer");
 
         if (messagesContainer) {
 
-            setTimeout(() => {
-
-                messagesContainer.scrollTop =
-                    messagesContainer.scrollHeight;
-
-            }, 0);
+            setTimeout(
+                () => {
+                    messagesContainer.scrollTop =
+                        messagesContainer.scrollHeight;
+                },
+                0
+            );
         }
     }
 
     async function sendMessage() {
 
         if (!currentChatUser) {
-
             showToast(
                 "ابتدا یک کاربر را انتخاب کنید"
             );
-
             return;
         }
 
@@ -1069,36 +1525,39 @@
                     "/api/messages",
                     {
                         method: "POST",
+
                         body: {
                             receiver_id:
-                                Number(
-                                    receiverId
-                                ),
+                                receiverId,
+
                             text:
                                 text
                         }
                     }
                 );
 
-            input.value = "";
+            input.value =
+                "";
 
-            sendTyping(false);
+            sendTyping(
+                false
+            );
 
-            const newMessage =
+            const message =
                 data?.message ||
                 data;
 
             if (
-                newMessage &&
+                message &&
                 (
-                    newMessage.id ||
-                    newMessage.message_id ||
-                    newMessage.text
+                    message.id ||
+                    message.message_id ||
+                    message.text
                 )
             ) {
 
                 messagesCache.push(
-                    newMessage
+                    message
                 );
 
                 renderMessages(
@@ -1125,6 +1584,10 @@
         }
     }
 
+    /* =========================================================
+       TYPING
+       ========================================================= */
+
     function sendTyping(value) {
 
         if (
@@ -1145,15 +1608,18 @@
             return;
         }
 
+        const state =
+            Boolean(value);
+
         if (
             lastTypingState ===
-            Boolean(value)
+            state
         ) {
             return;
         }
 
         lastTypingState =
-            Boolean(value);
+            state;
 
         try {
 
@@ -1163,12 +1629,10 @@
                         "typing",
 
                     receiver_id:
-                        Number(
-                            receiverId
-                        ),
+                        receiverId,
 
                     value:
-                        Boolean(value)
+                        state
                 })
             );
 
@@ -1181,356 +1645,9 @@
         }
     }
 
-    function setupMessageInput() {
-
-        const input =
-            $("messageInput");
-
-        const send =
-            $("sendButton");
-
-        if (send) {
-
-            send.addEventListener(
-                "click",
-                sendMessage
-            );
-        }
-
-        if (!input) {
-            return;
-        }
-
-        input.addEventListener(
-            "keydown",
-            event => {
-
-                if (
-                    event.key ===
-                    "Enter"
-                ) {
-
-                    event.preventDefault();
-
-                    sendMessage();
-                }
-            }
-        );
-
-        input.addEventListener(
-            "input",
-            () => {
-
-                sendTyping(true);
-
-                clearTimeout(
-                    typingTimer
-                );
-
-                typingTimer =
-                    setTimeout(
-                        () => {
-                            sendTyping(false);
-                        },
-                        900
-                    );
-            }
-        );
-    }
-
-    function connectWebSocket() {
-
-        if (
-            socket &&
-            (
-                socket.readyState ===
-                    WebSocket.OPEN ||
-                socket.readyState ===
-                    WebSocket.CONNECTING
-            )
-        ) {
-            return;
-        }
-
-        try {
-
-            socket =
-                new WebSocket(
-                    WS_URL
-                );
-
-        } catch (error) {
-
-            console.error(
-                "GAPINO WebSocket create:",
-                error
-            );
-
-            scheduleReconnect();
-            return;
-        }
-
-        window.GAPINO_SOCKET =
-            socket;
-
-        socket.addEventListener(
-            "open",
-            () => {
-
-                console.log(
-                    "GAPINO WebSocket connected"
-                );
-
-                reconnectDelay =
-                    1500;
-
-                window.GAPINO_WS_CONNECTED =
-                    true;
-
-                try {
-
-                    socket.send(
-                        JSON.stringify({
-                            type:
-                                "ping"
-                        })
-                    );
-
-                } catch {
-                    // ignore
-                }
-            }
-        );
-
-        socket.addEventListener(
-            "message",
-            event => {
-
-                handleSocketMessage(
-                    event.data
-                );
-            }
-        );
-
-        socket.addEventListener(
-            "close",
-            () => {
-
-                console.warn(
-                    "GAPINO WebSocket disconnected"
-                );
-
-                window.GAPINO_WS_CONNECTED =
-                    false;
-
-                scheduleReconnect();
-            }
-        );
-
-        socket.addEventListener(
-            "error",
-            error => {
-
-                console.error(
-                    "GAPINO WebSocket error:",
-                    error
-                );
-            }
-        );
-    }
-
-    function scheduleReconnect() {
-
-        clearTimeout(
-            reconnectTimer
-        );
-
-        reconnectTimer =
-            setTimeout(
-                () => {
-
-                    connectWebSocket();
-
-                },
-                reconnectDelay
-            );
-
-        reconnectDelay =
-            Math.min(
-                reconnectDelay * 2,
-                15000
-            );
-    }
-
-    function handleSocketMessage(raw) {
-
-        let data = null;
-
-        try {
-
-            data =
-                JSON.parse(raw);
-
-        } catch {
-
-            console.warn(
-                "GAPINO invalid WebSocket JSON:",
-                raw
-            );
-
-            return;
-        }
-
-        if (!data) {
-            return;
-        }
-
-        console.log(
-            "GAPINO WS EVENT:",
-            data
-        );
-
-        const type =
-            data.type;
-
-        switch (type) {
-
-            case "ready":
-                break;
-
-            case "pong":
-                break;
-
-            case "user_online":
-
-                updateOnlineUser(
-                    data.user_id,
-                    true
-                );
-
-                break;
-
-            case "user_offline":
-
-                updateOnlineUser(
-                    data.user_id,
-                    false
-                );
-
-                break;
-
-            case "typing":
-
-                handleTypingEvent(
-                    data
-                );
-
-                break;
-
-            case "message":
-
-                handleIncomingMessage(
-                    data
-                );
-
-                break;
-
-            /*
-             * تماس:
-             *
-             * فقط رویداد را به call.js می‌فرستیم.
-             * اینجا دیگر handle تماس نداریم
-             * و دکمه callButton هم اینجا ثبت نمی‌شود.
-             */
-
-            case "call_offer":
-            case "call_answer":
-            case "call_ice":
-            case "call_reject":
-            case "call_busy":
-            case "call_end":
-
-                console.log(
-                    "GAPINO CALL SIGNAL:",
-                    data.type
-                );
-
-                document.dispatchEvent(
-                    new CustomEvent(
-                        "gapino-call-event",
-                        {
-                            detail:
-                                data
-                        }
-                    )
-                );
-
-                break;
-
-            default:
-                break;
-        }
-    }
-
-    function updateOnlineUser(
-        userId,
-        online
+    function handleTypingEvent(
+        data
     ) {
-
-        const id =
-            Number(userId);
-
-        if (!id) {
-            return;
-        }
-
-        users =
-            users.map(
-                user => {
-
-                    if (
-                        getUserId(user) ===
-                        id
-                    ) {
-                        return {
-                            ...user,
-                            online:
-                                Boolean(
-                                    online
-                                ),
-                            is_online:
-                                Boolean(
-                                    online
-                                )
-                        };
-                    }
-
-                    return user;
-                }
-            );
-
-        renderUsers(users);
-
-        if (
-            currentChatUser &&
-            getUserId(
-                currentChatUser
-            ) === id
-        ) {
-
-            currentChatUser = {
-                ...currentChatUser,
-                online:
-                    Boolean(online),
-                is_online:
-                    Boolean(online)
-            };
-
-            updateChatHeader();
-        }
-    }
-
-    function handleTypingEvent(data) {
 
         const senderId =
             Number(
@@ -1580,7 +1697,298 @@
                 : "";
     }
 
-    function handleIncomingMessage(data) {
+    /* =========================================================
+       WEBSOCKET
+       ========================================================= */
+
+    function connectWebSocket() {
+
+        if (
+            socket &&
+            (
+                socket.readyState ===
+                    WebSocket.OPEN ||
+                socket.readyState ===
+                    WebSocket.CONNECTING
+            )
+        ) {
+            return;
+        }
+
+        try {
+
+            socket =
+                new WebSocket(
+                    WS_URL
+                );
+
+        } catch (error) {
+
+            console.error(
+                "GAPINO WebSocket create:",
+                error
+            );
+
+            scheduleReconnect();
+
+            return;
+        }
+
+        window.GAPINO_SOCKET =
+            socket;
+
+        socket.addEventListener(
+            "open",
+            () => {
+
+                console.log(
+                    "GAPINO WebSocket connected"
+                );
+
+                window.GAPINO_WS_CONNECTED =
+                    true;
+
+                reconnectDelay =
+                    1500;
+
+                try {
+
+                    socket.send(
+                        JSON.stringify({
+                            type:
+                                "ping"
+                        })
+                    );
+
+                } catch {}
+            }
+        );
+
+        socket.addEventListener(
+            "message",
+            event => {
+
+                handleSocketMessage(
+                    event.data
+                );
+            }
+        );
+
+        socket.addEventListener(
+            "close",
+            () => {
+
+                console.warn(
+                    "GAPINO WebSocket disconnected"
+                );
+
+                window.GAPINO_WS_CONNECTED =
+                    false;
+
+                scheduleReconnect();
+            }
+        );
+
+        socket.addEventListener(
+            "error",
+            error => {
+
+                console.error(
+                    "GAPINO WebSocket error:",
+                    error
+                );
+            }
+        );
+    }
+
+    function scheduleReconnect() {
+
+        clearTimeout(
+            reconnectTimer
+        );
+
+        reconnectTimer =
+            setTimeout(
+                () => {
+                    connectWebSocket();
+                },
+                reconnectDelay
+            );
+
+        reconnectDelay =
+            Math.min(
+                reconnectDelay * 2,
+                15000
+            );
+    }
+
+    function handleSocketMessage(
+        raw
+    ) {
+
+        let data = null;
+
+        try {
+
+            data =
+                JSON.parse(raw);
+
+        } catch {
+
+            console.warn(
+                "GAPINO invalid WS data:",
+                raw
+            );
+
+            return;
+        }
+
+        if (!data) {
+            return;
+        }
+
+        switch (data.type) {
+
+            case "ready":
+                break;
+
+            case "pong":
+                break;
+
+            case "user_online":
+
+                updateOnlineUser(
+                    data.user_id,
+                    true
+                );
+
+                break;
+
+            case "user_offline":
+
+                updateOnlineUser(
+                    data.user_id,
+                    false
+                );
+
+                break;
+
+            case "typing":
+
+                handleTypingEvent(
+                    data
+                );
+
+                break;
+
+            case "message":
+
+                handleIncomingMessage(
+                    data
+                );
+
+                break;
+
+            /*
+             * فقط call.js این رویدادها را می‌گیرد.
+             */
+
+            case "call_offer":
+            case "call_answer":
+            case "call_ice":
+            case "call_reject":
+            case "call_busy":
+            case "call_end":
+
+                document.dispatchEvent(
+                    new CustomEvent(
+                        "gapino-call-event",
+                        {
+                            detail:
+                                data
+                        }
+                    )
+                );
+
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    function updateOnlineUser(
+        userId,
+        online
+    ) {
+
+        const id =
+            Number(userId);
+
+        if (!id) {
+            return;
+        }
+
+        users =
+            users.map(
+                user => {
+
+                    if (
+                        getUserId(user) ===
+                        id
+                    ) {
+
+                        return {
+                            ...user,
+
+                            online:
+                                Boolean(
+                                    online
+                                ),
+
+                            is_online:
+                                Boolean(
+                                    online
+                                )
+                        };
+                    }
+
+                    return user;
+                }
+            );
+
+        renderUsers(
+            users
+        );
+
+        if (
+            currentChatUser &&
+            getUserId(
+                currentChatUser
+            ) === id
+        ) {
+
+            currentChatUser = {
+                ...currentChatUser,
+
+                online:
+                    Boolean(
+                        online
+                    ),
+
+                is_online:
+                    Boolean(
+                        online
+                    )
+            };
+
+            updateChatHeader();
+        }
+    }
+
+    function handleIncomingMessage(
+        data
+    ) {
 
         const message =
             data.message ||
@@ -1622,21 +2030,19 @@
                 )
                 : null;
 
-        const belongsToCurrentChat =
+        const belongs =
             currentId !== null &&
             (
-                senderId ===
-                    currentId ||
+                senderId === currentId ||
 
                 (
                     receiverId ===
                         currentId &&
-                    senderId ===
-                        myId
+                    senderId === myId
                 )
             );
 
-        if (!belongsToCurrentChat) {
+        if (!belongs) {
 
             showToast(
                 "پیام جدید دریافت شد"
@@ -1655,7 +2061,72 @@
     }
 
     /* =========================================================
-       FILE UPLOAD
+       MESSAGE INPUT
+       ========================================================= */
+
+    function setupMessageInput() {
+
+        const input =
+            $("messageInput");
+
+        const button =
+            $("sendButton");
+
+        if (button) {
+
+            button.addEventListener(
+                "click",
+                sendMessage
+            );
+        }
+
+        if (!input) {
+            return;
+        }
+
+        input.addEventListener(
+            "keydown",
+            event => {
+
+                if (
+                    event.key ===
+                    "Enter"
+                ) {
+
+                    event.preventDefault();
+
+                    sendMessage();
+                }
+            }
+        );
+
+        input.addEventListener(
+            "input",
+            () => {
+
+                sendTyping(
+                    true
+                );
+
+                clearTimeout(
+                    typingTimer
+                );
+
+                typingTimer =
+                    setTimeout(
+                        () => {
+                            sendTyping(
+                                false
+                            );
+                        },
+                        900
+                    );
+            }
+        );
+    }
+
+    /* =========================================================
+       FILE ATTACHMENT
        ========================================================= */
 
     function setupAttachment() {
@@ -1665,6 +2136,9 @@
 
         const input =
             $("fileInput");
+
+        const remove =
+            $("removeAttachmentButton");
 
         if (
             attach &&
@@ -1691,9 +2165,6 @@
             );
         }
 
-        const remove =
-            $("removeAttachmentButton");
-
         if (remove) {
 
             remove.addEventListener(
@@ -1704,7 +2175,8 @@
                         null;
 
                     if (input) {
-                        input.value = "";
+                        input.value =
+                            "";
                     }
 
                     updateAttachmentPreview();
@@ -1744,63 +2216,6 @@
         }
     }
 
-    async function uploadSelectedFile() {
-
-        if (!selectedFile) {
-            return null;
-        }
-
-        const formData =
-            new FormData();
-
-        formData.append(
-            "file",
-            selectedFile
-        );
-
-        const response =
-            await fetch(
-                API + "/api/upload",
-                {
-                    method: "POST",
-                    credentials: "include",
-                    cache: "no-store",
-                    body: formData
-                }
-            );
-
-        let data = null;
-
-        try {
-            data =
-                await response.json();
-        } catch {
-            data = null;
-        }
-
-        if (!response.ok) {
-
-            throw new Error(
-                data?.detail ||
-                "آپلود فایل ناموفق بود"
-            );
-        }
-
-        selectedFile =
-            null;
-
-        const input =
-            $("fileInput");
-
-        if (input) {
-            input.value = "";
-        }
-
-        updateAttachmentPreview();
-
-        return data;
-    }
-
     /* =========================================================
        VOICE MESSAGE
        ========================================================= */
@@ -1836,7 +2251,7 @@
         ) {
 
             showToast(
-                "ضبط صدا روی این مرورگر در دسترس نیست"
+                "ضبط صدا در این دستگاه در دسترس نیست"
             );
 
             return;
@@ -1857,7 +2272,8 @@
                     stream
                 );
 
-            isRecording = true;
+            isRecording =
+                true;
 
             const button =
                 $("voiceButton");
@@ -1932,7 +2348,7 @@
                     } catch (error) {
 
                         console.error(
-                            "GAPINO voice send:",
+                            "GAPINO voice:",
                             error
                         );
 
@@ -1970,7 +2386,9 @@
         }
     }
 
-    async function sendAudioBlob(blob) {
+    async function sendAudioBlob(
+        blob
+    ) {
 
         if (!currentChatUser) {
             return;
@@ -1994,62 +2412,72 @@
             file
         );
 
-        const uploadResponse =
+        const response =
             await fetch(
-                API + "/api/upload",
+                API +
+                "/api/upload",
                 {
-                    method: "POST",
-                    credentials: "include",
-                    cache: "no-store",
-                    body: formData
+                    method:
+                        "POST",
+
+                    credentials:
+                        "include",
+
+                    cache:
+                        "no-store",
+
+                    body:
+                        formData
                 }
             );
 
-        let uploadData = null;
+        let data = null;
 
         try {
-            uploadData =
-                await uploadResponse.json();
+            data =
+                await response.json();
         } catch {
-            uploadData = null;
+            data = null;
         }
 
-        if (!uploadResponse.ok) {
+        if (!response.ok) {
 
             throw new Error(
-                uploadData?.detail ||
+                data?.detail ||
                 "آپلود صدا ناموفق بود"
             );
         }
 
         const fileUrl =
-            uploadData.url ||
-            uploadData.file_url ||
-            uploadData.path;
+            data.url ||
+            data.file_url ||
+            data.path;
 
         if (!fileUrl) {
+
             throw new Error(
                 "آدرس فایل دریافت نشد"
             );
         }
 
-        const receiverId =
-            getUserId(
-                currentChatUser
-            );
-
         await api(
             "/api/messages",
             {
-                method: "POST",
+                method:
+                    "POST",
+
                 body: {
                     receiver_id:
-                        Number(
-                            receiverId
+                        getUserId(
+                            currentChatUser
                         ),
-                    text: "",
+
+                    text:
+                        "",
+
                     file_url:
                         fileUrl,
+
                     message_type:
                         "audio"
                 }
@@ -2057,132 +2485,10 @@
         );
 
         await loadMessages(
-            receiverId
+            getUserId(
+                currentChatUser
+            )
         );
-    }
-
-    /* =========================================================
-       PROFILE
-       ========================================================= */
-
-    function setupProfile() {
-
-        const button =
-            $("profileButton");
-
-        const modal =
-            $("profileModal");
-
-        const close =
-            $("closeProfileModal");
-
-        const save =
-            $("saveProfileButton");
-
-        if (
-            button &&
-            modal
-        ) {
-
-            button.addEventListener(
-                "click",
-                () => {
-
-                    renderCurrentUser();
-
-                    modal.classList.add(
-                        "show"
-                    );
-                }
-            );
-        }
-
-        if (
-            close &&
-            modal
-        ) {
-
-            close.addEventListener(
-                "click",
-                () => {
-                    modal.classList.remove(
-                        "show"
-                    );
-                }
-            );
-        }
-
-        if (
-            save &&
-            modal
-        ) {
-
-            save.addEventListener(
-                "click",
-                saveProfile
-            );
-        }
-    }
-
-    async function saveProfile() {
-
-        const name =
-            $("profileDisplayName");
-
-        const bio =
-            $("profileBio");
-
-        try {
-
-            const data =
-                await api(
-                    "/api/profile",
-                    {
-                        method: "PUT",
-                        body: {
-                            display_name:
-                                name?.value.trim() ||
-                                "",
-                            bio:
-                                bio?.value.trim() ||
-                                ""
-                        }
-                    }
-                );
-
-            currentUser =
-                data?.user ||
-                data ||
-                currentUser;
-
-            renderCurrentUser();
-
-            const modal =
-                $("profileModal");
-
-            if (modal) {
-                modal.classList.remove(
-                    "show"
-                );
-            }
-
-            await loadUsers();
-
-            showToast(
-                "پروفایل ذخیره شد"
-            );
-
-        } catch (error) {
-
-            console.error(
-                "GAPINO saveProfile:",
-                error
-            );
-
-            showToast(
-                "ذخیره پروفایل انجام نشد"
-            );
-        }
     }
 
     /* =========================================================
@@ -2232,6 +2538,7 @@
             close.addEventListener(
                 "click",
                 () => {
+
                     modal.classList.remove(
                         "show"
                     );
@@ -2269,7 +2576,9 @@
                                     ""
                                 )
                                     .toLowerCase()
-                                    .includes(text)
+                                    .includes(
+                                        text
+                                    )
                         );
 
                     if (!found.length) {
@@ -2360,17 +2669,13 @@
                 try {
                     localStorage.clear();
                     sessionStorage.clear();
-                } catch {
-                    // ignore
-                }
+                } catch {}
 
                 if (socket) {
 
                     try {
                         socket.close();
-                    } catch {
-                        // ignore
-                    }
+                    } catch {}
                 }
 
                 window.location.href =
@@ -2443,7 +2748,7 @@
     }
 
     /* =========================================================
-       MENU
+       MENU / LIVE
        ========================================================= */
 
     function setupMenu() {
@@ -2458,7 +2763,6 @@
         button.addEventListener(
             "click",
             () => {
-
                 showToast(
                     "منوی گپینو"
                 );
@@ -2466,16 +2770,12 @@
         );
     }
 
-    /* =========================================================
-       LIVE
-       ========================================================= */
-
     function setupLiveButtons() {
 
         const liveButton =
             $("liveButton");
 
-        const headerLive =
+        const headerLiveButton =
             $("headerLiveButton");
 
         if (liveButton) {
@@ -2489,9 +2789,9 @@
             );
         }
 
-        if (headerLive) {
+        if (headerLiveButton) {
 
-            headerLive.addEventListener(
+            headerLiveButton.addEventListener(
                 "click",
                 () => {
                     location.href =
@@ -2530,7 +2830,7 @@
     }
 
     /* =========================================================
-       TIMERS
+       REFRESH
        ========================================================= */
 
     function startRefreshTimers() {
@@ -2538,15 +2838,15 @@
         setInterval(
             async () => {
 
-                if (document.hidden) {
+                if (
+                    document.hidden
+                ) {
                     return;
                 }
 
                 try {
                     await loadUsers();
-                } catch {
-                    // ignore
-                }
+                } catch {}
 
             },
             10000
@@ -2557,16 +2857,14 @@
 
                 if (
                     typeof window.GAPINO_REFRESH_LIVES !==
-                    "function"
+                        "function"
                 ) {
                     return;
                 }
 
                 try {
                     await window.GAPINO_REFRESH_LIVES();
-                } catch {
-                    // ignore
-                }
+                } catch {}
 
             },
             10000
@@ -2607,7 +2905,8 @@
                 $("messageInput");
 
             if (input) {
-                input.disabled = true;
+                input.disabled =
+                    true;
             }
 
             console.log(
@@ -2617,7 +2916,7 @@
         } catch (error) {
 
             console.error(
-                "GAPINO boot error:",
+                "GAPINO boot:",
                 error
             );
 
@@ -2627,7 +2926,8 @@
 
             if (
                 String(
-                    error.message || ""
+                    error?.message ||
+                    ""
                 ).includes(
                     "جلسه ورود پیدا نشد"
                 )
@@ -2694,7 +2994,9 @@
         document.addEventListener(
             "DOMContentLoaded",
             boot,
-            { once: true }
+            {
+                once: true
+            }
         );
 
     } else {
