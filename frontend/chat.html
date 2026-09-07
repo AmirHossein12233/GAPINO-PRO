@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
 
@@ -18,8 +19,214 @@
 
     <link
         rel="stylesheet"
-        href="/static/style.css?v=300"
+        href="/static/style.css?v=301"
     >
+
+    <!-- =====================================================
+         MOBILE MENU / OVERLAY FIX
+         ===================================================== -->
+
+    <style>
+        /* -----------------------------------------------
+           hidden باید واقعاً مخفی بماند
+           ----------------------------------------------- */
+
+        [hidden] {
+            display: none !important;
+        }
+
+
+        /* -----------------------------------------------
+           لایه تارکننده
+           ----------------------------------------------- */
+
+        .app-overlay {
+            position: fixed !important;
+            inset: 0 !important;
+
+            z-index: 900 !important;
+
+            background:
+                rgba(0, 0, 0, 0.45);
+
+            backdrop-filter:
+                blur(4px);
+
+            -webkit-backdrop-filter:
+                blur(4px);
+
+            pointer-events: auto;
+
+            touch-action: auto;
+        }
+
+
+        /* -----------------------------------------------
+           سایدبار
+           ----------------------------------------------- */
+
+        .sidebar {
+            position: relative !important;
+            z-index: 1000 !important;
+
+            pointer-events: auto !important;
+
+            touch-action: auto;
+        }
+
+
+        /* -----------------------------------------------
+           لیست کاربران
+           ----------------------------------------------- */
+
+        .user-list {
+            position: relative;
+
+            z-index: 1001;
+
+            pointer-events: auto !important;
+
+            touch-action: pan-y;
+        }
+
+
+        .user-list > * {
+            pointer-events: auto !important;
+        }
+
+
+        .user-list button,
+        .user-list a,
+        .user-list .user-item {
+            pointer-events: auto !important;
+
+            position: relative;
+
+            z-index: 1002;
+        }
+
+
+        /* -----------------------------------------------
+           کاربر فعلی
+           ----------------------------------------------- */
+
+        .current-user-card {
+            position: relative;
+
+            z-index: 1002;
+
+            pointer-events: auto !important;
+        }
+
+
+        .current-user-card *,
+        .current-user-main {
+            pointer-events: auto !important;
+        }
+
+
+        /* -----------------------------------------------
+           بخش اصلی چت
+           ----------------------------------------------- */
+
+        .chat-main {
+            position: relative;
+
+            z-index: 1;
+        }
+
+
+        /* -----------------------------------------------
+           پنل پروفایل
+           ----------------------------------------------- */
+
+        .profile-panel {
+            position: fixed;
+
+            z-index: 1100 !important;
+        }
+
+
+        /* -----------------------------------------------
+           دکمه‌های منو
+           ----------------------------------------------- */
+
+        #mobileMenuButton,
+        #menuButton {
+            position: relative;
+
+            z-index: 1200 !important;
+
+            pointer-events: auto !important;
+        }
+
+
+        /* -----------------------------------------------
+           هدر
+           ----------------------------------------------- */
+
+        .chat-header {
+            position: relative;
+
+            z-index: 10;
+        }
+
+
+        /* -----------------------------------------------
+           در دسکتاپ overlay نباید فعال باشد
+           ----------------------------------------------- */
+
+        @media (min-width: 769px) {
+
+            .app-overlay {
+                display: none !important;
+
+                pointer-events: none !important;
+            }
+
+        }
+
+
+        /* -----------------------------------------------
+           موبایل
+           ----------------------------------------------- */
+
+        @media (max-width: 768px) {
+
+            .sidebar {
+                pointer-events: auto !important;
+            }
+
+
+            .user-list {
+                overflow-y: auto;
+
+                -webkit-overflow-scrolling: touch;
+
+                pointer-events: auto !important;
+
+                touch-action: pan-y;
+            }
+
+
+            .user-list .user-item {
+                cursor: pointer;
+
+                pointer-events: auto !important;
+
+                touch-action: manipulation;
+            }
+
+
+            #mobileMenuButton {
+                cursor: pointer;
+
+                touch-action: manipulation;
+            }
+
+        }
+    </style>
+
 </head>
 
 <body>
@@ -719,6 +926,7 @@
     const themeButton =
         document.getElementById("themeButton");
 
+
     function updateThemeButton(theme) {
 
         if (!themeButton) {
@@ -761,10 +969,12 @@
                 ? "light"
                 : "dark";
 
+
         document.documentElement.setAttribute(
             "data-theme",
             theme
         );
+
 
         updateThemeButton(theme);
     }
@@ -820,8 +1030,9 @@
      MAIN APP
      ========================================================= -->
 
-<script src="/static/app.js?v=300"></script>
+<script src="/static/app.js?v=301"></script>
 
 
 </body>
 </html>
+```
