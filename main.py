@@ -72,7 +72,7 @@ app.add_middleware(
     secret_key=SESSION_SECRET,
     session_cookie="gapino_session",
     same_site="lax",
-    https_only=False,
+    https_only=True,
 )
 
 
