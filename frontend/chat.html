@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
@@ -8,18 +9,21 @@
         content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     >
 
-    <meta name="theme-color" content="#0f172a">
+    <meta
+        name="theme-color"
+        content="#0f172a"
+    >
 
     <title>گپینو | چت</title>
 
     <link
         rel="stylesheet"
-        href="/static/style.css?v=308"
+        href="/static/style.css?v=309"
     >
 
     <style>
         /* =====================================================
-           پایه
+           BASE
            ===================================================== */
 
         *,
@@ -52,7 +56,7 @@
         }
 
         /* =====================================================
-           APP LAYOUT
+           APP
            ===================================================== */
 
         .app-shell {
@@ -68,7 +72,6 @@
 
         /* =====================================================
            SIDEBAR
-           در RTL سمت راست قرار می‌گیرد
            ===================================================== */
 
         .sidebar {
@@ -83,11 +86,14 @@
         }
 
         .sidebar-header {
+            flex: 0 0 auto;
+
             display: flex;
             align-items: center;
             justify-content: space-between;
 
             gap: 12px;
+
             padding: 14px;
         }
 
@@ -121,6 +127,7 @@
 
             display: flex;
             flex-direction: column;
+
             gap: 2px;
         }
 
@@ -135,16 +142,20 @@
         }
 
         .search-box {
+            flex: 0 0 auto;
             padding: 0 14px 12px;
         }
 
         .search-box input {
+            display: block;
+
             width: 100%;
             height: 44px;
 
             padding: 0 14px;
 
             border-radius: 14px;
+
             border: 0;
             outline: none;
         }
@@ -164,6 +175,7 @@
 
             border: 0;
             outline: none;
+
             background: transparent;
 
             display: flex;
@@ -188,11 +200,11 @@
 
             border-radius: 50%;
 
+            overflow: hidden;
+
             display: flex;
             align-items: center;
             justify-content: center;
-
-            overflow: hidden;
         }
 
         .user-item-avatar img {
@@ -202,8 +214,8 @@
         }
 
         .user-item-info {
+            flex: 1 1 auto;
             min-width: 0;
-            flex: 1;
 
             display: flex;
             flex-direction: column;
@@ -230,6 +242,7 @@
             flex: 0 0 auto;
 
             display: flex;
+
             gap: 8px;
 
             padding: 10px 12px 14px;
@@ -247,14 +260,14 @@
         }
 
         /* =====================================================
-           CHAT AREA
+           CHAT
            ===================================================== */
 
         .chat-area {
+            flex: 1 1 auto;
+
             min-width: 0;
             min-height: 0;
-
-            flex: 1 1 auto;
 
             display: flex;
             flex-direction: column;
@@ -283,8 +296,9 @@
         }
 
         .chat-contact {
-            min-width: 0;
             flex: 1 1 auto;
+
+            min-width: 0;
 
             display: flex;
             align-items: center;
@@ -300,11 +314,11 @@
 
             border-radius: 50%;
 
+            overflow: hidden;
+
             display: flex;
             align-items: center;
             justify-content: center;
-
-            overflow: hidden;
         }
 
         .chat-avatar img {
@@ -369,12 +383,16 @@
 
         #callButton {
             display: flex !important;
+
             visibility: visible !important;
+
             opacity: 1 !important;
 
             pointer-events: auto !important;
 
             font-size: 19px !important;
+
+            cursor: pointer;
         }
 
         #callButton:disabled {
@@ -382,13 +400,14 @@
         }
 
         /* =====================================================
-           MESSAGES AREA
+           MESSAGE AREA
            ===================================================== */
 
         .messages-container {
             position: relative;
 
             flex: 1 1 auto;
+
             min-height: 0;
 
             overflow-y: auto;
@@ -399,51 +418,165 @@
             scroll-behavior: smooth;
         }
 
+        /* =====================================================
+           MESSAGE BUBBLES
+           ===================================================== */
+
         .messages-list {
             width: 100%;
 
             display: flex;
             flex-direction: column;
 
-            gap: 8px;
+            gap: 5px;
         }
 
         .message-row {
             width: 100%;
 
             display: flex;
+
+            margin: 1px 0;
         }
+
+        /*
+         * در RTL:
+         *
+         * پیام خودمان سمت راست
+         * پیام طرف مقابل سمت چپ
+         */
 
         .message-row.mine {
             justify-content: flex-start;
+            padding-left: 8px;
         }
 
         .message-row.theirs {
             justify-content: flex-end;
+            padding-right: 8px;
         }
 
         .message-bubble {
-            max-width: min(72%, 680px);
+            position: relative;
 
-            padding: 10px 13px;
+            width: fit-content;
+
+            max-width: min(72%, 620px);
+
+            padding: 8px 12px;
 
             border-radius: 18px;
 
-            overflow-wrap: anywhere;
-            word-break: break-word;
+            font-size: 15px;
 
-            line-height: 1.65;
+            line-height: 1.55;
+
+            font-weight: 400;
+
+            word-wrap: break-word;
+
+            overflow-wrap: anywhere;
+
+            white-space: pre-wrap;
+
+            box-shadow:
+                0 1px 2px
+                rgba(0, 0, 0, 0.08);
+
+            transition:
+                transform 0.12s ease,
+                box-shadow 0.12s ease;
+        }
+
+        /*
+         * پیام‌های من
+         */
+
+        .message-row.mine .message-bubble {
+            background: #229ed9;
+
+            color: #ffffff;
+
+            border-bottom-right-radius: 5px;
+        }
+
+        /*
+         * پیام طرف مقابل
+         */
+
+        .message-row.theirs .message-bubble {
+            background: #ffffff;
+
+            color: #222222;
+
+            border: 1px solid
+                rgba(0, 0, 0, 0.045);
+
+            border-bottom-left-radius: 5px;
+        }
+
+        /* =====================================================
+           MESSAGE CONTENT
+           ===================================================== */
+
+        .message-bubble p {
+            margin: 0;
+        }
+
+        .message-bubble a {
+            color: inherit;
+            text-decoration: underline;
         }
 
         .message-file-link {
-            text-decoration: none;
-            overflow-wrap: anywhere;
+            display: inline-flex;
+
+            align-items: center;
+
+            gap: 7px;
+
+            padding: 2px 0;
+
+            font-size: 14px;
+
+            font-weight: 600;
+
+            text-decoration: none !important;
         }
+
+        .message-bubble audio {
+            display: block;
+
+            width: min(280px, 70vw);
+
+            max-width: 100%;
+
+            border-radius: 12px;
+        }
+
+        /* =====================================================
+           HOVER
+           ===================================================== */
+
+        @media (hover: hover) {
+            .message-bubble:hover {
+                transform: translateY(-1px);
+
+                box-shadow:
+                    0 3px 10px
+                    rgba(0, 0, 0, 0.10);
+            }
+        }
+
+        /* =====================================================
+           EMPTY CHAT
+           ===================================================== */
 
         .empty-chat {
             min-height: 100%;
 
             display: flex;
+
             flex-direction: column;
 
             align-items: center;
@@ -456,6 +589,7 @@
 
         .empty-chat-icon {
             font-size: 48px;
+
             margin-bottom: 12px;
         }
 
@@ -493,6 +627,7 @@
             flex: 0 0 auto;
 
             display: flex;
+
             align-items: flex-end;
 
             gap: 8px;
@@ -509,6 +644,7 @@
             flex: 1 1 auto;
 
             min-width: 0;
+
             max-height: 150px;
 
             resize: none;
@@ -531,6 +667,7 @@
             min-height: 44px;
 
             border: 0;
+
             border-radius: 14px;
 
             display: flex;
@@ -541,7 +678,7 @@
         }
 
         /* =====================================================
-           PROFILE / SEARCH MODAL
+           MODALS
            ===================================================== */
 
         .modal-overlay {
@@ -552,12 +689,15 @@
             z-index: 100000;
 
             display: flex;
+
             align-items: center;
             justify-content: center;
 
             padding: 18px;
 
-            background: rgba(2, 6, 23, 0.74);
+            background:
+                rgba(2, 6, 23, 0.74);
+
             backdrop-filter: blur(8px);
         }
 
@@ -567,7 +707,9 @@
 
         .modal-card {
             width: min(440px, 100%);
-            max-height: calc(100dvh - 36px);
+
+            max-height:
+                calc(100dvh - 36px);
 
             overflow: auto;
 
@@ -582,12 +724,14 @@
             position: absolute;
 
             inset-inline-start: 14px;
+
             top: 12px;
 
             width: 36px;
             height: 36px;
 
             border: 0;
+
             border-radius: 10px;
 
             cursor: pointer;
@@ -599,6 +743,7 @@
 
         .profile-form {
             display: flex;
+
             flex-direction: column;
 
             gap: 10px;
@@ -608,23 +753,27 @@
             width: 88px;
             height: 88px;
 
-            margin: 0 auto 10px;
+            margin:
+                0 auto 10px;
 
             border-radius: 50%;
 
             display: flex;
+
             align-items: center;
             justify-content: center;
 
             overflow: hidden;
 
             font-size: 28px;
+
             font-weight: 800;
         }
 
         .profile-avatar-preview img {
             width: 100%;
             height: 100%;
+
             object-fit: cover;
         }
 
@@ -632,6 +781,7 @@
             width: 100%;
 
             border: 0;
+
             outline: none;
 
             padding: 11px 13px;
@@ -643,6 +793,7 @@
             min-height: 46px;
 
             border: 0;
+
             border-radius: 14px;
 
             cursor: pointer;
@@ -654,6 +805,7 @@
             margin-top: 14px;
 
             display: flex;
+
             flex-direction: column;
 
             gap: 8px;
@@ -661,6 +813,7 @@
 
         .message-search-item {
             padding: 10px 12px;
+
             border-radius: 12px;
         }
 
@@ -674,9 +827,11 @@
             z-index: 110000;
 
             left: 50%;
+
             bottom: 18px;
 
-            transform: translateX(-50%);
+            transform:
+                translateX(-50%);
 
             width: min(92vw, 420px);
 
@@ -693,11 +848,12 @@
             margin-top: 8px;
 
             box-shadow:
-                0 12px 30px rgba(0, 0, 0, 0.18);
+                0 12px 30px
+                rgba(0, 0, 0, 0.18);
         }
 
         /* =====================================================
-           CALL UI
+           CALL OVERLAY
            ===================================================== */
 
         .gapino-call-overlay {
@@ -708,17 +864,21 @@
             z-index: 120000;
 
             display: flex;
+
             align-items: center;
             justify-content: center;
 
             padding: 18px;
 
-            background: rgba(2, 6, 23, 0.80);
+            background:
+                rgba(2, 6, 23, 0.80);
 
             backdrop-filter: blur(13px);
 
             opacity: 0;
+
             visibility: hidden;
+
             pointer-events: none;
 
             transition:
@@ -728,7 +888,9 @@
 
         .gapino-call-overlay.show {
             opacity: 1;
+
             visibility: visible;
+
             pointer-events: auto;
         }
 
@@ -739,24 +901,29 @@
 
             border-radius: 28px;
 
-            background: #0f172a;
-            color: #fff;
+            background:
+                #0f172a;
+
+            color: #ffffff;
 
             text-align: center;
 
             box-shadow:
-                0 30px 90px rgba(0, 0, 0, 0.45);
+                0 30px 90px
+                rgba(0, 0, 0, 0.45);
         }
 
         .gapino-call-avatar {
             width: 96px;
             height: 96px;
 
-            margin: 0 auto 16px;
+            margin:
+                0 auto 16px;
 
             border-radius: 50%;
 
             display: flex;
+
             align-items: center;
             justify-content: center;
 
@@ -770,17 +937,20 @@
                 );
 
             font-size: 34px;
+
             font-weight: 900;
         }
 
         .gapino-call-avatar img {
             width: 100%;
             height: 100%;
+
             object-fit: cover;
         }
 
         .gapino-call-name {
             font-size: 22px;
+
             font-weight: 900;
 
             margin-bottom: 7px;
@@ -788,6 +958,7 @@
 
         .gapino-call-status {
             font-size: 14px;
+
             opacity: 0.72;
 
             margin-bottom: 10px;
@@ -795,6 +966,7 @@
 
         .gapino-call-timer {
             font-size: 30px;
+
             font-weight: 900;
 
             margin-bottom: 22px;
@@ -802,6 +974,7 @@
 
         .gapino-call-actions {
             display: flex;
+
             flex-wrap: wrap;
 
             justify-content: center;
@@ -815,9 +988,10 @@
             padding: 12px 16px;
 
             border: 0;
+
             border-radius: 14px;
 
-            color: #fff;
+            color: #ffffff;
 
             font-weight: 800;
 
@@ -845,6 +1019,7 @@
             }
 
             .app-shell {
+                width: 100%;
                 height: 100dvh;
                 min-height: 100dvh;
             }
@@ -856,20 +1031,18 @@
 
             .chat-area {
                 display: none;
+
                 width: 100%;
                 min-width: 100%;
             }
 
-            /*
-             * وقتی یک چت انتخاب شد،
-             * chat.js این کلاس را اضافه می‌کند.
-             */
-
-            .app-shell.chat-open .sidebar {
+            .app-shell.chat-open
+                .sidebar {
                 display: none;
             }
 
-            .app-shell.chat-open .chat-area {
+            .app-shell.chat-open
+                .chat-area {
                 display: flex;
             }
 
@@ -877,17 +1050,26 @@
                 min-height: 64px;
 
                 padding:
-                    max(8px, env(safe-area-inset-top))
+                    max(
+                        8px,
+                        env(safe-area-inset-top)
+                    )
                     8px
                     8px
                     8px;
+            }
+
+            .chat-contact {
+                gap: 7px;
             }
 
             .chat-header-actions {
                 gap: 3px;
             }
 
-            .chat-header-actions .icon-button {
+            .chat-header-actions
+                .icon-button {
+
                 width: 40px !important;
                 min-width: 40px !important;
                 max-width: 40px !important;
@@ -899,7 +1081,9 @@
 
             #callButton {
                 display: flex !important;
+
                 visibility: visible !important;
+
                 opacity: 1 !important;
 
                 font-size: 18px !important;
@@ -912,12 +1096,49 @@
 
             .messages-container {
                 padding:
-                    12px 10px
-                    8px;
+                    12px 10px 8px;
+            }
+
+            .messages-list {
+                gap: 4px;
+            }
+
+            .message-row.mine {
+                padding-left: 4px;
+            }
+
+            .message-row.theirs {
+                padding-right: 4px;
             }
 
             .message-bubble {
                 max-width: 84%;
+
+                padding:
+                    8px 11px;
+
+                font-size: 14px;
+
+                line-height: 1.55;
+
+                border-radius: 16px;
+            }
+
+            .message-row.mine
+                .message-bubble {
+                border-bottom-right-radius:
+                    5px;
+            }
+
+            .message-row.theirs
+                .message-bubble {
+                border-bottom-left-radius:
+                    5px;
+            }
+
+            .message-bubble audio {
+                width:
+                    min(250px, 68vw);
             }
 
             .chat-composer {
@@ -940,9 +1161,11 @@
             }
 
             .gapino-call-card {
-                width: min(360px, 100%);
+                width:
+                    min(360px, 100%);
 
-                padding: 24px 16px;
+                padding:
+                    24px 16px;
 
                 border-radius: 24px;
             }
@@ -967,9 +1190,15 @@
             }
         }
 
+        /* =====================================================
+           SMALL PHONES
+           ===================================================== */
+
         @media (max-width: 420px) {
 
-            .chat-header-actions .icon-button {
+            .chat-header-actions
+                .icon-button {
+
                 width: 38px !important;
                 min-width: 38px !important;
                 max-width: 38px !important;
@@ -983,10 +1212,6 @@
                 font-size: 17px !important;
             }
 
-            .chat-contact {
-                gap: 7px;
-            }
-
             .chat-contact-info strong {
                 font-size: 14px;
             }
@@ -994,18 +1219,102 @@
             .chat-contact-info span {
                 font-size: 11px;
             }
+
+            .message-bubble {
+                max-width: 88%;
+
+                padding:
+                    7px 10px;
+
+                font-size: 13.5px;
+
+                border-radius: 15px;
+            }
+
+            .message-row.mine {
+                padding-left: 2px;
+            }
+
+            .message-row.theirs {
+                padding-right: 2px;
+            }
+        }
+
+        /* =====================================================
+           DARK MODE
+           ===================================================== */
+
+        @media (prefers-color-scheme: dark) {
+
+            .message-row.theirs
+                .message-bubble {
+
+                background:
+                    #1f2937;
+
+                color:
+                    #f3f4f6;
+
+                border-color:
+                    rgba(
+                        255,
+                        255,
+                        255,
+                        0.05
+                    );
+            }
+
+            .message-row.mine
+                .message-bubble {
+
+                background:
+                    #229ed9;
+
+                color:
+                    #ffffff;
+            }
+        }
+
+        /* =====================================================
+           SAFE AREA
+           ===================================================== */
+
+        @supports (
+            padding:
+                env(safe-area-inset-bottom)
+        ) {
+
+            .gapino-call-overlay {
+                padding-top:
+                    max(
+                        18px,
+                        env(safe-area-inset-top)
+                    );
+
+                padding-bottom:
+                    max(
+                        18px,
+                        env(safe-area-inset-bottom)
+                    );
+            }
         }
 
         /* =====================================================
            REDUCE MOTION
            ===================================================== */
 
-        @media (prefers-reduced-motion: reduce) {
+        @media (
+            prefers-reduced-motion: reduce
+        ) {
+
             *,
             *::before,
             *::after {
-                scroll-behavior: auto !important;
-                transition: none !important;
+                scroll-behavior:
+                    auto !important;
+
+                transition:
+                    none !important;
             }
         }
     </style>
@@ -1014,10 +1323,13 @@
 <body>
 
     <!-- =====================================================
-         APP
+         GAPINO APP
          ===================================================== -->
 
-    <div class="app-shell" id="appShell">
+    <div
+        class="app-shell"
+        id="appShell"
+    >
 
         <!-- =================================================
              SIDEBAR
@@ -1037,8 +1349,15 @@
                     </div>
 
                     <div class="brand-text">
-                        <strong>گپینو</strong>
-                        <span>پیام‌رسان</span>
+
+                        <strong>
+                            گپینو
+                        </strong>
+
+                        <span>
+                            پیام‌رسان
+                        </span>
+
                     </div>
 
                 </div>
@@ -1055,6 +1374,8 @@
 
             </div>
 
+            <!-- SEARCH -->
+
             <div class="search-box">
 
                 <input
@@ -1067,11 +1388,15 @@
 
             </div>
 
+            <!-- USERS -->
+
             <div
                 id="usersList"
                 class="users-list"
             >
             </div>
+
+            <!-- FOOTER -->
 
             <div class="sidebar-footer">
 
@@ -1081,7 +1406,9 @@
                     type="button"
                 >
                     👤
-                    <span>پروفایل</span>
+                    <span>
+                        پروفایل
+                    </span>
                 </button>
 
                 <button
@@ -1090,7 +1417,9 @@
                     type="button"
                 >
                     🚪
-                    <span>خروج</span>
+                    <span>
+                        خروج
+                    </span>
                 </button>
 
             </div>
@@ -1141,7 +1470,7 @@
                     class="chat-header-actions"
                 >
 
-                    <!-- تماس صوتی -->
+                    <!-- تماس -->
 
                     <button
                         id="callButton"
@@ -1153,7 +1482,7 @@
                         📞
                     </button>
 
-                    <!-- جستجو -->
+                    <!-- جستجوی پیام -->
 
                     <button
                         id="chatSearchButton"
@@ -1181,7 +1510,9 @@
 
             </header>
 
-            <!-- MESSAGES -->
+            <!-- =================================================
+                 MESSAGES
+                 ================================================= -->
 
             <section
                 id="messagesContainer"
@@ -1193,7 +1524,9 @@
                     class="empty-chat"
                 >
 
-                    <div class="empty-chat-icon">
+                    <div
+                        class="empty-chat-icon"
+                    >
                         💬
                     </div>
 
@@ -1223,7 +1556,7 @@
 
             </section>
 
-            <!-- ATTACHMENT PREVIEW -->
+            <!-- FILE PREVIEW -->
 
             <div
                 id="attachmentPreview"
@@ -1232,7 +1565,9 @@
             >
             </div>
 
-            <!-- COMPOSER -->
+            <!-- =================================================
+                 COMPOSER
+                 ================================================= -->
 
             <div class="chat-composer">
 
@@ -1308,7 +1643,11 @@
             </button>
 
             <div class="modal-header">
-                <h2>پروفایل</h2>
+
+                <h2>
+                    پروفایل
+                </h2>
+
             </div>
 
             <div class="profile-form">
@@ -1385,7 +1724,11 @@
             </button>
 
             <div class="modal-header">
-                <h2>جستجوی پیام</h2>
+
+                <h2>
+                    جستجوی پیام
+                </h2>
+
             </div>
 
             <input
@@ -1418,15 +1761,24 @@
     ></div>
 
     <!-- =====================================================
-         TURN CONFIG
+         TURN
          ===================================================== -->
 
     <script>
+        /*
+         * ==========================================
+         * GAPINO TURN SERVER
+         * ==========================================
+         *
+         * فعلاً خالی است.
+         * STUN داخل call.js فعال است.
+         */
+
         window.GAPINO_TURN_SERVERS = [];
     </script>
 
     <!-- =====================================================
-         SCRIPTS
+         JAVASCRIPT
          ===================================================== -->
 
     <script
@@ -1441,3 +1793,4 @@
 
 </body>
 </html>
+```
