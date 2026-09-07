@@ -19,7 +19,7 @@
 
     <link
         rel="stylesheet"
-        href="/static/style.css?v=304"
+        href="/static/style.css?v=306"
     >
 
     <style>
@@ -27,6 +27,10 @@
         [hidden] {
             display: none !important;
         }
+
+        /* =====================================================
+           VOICE CALL
+           ===================================================== */
 
         .gapino-call-overlay {
             position: fixed;
@@ -36,7 +40,7 @@
             align-items: center;
             justify-content: center;
             padding: 20px;
-            background: rgba(3, 7, 18, .78);
+            background: rgba(3, 7, 18, .82);
             backdrop-filter: blur(18px);
             -webkit-backdrop-filter: blur(18px);
             opacity: 0;
@@ -55,8 +59,13 @@
             border: 1px solid rgba(255,255,255,.10);
             border-radius: 30px;
             text-align: center;
-            background: linear-gradient(145deg,#121a2d,#09101f);
-            box-shadow: 0 35px 100px rgba(0,0,0,.45);
+            background: linear-gradient(
+                145deg,
+                #121a2d,
+                #09101f
+            );
+            box-shadow:
+                0 35px 100px rgba(0,0,0,.45);
         }
 
         .gapino-call-avatar {
@@ -71,9 +80,17 @@
             color: #fff;
             font-size: 34px;
             font-weight: 900;
-            background: linear-gradient(135deg,#6366f1,#8b5cf6);
-            box-shadow: 0 18px 50px rgba(99,102,241,.30);
-            animation: gapinoCallPulse 2s infinite;
+            background:
+                linear-gradient(
+                    135deg,
+                    #6366f1,
+                    #8b5cf6
+                );
+            box-shadow:
+                0 18px 50px
+                rgba(99,102,241,.30);
+            animation:
+                gapinoCallPulse 2s infinite;
         }
 
         .gapino-call-avatar img {
@@ -123,14 +140,27 @@
             color: white;
             background: rgba(255,255,255,.05);
             cursor: pointer;
+            transition:
+                transform .15s ease,
+                opacity .15s ease;
         }
 
         .gapino-call-button.accept {
-            background: linear-gradient(135deg,#22c55e,#16a34a);
+            background:
+                linear-gradient(
+                    135deg,
+                    #22c55e,
+                    #16a34a
+                );
         }
 
         .gapino-call-button.reject {
-            background: linear-gradient(135deg,#ef4444,#dc2626);
+            background:
+                linear-gradient(
+                    135deg,
+                    #ef4444,
+                    #dc2626
+                );
         }
 
         .gapino-call-button:hover {
@@ -138,23 +168,33 @@
         }
 
         #voiceButton.recording {
-            background: rgba(239,68,68,.18) !important;
-            border-color: rgba(239,68,68,.4) !important;
-            color: #fca5a5 !important;
-            animation: gapinoVoicePulse 1.2s infinite;
+            background:
+                rgba(239,68,68,.18) !important;
+            border-color:
+                rgba(239,68,68,.4) !important;
+            color:
+                #fca5a5 !important;
+            animation:
+                gapinoVoicePulse 1.2s infinite;
         }
 
         @keyframes gapinoVoicePulse {
             0% {
-                box-shadow: 0 0 0 0 rgba(239,68,68,.2);
+                box-shadow:
+                    0 0 0 0
+                    rgba(239,68,68,.20);
             }
 
             50% {
-                box-shadow: 0 0 0 7px rgba(239,68,68,0);
+                box-shadow:
+                    0 0 0 7px
+                    rgba(239,68,68,0);
             }
 
             100% {
-                box-shadow: 0 0 0 0 rgba(239,68,68,0);
+                box-shadow:
+                    0 0 0 0
+                    rgba(239,68,68,0);
             }
         }
 
@@ -198,7 +238,68 @@
             cursor: pointer;
         }
 
-        @media (max-width: 600px) {
+        /* =====================================================
+           MOBILE HEADER / CALL BUTTON
+           ===================================================== */
+
+        @media (max-width: 700px) {
+
+            .chat-header {
+                display: flex !important;
+                align-items: center !important;
+                gap: 6px !important;
+                min-width: 0;
+            }
+
+            .chat-header-actions {
+                display: flex !important;
+                align-items: center !important;
+                justify-content: flex-end !important;
+                gap: 4px !important;
+                margin-inline-start: auto !important;
+                flex-shrink: 0 !important;
+            }
+
+            .chat-header-actions .icon-button {
+                width: 42px !important;
+                height: 42px !important;
+                min-width: 42px !important;
+                max-width: 42px !important;
+                padding: 0 !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                opacity: 1 !important;
+                visibility: visible !important;
+            }
+
+            #callButton {
+                display: flex !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                pointer-events: auto !important;
+                font-size: 18px !important;
+            }
+
+            #callButton:disabled {
+                opacity: .50 !important;
+            }
+
+            .chat-contact {
+                min-width: 0 !important;
+                flex: 1 !important;
+            }
+
+            .chat-contact-info {
+                min-width: 0 !important;
+            }
+
+            .chat-contact-info strong,
+            .chat-contact-info span {
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
 
             .gapino-call-card {
                 padding: 32px 17px 22px;
@@ -567,6 +668,7 @@
                 class="typing-area"
                 hidden
             >
+
                 <div class="typing-dots">
                     <span></span>
                     <span></span>
@@ -576,6 +678,7 @@
                 <span>
                     در حال نوشتن...
                 </span>
+
             </div>
 
 
@@ -770,20 +873,12 @@
     </aside>
 
 
-    <!-- =====================================================
-         OVERLAY
-         ===================================================== -->
-
     <div
         id="appOverlay"
         class="app-overlay"
         hidden
     ></div>
 
-
-    <!-- =====================================================
-         TOAST
-         ===================================================== -->
 
     <div
         id="toast"
@@ -796,8 +891,8 @@
 </div>
 
 
-<script src="/frontend/chat.js?v=305" defer></script>
-<script src="/frontend/call.js?v=3" defer></script>
+<script src="/frontend/chat.js?v=307" defer></script>
+<script src="/frontend/call.js?v=5" defer></script>
 
 </body>
 </html>
