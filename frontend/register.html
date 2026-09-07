@@ -299,61 +299,6 @@
             transform: translateY(-1px);
         }
 
-        .recovery-box {
-            display: none;
-            margin-top: 16px;
-            padding: 16px;
-            border-radius: 18px;
-            background:
-                rgba(34, 197, 94, 0.09);
-            border: 1px solid
-                rgba(74, 222, 128, 0.18);
-        }
-
-        .recovery-title {
-            color: #86efac;
-            font-size: 14px;
-            font-weight: 900;
-            margin-bottom: 8px;
-        }
-
-        .recovery-text {
-            color: #cbd5e1;
-            font-size: 12px;
-            line-height: 1.8;
-        }
-
-        .recovery-code {
-            margin-top: 11px;
-            padding: 12px;
-            border-radius: 13px;
-            background:
-                rgba(0, 0, 0, 0.24);
-            color: #fff;
-            font-family:
-                Consolas,
-                monospace;
-            font-size: 14px;
-            text-align: center;
-            direction: ltr;
-            user-select: all;
-            word-break: break-all;
-        }
-
-        .copy-code {
-            width: 100%;
-            height: 40px;
-            margin-top: 10px;
-            border: 0;
-            border-radius: 12px;
-            background:
-                rgba(255, 255, 255, 0.08);
-            color: #e2e8f0;
-            cursor: pointer;
-            font-size: 13px;
-            font-weight: 700;
-        }
-
         .footer {
             text-align: center;
             margin-top: 18px;
@@ -401,7 +346,6 @@
         <div class="orb two"></div>
     </div>
 
-
     <main class="register-page">
 
         <section class="register-card">
@@ -421,7 +365,6 @@
                 </p>
 
             </div>
-
 
             <form
                 id="registerForm"
@@ -447,7 +390,6 @@
 
                 </div>
 
-
                 <div class="field">
 
                     <label for="username">
@@ -461,6 +403,8 @@
                         type="text"
                         maxlength="32"
                         autocomplete="username"
+                        autocapitalize="none"
+                        spellcheck="false"
                         placeholder="مثلاً amirhossein"
                         required
                     >
@@ -470,7 +414,6 @@
                     </div>
 
                 </div>
-
 
                 <div class="field">
 
@@ -486,6 +429,8 @@
                             class="input"
                             type="password"
                             autocomplete="new-password"
+                            minlength="6"
+                            maxlength="128"
                             placeholder="حداقل ۶ کاراکتر"
                             required
                         >
@@ -503,7 +448,6 @@
 
                 </div>
 
-
                 <div class="field">
 
                     <label for="passwordConfirm">
@@ -517,6 +461,8 @@
                             class="input"
                             type="password"
                             autocomplete="new-password"
+                            minlength="6"
+                            maxlength="128"
                             placeholder="رمز عبور را دوباره وارد کنید"
                             required
                         >
@@ -534,13 +480,11 @@
 
                 </div>
 
-
                 <div
                     id="registerMessage"
                     class="message"
                     aria-live="polite"
                 ></div>
-
 
                 <button
                     id="registerButton"
@@ -549,7 +493,6 @@
                 >
                     ساخت حساب
                 </button>
-
 
                 <div class="bottom-row">
 
@@ -571,38 +514,7 @@
 
                 </div>
 
-
-                <div
-                    id="recoveryBox"
-                    class="recovery-box"
-                >
-
-                    <div class="recovery-title">
-                        ✅ حساب با موفقیت ساخته شد
-                    </div>
-
-                    <div class="recovery-text">
-                        این کد بازیابی را در جای امن نگه دار.
-                        برای بازیابی نام کاربری یا رمز عبور لازم می‌شود.
-                    </div>
-
-                    <div
-                        id="recoveryCode"
-                        class="recovery-code"
-                    ></div>
-
-                    <button
-                        id="copyRecoveryCode"
-                        class="copy-code"
-                        type="button"
-                    >
-                        📋 کپی کد بازیابی
-                    </button>
-
-                </div>
-
             </form>
-
 
             <div class="footer">
                 GAPINO PRO
@@ -612,107 +524,68 @@
 
     </main>
 
-
     <script>
         "use strict";
 
+        /* =====================================================
+           GAPINO API
+           ===================================================== */
+
+        const API = "https://mygapino.shop";
 
         /* =====================================================
-           CONFIG
-        ===================================================== */
+           STORAGE KEYS
+           ===================================================== */
 
-        const API =
-            window.GAPINO_API_BASE ||
-            window.location.origin;
-
+        const USER_KEY = "gapino_user";
+        const TOKEN_KEY = "gapino_token";
 
         /* =====================================================
            DOM
-        ===================================================== */
+           ===================================================== */
 
         const registerForm =
-            document.getElementById(
-                "registerForm"
-            );
+            document.getElementById("registerForm");
 
         const displayNameInput =
-            document.getElementById(
-                "displayName"
-            );
+            document.getElementById("displayName");
 
         const usernameInput =
-            document.getElementById(
-                "username"
-            );
+            document.getElementById("username");
 
         const passwordInput =
-            document.getElementById(
-                "password"
-            );
+            document.getElementById("password");
 
         const passwordConfirmInput =
-            document.getElementById(
-                "passwordConfirm"
-            );
+            document.getElementById("passwordConfirm");
 
         const registerButton =
-            document.getElementById(
-                "registerButton"
-            );
+            document.getElementById("registerButton");
 
         const loginButton =
-            document.getElementById(
-                "loginButton"
-            );
+            document.getElementById("loginButton");
 
         const backButton =
-            document.getElementById(
-                "backButton"
-            );
+            document.getElementById("backButton");
 
         const registerMessage =
-            document.getElementById(
-                "registerMessage"
-            );
+            document.getElementById("registerMessage");
 
         const togglePassword =
-            document.getElementById(
-                "togglePassword"
-            );
+            document.getElementById("togglePassword");
 
         const togglePasswordConfirm =
-            document.getElementById(
-                "togglePasswordConfirm"
-            );
-
-        const recoveryBox =
-            document.getElementById(
-                "recoveryBox"
-            );
-
-        const recoveryCode =
-            document.getElementById(
-                "recoveryCode"
-            );
-
-        const copyRecoveryCode =
-            document.getElementById(
-                "copyRecoveryCode"
-            );
-
+            document.getElementById("togglePasswordConfirm");
 
         /* =====================================================
            MESSAGE
-        ===================================================== */
+           ===================================================== */
 
         function showMessage(
             text,
             type = ""
         ) {
-
-            if (
-                !registerMessage
-            ) {
+            if (!registerMessage) {
                 return;
             }
 
@@ -723,24 +596,25 @@
                 "message";
 
             if (type) {
-                registerMessage.classList.add(
-                    type
-                );
+                registerMessage.classList.add(type);
             }
         }
 
+        function clearMessage() {
+            if (!registerMessage) {
+                return;
+            }
+
+            registerMessage.textContent = "";
+            registerMessage.className = "message";
+        }
 
         /* =====================================================
            LOADING
-        ===================================================== */
+           ===================================================== */
 
-        function setLoading(
-            loading
-        ) {
-
-            if (
-                !registerButton
-            ) {
+        function setLoading(loading) {
+            if (!registerButton) {
                 return;
             }
 
@@ -753,20 +627,15 @@
                     : "ساخت حساب";
         }
 
-
         /* =====================================================
            PASSWORD TOGGLE
-        ===================================================== */
+           ===================================================== */
 
         function setupPasswordToggle(
             button,
             input
         ) {
-
-            if (
-                !button ||
-                !input
-            ) {
+            if (!button || !input) {
                 return;
             }
 
@@ -775,8 +644,7 @@
                 () => {
 
                     const visible =
-                        input.type ===
-                        "text";
+                        input.type === "text";
 
                     input.type =
                         visible
@@ -791,7 +659,6 @@
             );
         }
 
-
         setupPasswordToggle(
             togglePassword,
             passwordInput
@@ -802,54 +669,54 @@
             passwordConfirmInput
         );
 
-
         /* =====================================================
            VALIDATION
-        ===================================================== */
+           ===================================================== */
 
-        function validateUsername(
-            username
-        ) {
-
+        function validUsername(username) {
             return /^[a-zA-Z0-9_.-]+$/.test(
                 username
             );
         }
 
-
-        function validateForm() {
+        function getFormValues() {
 
             const displayName =
                 String(
-                    displayNameInput?.value ||
-                    ""
+                    displayNameInput?.value || ""
                 ).trim();
 
             const username =
                 String(
-                    usernameInput?.value ||
-                    ""
+                    usernameInput?.value || ""
                 )
                 .trim()
                 .toLowerCase();
 
             const password =
                 String(
-                    passwordInput?.value ||
-                    ""
+                    passwordInput?.value || ""
                 );
 
             const passwordConfirm =
                 String(
-                    passwordConfirmInput?.value ||
-                    ""
+                    passwordConfirmInput?.value || ""
                 );
 
+            return {
+                displayName,
+                username,
+                password,
+                passwordConfirm
+            };
+        }
 
-            if (
-                !displayName
-            ) {
+        function validateForm() {
 
+            const values =
+                getFormValues();
+
+            if (!values.displayName) {
                 showMessage(
                     "نام نمایشی را وارد کن.",
                     "error"
@@ -860,24 +727,18 @@
                 return null;
             }
 
-
-            if (
-                displayName.length > 60
-            ) {
-
+            if (values.displayName.length > 60) {
                 showMessage(
                     "نام نمایشی خیلی طولانی است.",
                     "error"
                 );
 
+                displayNameInput?.focus();
+
                 return null;
             }
 
-
-            if (
-                !username
-            ) {
-
+            if (!values.username) {
                 showMessage(
                     "نام کاربری را وارد کن.",
                     "error"
@@ -888,12 +749,10 @@
                 return null;
             }
 
-
             if (
-                username.length < 3 ||
-                username.length > 32
+                values.username.length < 3 ||
+                values.username.length > 32
             ) {
-
                 showMessage(
                     "نام کاربری باید بین ۳ تا ۳۲ کاراکتر باشد.",
                     "error"
@@ -904,13 +763,7 @@
                 return null;
             }
 
-
-            if (
-                !validateUsername(
-                    username
-                )
-            ) {
-
+            if (!validUsername(values.username)) {
                 showMessage(
                     "نام کاربری فقط می‌تواند شامل حروف انگلیسی، عدد، نقطه، خط تیره و زیرخط باشد.",
                     "error"
@@ -921,11 +774,7 @@
                 return null;
             }
 
-
-            if (
-                !password
-            ) {
-
+            if (!values.password) {
                 showMessage(
                     "رمز عبور را وارد کن.",
                     "error"
@@ -936,11 +785,7 @@
                 return null;
             }
 
-
-            if (
-                password.length < 6
-            ) {
-
+            if (values.password.length < 6) {
                 showMessage(
                     "رمز عبور باید حداقل ۶ کاراکتر باشد.",
                     "error"
@@ -951,12 +796,10 @@
                 return null;
             }
 
-
             if (
-                password !==
-                passwordConfirm
+                values.password !==
+                values.passwordConfirm
             ) {
-
                 showMessage(
                     "تکرار رمز عبور با رمز اصلی یکسان نیست.",
                     "error"
@@ -967,22 +810,53 @@
                 return null;
             }
 
-
-            return {
-                displayName,
-                username,
-                password
-            };
+            return values;
         }
 
+        /* =====================================================
+           RESPONSE PARSER
+           ===================================================== */
+
+        async function parseResponse(response) {
+
+            const contentType =
+                response.headers.get(
+                    "content-type"
+                ) || "";
+
+            if (
+                contentType.includes(
+                    "application/json"
+                )
+            ) {
+                try {
+                    return await response.json();
+                } catch (_) {
+                    return null;
+                }
+            }
+
+            const text =
+                await response.text();
+
+            if (!text) {
+                return null;
+            }
+
+            try {
+                return JSON.parse(text);
+            } catch (_) {
+                return {
+                    detail: text
+                };
+            }
+        }
 
         /* =====================================================
            REGISTER API
-        ===================================================== */
+           ===================================================== */
 
-        async function registerUser(
-            values
-        ) {
+        async function registerUser(values) {
 
             const formData =
                 new URLSearchParams();
@@ -1002,22 +876,22 @@
                 values.displayName
             );
 
-
             let response;
 
             try {
 
                 response =
                     await fetch(
-                        API +
-                            "/api/register",
+                        API + "/api/register",
                         {
-                            method:
-                                "POST",
+                            method: "POST",
 
                             headers: {
                                 "Content-Type":
-                                    "application/x-www-form-urlencoded"
+                                    "application/x-www-form-urlencoded; charset=UTF-8",
+
+                                "Accept":
+                                    "application/json"
                             },
 
                             body:
@@ -1034,37 +908,26 @@
             } catch (error) {
 
                 console.error(
-                    "REGISTER FETCH ERROR:",
+                    "GAPINO REGISTER FETCH ERROR:",
                     error
                 );
 
                 throw new Error(
-                    "ارتباط با سرور برقرار نشد."
+                    "ارتباط با سرور گپینو برقرار نشد."
                 );
             }
 
+            const data =
+                await parseResponse(
+                    response
+                );
 
-            const text =
-                await response.text();
+            console.log(
+                "GAPINO REGISTER RESPONSE:",
+                data
+            );
 
-            let data = null;
-
-            if (text) {
-
-                try {
-                    data =
-                        JSON.parse(
-                            text
-                        );
-                } catch (_) {
-                    data = null;
-                }
-            }
-
-
-            if (
-                !response.ok
-            ) {
+            if (!response.ok) {
 
                 throw new Error(
                     data?.detail ||
@@ -1073,11 +936,29 @@
                 );
             }
 
+            /*
+             * بک‌اند فعلی:
+             *
+             * {
+             *   "ok": true,
+             *   "user": {...}
+             * }
+             *
+             * بعضی نسخه‌های قدیمی:
+             *
+             * {
+             *   "success": true,
+             *   "user": {...}
+             * }
+             */
+
+            const success =
+                data?.ok === true ||
+                data?.success === true;
 
             if (
-                !data ||
-                data.success !== true ||
-                !data.user ||
+                !success ||
+                !data?.user ||
                 !data.user.id
             ) {
 
@@ -1087,18 +968,141 @@
                 );
 
                 throw new Error(
-                    "پاسخ نامعتبر از سرور دریافت شد."
+                    "ثبت‌نام انجام شد ولی پاسخ سرور نامعتبر بود."
                 );
             }
-
 
             return data;
         }
 
+        /* =====================================================
+           SAVE USER
+           ===================================================== */
+
+        function saveUser(user) {
+
+            if (!user) {
+                return;
+            }
+
+            try {
+
+                localStorage.setItem(
+                    USER_KEY,
+                    JSON.stringify(user)
+                );
+
+            } catch (error) {
+
+                console.warn(
+                    "Cannot save user:",
+                    error
+                );
+            }
+        }
+
+        /* =====================================================
+           SAVE TOKEN
+           ===================================================== */
+
+        function saveToken(token) {
+
+            if (!token) {
+                return;
+            }
+
+            try {
+
+                localStorage.setItem(
+                    TOKEN_KEY,
+                    String(token)
+                );
+
+            } catch (error) {
+
+                console.warn(
+                    "Cannot save token:",
+                    error
+                );
+            }
+        }
+
+        /* =====================================================
+           CHECK SESSION
+           ===================================================== */
+
+        async function verifySession() {
+
+            try {
+
+                const token =
+                    localStorage.getItem(
+                        TOKEN_KEY
+                    ) || "";
+
+                const headers = {
+                    "Accept":
+                        "application/json"
+                };
+
+                if (token) {
+
+                    headers.Authorization =
+                        "Bearer " +
+                        token;
+                }
+
+                const response =
+                    await fetch(
+                        API + "/api/me",
+                        {
+                            method: "GET",
+
+                            credentials:
+                                "include",
+
+                            cache:
+                                "no-store",
+
+                            headers
+                        }
+                    );
+
+                if (!response.ok) {
+                    return null;
+                }
+
+                const user =
+                    await parseResponse(
+                        response
+                    );
+
+                if (
+                    user &&
+                    user.id
+                ) {
+
+                    saveUser(user);
+
+                    return user;
+                }
+
+                return null;
+
+            } catch (error) {
+
+                console.warn(
+                    "Session verification failed:",
+                    error
+                );
+
+                return null;
+            }
+        }
 
         /* =====================================================
            REGISTER
-        ===================================================== */
+           ===================================================== */
 
         async function handleRegister(
             event
@@ -1106,24 +1110,20 @@
 
             event.preventDefault();
 
+            clearMessage();
 
             const values =
                 validateForm();
-
 
             if (!values) {
                 return;
             }
 
-
-            setLoading(
-                true
-            );
+            setLoading(true);
 
             showMessage(
                 "در حال ساخت حساب..."
             );
-
 
             try {
 
@@ -1132,61 +1132,66 @@
                         values
                     );
 
-
                 /*
-                 * ذخیره کاربر
+                 * ذخیره اطلاعات کاربر
                  */
-                localStorage.setItem(
-                    "gapino_user",
-                    JSON.stringify(
-                        result.user
-                    )
+                saveUser(
+                    result.user
                 );
 
-
                 /*
-                 * نمایش Recovery Code
+                 * اگر نسخه‌ای از بک‌اند توکن برگرداند،
+                 * آن را هم ذخیره می‌کنیم.
                  */
-                if (
-                    result.recovery_code
-                ) {
+                const token =
+                    result?.token ||
+                    result?.access_token ||
+                    result?.accessToken ||
+                    "";
 
-                    recoveryCode.textContent =
-                        String(
-                            result.recovery_code
-                        );
-
-                    recoveryBox.style.display =
-                        "block";
-
-                    showMessage(
-                        "حساب با موفقیت ساخته شد.",
-                        "success"
-                    );
-
-                } else {
-
-                    showMessage(
-                        "حساب با موفقیت ساخته شد.",
-                        "success"
-                    );
+                if (token) {
+                    saveToken(token);
                 }
 
+                showMessage(
+                    "✅ حساب با موفقیت ساخته شد. در حال ورود...",
+                    "success"
+                );
 
                 /*
-                 * کمی مکث برای نمایش موفقیت
+                 * کمی زمان می‌دهیم تا Session Cookie
+                 * در WebView ثبت شود.
                  */
                 setTimeout(
-                    () => {
+                    async () => {
 
+                        /*
+                         * بررسی Session
+                         */
+                        const user =
+                            await verifySession();
+
+                        if (user) {
+
+                            window.location.replace(
+                                "/chat.html"
+                            );
+
+                            return;
+                        }
+
+                        /*
+                         * حتی اگر /api/me در WebView به‌دلیل
+                         * محدودیت Cookie پاسخ ندهد، کاربر
+                         * ساخته شده و صفحه Chat باز می‌شود.
+                         */
                         window.location.replace(
                             "/chat.html"
                         );
 
                     },
-                    1200
+                    700
                 );
-
 
             } catch (error) {
 
@@ -1196,76 +1201,20 @@
                 );
 
                 showMessage(
-                    error.message ||
+                    error?.message ||
                     "ثبت‌نام انجام نشد.",
                     "error"
                 );
 
-                setLoading(
-                    false
-                );
+                setLoading(false);
             }
         }
 
-
-        /* =====================================================
-           COPY RECOVERY CODE
-        ===================================================== */
-
-        if (
-            copyRecoveryCode
-        ) {
-
-            copyRecoveryCode.addEventListener(
-                "click",
-                async () => {
-
-                    const code =
-                        String(
-                            recoveryCode?.textContent ||
-                            ""
-                        ).trim();
-
-                    if (!code) {
-                        return;
-                    }
-
-                    try {
-
-                        await navigator.clipboard.writeText(
-                            code
-                        );
-
-                        copyRecoveryCode.textContent =
-                            "✅ کپی شد";
-
-                        setTimeout(
-                            () => {
-                                copyRecoveryCode.textContent =
-                                    "📋 کپی کد بازیابی";
-                            },
-                            1600
-                        );
-
-                    } catch (_) {
-
-                        showMessage(
-                            "کپی خودکار انجام نشد؛ کد را دستی انتخاب کن.",
-                            "info"
-                        );
-                    }
-                }
-            );
-        }
-
-
         /* =====================================================
            NAVIGATION
-        ===================================================== */
+           ===================================================== */
 
-        if (
-            loginButton
-        ) {
+        if (loginButton) {
 
             loginButton.addEventListener(
                 "click",
@@ -1277,10 +1226,7 @@
             );
         }
 
-
-        if (
-            backButton
-        ) {
+        if (backButton) {
 
             backButton.addEventListener(
                 "click",
@@ -1292,14 +1238,11 @@
             );
         }
 
-
         /* =====================================================
            SUBMIT
-        ===================================================== */
+           ===================================================== */
 
-        if (
-            registerForm
-        ) {
+        if (registerForm) {
 
             registerForm.addEventListener(
                 "submit",
@@ -1307,14 +1250,11 @@
             );
         }
 
-
         /* =====================================================
            USERNAME NORMALIZATION
-        ===================================================== */
+           ===================================================== */
 
-        if (
-            usernameInput
-        ) {
+        if (usernameInput) {
 
             usernameInput.addEventListener(
                 "input",
@@ -1322,29 +1262,88 @@
 
                     usernameInput.value =
                         usernameInput.value
-                            .trim()
+                            .replace(
+                                /\s+/g,
+                                ""
+                            )
                             .toLowerCase();
                 }
             );
         }
 
+        /* =====================================================
+           DISPLAY NAME TRIM
+           ===================================================== */
+
+        if (displayNameInput) {
+
+            displayNameInput.addEventListener(
+                "blur",
+                () => {
+
+                    displayNameInput.value =
+                        displayNameInput.value.trim();
+                }
+            );
+        }
+
+        /* =====================================================
+           PASSWORD CONFIRM ENTER
+           ===================================================== */
+
+        if (passwordConfirmInput) {
+
+            passwordConfirmInput.addEventListener(
+                "keydown",
+                (event) => {
+
+                    if (
+                        event.key === "Enter"
+                    ) {
+
+                        event.preventDefault();
+
+                        registerForm?.requestSubmit();
+                    }
+                }
+            );
+        }
 
         /* =====================================================
            BOOT
-        ===================================================== */
+           ===================================================== */
 
         window.addEventListener(
             "DOMContentLoaded",
-            () => {
+            async () => {
 
-                displayNameInput?.focus();
+                /*
+                 * اگر از قبل وارد شده باشد،
+                 * مستقیماً چت باز می‌شود.
+                 */
+                const existingUser =
+                    await verifySession();
 
+                if (existingUser) {
+
+                    window.location.replace(
+                        "/chat.html"
+                    );
+
+                    return;
+                }
+
+                setTimeout(
+                    () => {
+                        displayNameInput?.focus();
+                    },
+                    100
+                );
             },
             {
                 once: true
             }
         );
-
     </script>
 
 </body>
