@@ -1,7 +1,12 @@
-id="v1a8kc"
 "use strict";
 
 (() => {
+
+    /* =====================================================
+       GAPINO VOICE CALL
+       WebRTC + Notifications + Sound
+       ===================================================== */
+
 
     const ICE_CONFIG = {
         iceServers: [
@@ -37,6 +42,14 @@ id="v1a8kc"
 
     let callStartedAt = 0;
 
+    let notificationAudioContext = null;
+
+    let ringInterval = null;
+
+
+    /* =====================================================
+       HELPERS
+       ===================================================== */
 
     function getUserId(user) {
 
@@ -64,32 +77,442 @@ id="v1a8kc"
 
     function getCurrentUser() {
 
-        return window.GAPINO?.currentUser ||
-            null;
+        return (
+            window.GAPINO?.currentUser ||
+            null
+        );
 
     }
 
 
     function getCurrentChatUser() {
 
-        return window.GAPINO?.currentChatUser ||
-            null;
+        return (
+            window.GAPINO?.currentChatUser ||
+            null
+        );
 
     }
 
 
     function getSocket() {
 
-        return window.GAPINO?.socket ||
-            null;
+        return (
+            window.GAPINO?.socket ||
+            null
+        );
 
     }
 
+
+    function showToast(text) {
+
+        try {
+
+            if (
+                window.GAPINO &&
+                typeof window.GAPINO.showToast ===
+                    "function"
+            ) {
+
+                window.GAPINO.showToast(
+                    text
+                );
+
+                return;
+
+            }
+
+        } catch (_) {}
+
+
+        console.log(
+            "GAPINO:",
+            text
+        );
+
+    }
+
+
+    /* =====================================================
+       BROWSER NOTIFICATION
+       ===================================================== */
+
+    async function requestNotificationPermission() {
+
+        if (
+            !("Notification" in window)
+        ) {
+
+            return "unsupported";
+
+        }
+
+
+        if (
+            Notification.permission ===
+            "granted"
+        ) {
+
+            return "granted";
+
+        }
+
+
+        if (
+            Notification.permission ===
+            "denied"
+        ) {
+
+            return "denied";
+
+        }
+
+
+        try {
+
+            return await Notification.requestPermission();
+
+        } catch (error) {
+
+            console.warn(
+                "Notification permission error:",
+                error
+            );
+
+            return "denied";
+
+        }
+
+    }
+
+
+    function browserNotify(
+        title,
+        body
+    ) {
+
+        if (
+            !("Notification" in window)
+        ) {
+
+            return;
+
+        }
+
+
+        if (
+            Notification.permission !==
+            "granted"
+        ) {
+
+            return;
+
+        }
+
+
+        try {
+
+            const notification =
+                new Notification(
+                    title,
+                    {
+                        body:
+                            body,
+
+                        icon:
+                            "/favicon.png",
+
+                        badge:
+                            "/favicon.png",
+
+                        tag:
+                            "gapino-call",
+
+                        renotify:
+                            true
+                    }
+                );
+
+
+            setTimeout(
+                () => {
+
+                    try {
+                        notification.close();
+                    } catch (_) {}
+
+                },
+                6000
+            );
+
+        } catch (error) {
+
+            console.warn(
+                "Browser notification error:",
+                error
+            );
+
+        }
+
+    }
+
+
+    /* =====================================================
+       SOUND
+       ===================================================== */
+
+    function getAudioContext() {
+
+        if (
+            !window.AudioContext &&
+            !window.webkitAudioContext
+        ) {
+
+            return null;
+
+        }
+
+
+        if (
+            !notificationAudioContext
+        ) {
+
+            const AudioContextClass =
+                window.AudioContext ||
+                window.webkitAudioContext;
+
+            notificationAudioContext =
+                new AudioContextClass();
+
+        }
+
+
+        return notificationAudioContext;
+
+    }
+
+
+    async function unlockAudio() {
+
+        const ctx =
+            getAudioContext();
+
+
+        if (!ctx) {
+
+            return;
+
+        }
+
+
+        try {
+
+            if (
+                ctx.state ===
+                "suspended"
+            ) {
+
+                await ctx.resume();
+
+            }
+
+        } catch (_) {}
+
+    }
+
+
+    function beep(
+        frequency = 760,
+        duration = 140,
+        volume = 0.06
+    ) {
+
+        const ctx =
+            getAudioContext();
+
+
+        if (!ctx) {
+
+            return;
+
+        }
+
+
+        try {
+
+            if (
+                ctx.state ===
+                "suspended"
+            ) {
+
+                ctx.resume().catch(
+                    () => {}
+                );
+
+            }
+
+
+            const oscillator =
+                ctx.createOscillator();
+
+
+            const gain =
+                ctx.createGain();
+
+
+            oscillator.type =
+                "sine";
+
+
+            oscillator.frequency.value =
+                frequency;
+
+
+            gain.gain.setValueAtTime(
+                0.0001,
+                ctx.currentTime
+            );
+
+
+            gain.gain.exponentialRampToValueAtTime(
+                volume,
+                ctx.currentTime +
+                0.02
+            );
+
+
+            gain.gain.exponentialRampToValueAtTime(
+                0.0001,
+                ctx.currentTime +
+                duration / 1000
+            );
+
+
+            oscillator.connect(
+                gain
+            );
+
+
+            gain.connect(
+                ctx.destination
+            );
+
+
+            oscillator.start();
+
+
+            oscillator.stop(
+                ctx.currentTime +
+                duration / 1000 +
+                0.03
+            );
+
+        } catch (error) {
+
+            console.warn(
+                "Call sound error:",
+                error
+            );
+
+        }
+
+    }
+
+
+    function startRing() {
+
+        stopRing();
+
+
+        beep(
+            820,
+            180,
+            0.08
+        );
+
+
+        ringInterval =
+            setInterval(
+                () => {
+
+                    beep(
+                        820,
+                        180,
+                        0.08
+                    );
+
+                },
+                1300
+            );
+
+    }
+
+
+    function stopRing() {
+
+        if (
+            ringInterval
+        ) {
+
+            clearInterval(
+                ringInterval
+            );
+
+            ringInterval =
+                null;
+
+        }
+
+    }
+
+
+    function notify(
+        title,
+        body,
+        sound = true,
+        browser = true
+    ) {
+
+        if (sound) {
+
+            beep(
+                720,
+                150,
+                0.07
+            );
+
+        }
+
+
+        showToast(
+            `${title}${body ? ` • ${body}` : ""}`
+        );
+
+
+        if (
+            browser
+        ) {
+
+            browserNotify(
+                title,
+                body
+            );
+
+        }
+
+    }
+
+
+    /* =====================================================
+       SEND
+       ===================================================== */
 
     function send(data) {
 
         const socket =
             getSocket();
+
 
         if (
             !socket ||
@@ -97,12 +520,17 @@ id="v1a8kc"
                 WebSocket.OPEN
         ) {
 
-            window.GAPINO?.showToast?.(
-                "اتصال گپینو برقرار نیست."
+            notify(
+                "اتصال گپینو",
+                "اتصال گپینو برقرار نیست.",
+                true,
+                false
             );
 
             return false;
+
         }
+
 
         try {
 
@@ -111,6 +539,7 @@ id="v1a8kc"
                     data
                 )
             );
+
 
             return true;
 
@@ -121,10 +550,25 @@ id="v1a8kc"
                 error
             );
 
+
+            notify(
+                "خطای تماس",
+                "ارسال اطلاعات تماس انجام نشد.",
+                true,
+                false
+            );
+
+
             return false;
+
         }
+
     }
 
+
+    /* =====================================================
+       UI
+       ===================================================== */
 
     function createCallUI() {
 
@@ -135,18 +579,23 @@ id="v1a8kc"
         ) {
 
             return;
+
         }
+
 
         const overlay =
             document.createElement(
                 "div"
             );
 
+
         overlay.id =
             "gapinoCallOverlay";
 
+
         overlay.className =
             "gapino-call-overlay";
+
 
         overlay.innerHTML = `
 
@@ -213,6 +662,7 @@ id="v1a8kc"
             </div>
         `;
 
+
         document.body.appendChild(
             overlay
         );
@@ -244,8 +694,15 @@ id="v1a8kc"
             )
             ?.addEventListener(
                 "click",
-                () => endCall(true)
+                () => {
+
+                    endCall(
+                        true
+                    );
+
+                }
             );
+
     }
 
 
@@ -256,35 +713,42 @@ id="v1a8kc"
 
         createCallUI();
 
+
         const overlay =
             document.getElementById(
                 "gapinoCallOverlay"
             );
+
 
         const avatar =
             document.getElementById(
                 "gapinoCallAvatar"
             );
 
+
         const name =
             document.getElementById(
                 "gapinoCallName"
             );
+
 
         const statusEl =
             document.getElementById(
                 "gapinoCallStatus"
             );
 
+
         const accept =
             document.getElementById(
                 "gapinoAcceptCall"
             );
 
+
         const reject =
             document.getElementById(
                 "gapinoRejectCall"
             );
+
 
         const end =
             document.getElementById(
@@ -293,7 +757,9 @@ id="v1a8kc"
 
 
         if (!overlay) {
+
             return;
+
         }
 
 
@@ -307,10 +773,12 @@ id="v1a8kc"
             avatar.innerHTML =
                 "";
 
+
             const url =
                 user?.avatar ||
                 user?.profile?.avatar ||
                 "";
+
 
             if (url) {
 
@@ -319,11 +787,16 @@ id="v1a8kc"
                         "img"
                     );
 
+
                 img.src =
                     url;
 
+
                 img.alt =
-                    getUserName(user);
+                    getUserName(
+                        user
+                    );
+
 
                 avatar.appendChild(
                     img
@@ -332,19 +805,24 @@ id="v1a8kc"
             } else {
 
                 avatar.textContent =
-                    getUserName(user)
+                    getUserName(
+                        user
+                    )
                         .charAt(0)
                         .toUpperCase() ||
                     "G";
 
             }
+
         }
 
 
         if (name) {
 
             name.textContent =
-                getUserName(user);
+                getUserName(
+                    user
+                );
 
         }
 
@@ -362,9 +840,16 @@ id="v1a8kc"
                 "ورودی"
             );
 
+
         const connected =
             status.includes(
                 "مکالمه"
+            );
+
+
+        const connecting =
+            status.includes(
+                "اتصال"
             );
 
 
@@ -381,7 +866,8 @@ id="v1a8kc"
         if (reject) {
 
             reject.style.display =
-                incoming || !connected
+                incoming ||
+                !connected
                     ? "flex"
                     : "none";
 
@@ -396,6 +882,27 @@ id="v1a8kc"
                     : "none";
 
         }
+
+
+        if (incoming) {
+
+            startRing();
+
+        } else {
+
+            stopRing();
+
+        }
+
+
+        if (
+            connected
+        ) {
+
+            stopRing();
+
+        }
+
     }
 
 
@@ -406,28 +913,41 @@ id="v1a8kc"
                 "gapinoCallOverlay"
             );
 
+
         overlay?.classList.remove(
             "show"
         );
 
+
+        stopRing();
+
         stopTimer();
+
     }
 
+
+    /* =====================================================
+       TIMER
+       ===================================================== */
 
     function startTimer() {
 
         stopTimer();
 
+
         callStartedAt =
             Date.now();
 
+
         updateTimer();
+
 
         callTimer =
             setInterval(
                 updateTimer,
                 1000
             );
+
     }
 
 
@@ -438,13 +958,16 @@ id="v1a8kc"
                 "gapinoCallTimer"
             );
 
+
         if (
             !timer ||
             !callStartedAt
         ) {
 
             return;
+
         }
+
 
         const seconds =
             Math.floor(
@@ -454,39 +977,61 @@ id="v1a8kc"
                 ) / 1000
             );
 
+
         const minutes =
             Math.floor(
-                seconds / 60
+                seconds /
+                60
             );
 
+
         const remaining =
-            seconds % 60;
+            seconds %
+            60;
+
 
         timer.textContent =
             `${String(
                 minutes
-            ).padStart(2,"0")}:${String(
+            ).padStart(
+                2,
+                "0"
+            )}:${String(
                 remaining
-            ).padStart(2,"0")}`;
+            ).padStart(
+                2,
+                "0"
+            )}`;
+
     }
 
 
     function stopTimer() {
 
-        if (callTimer) {
+        if (
+            callTimer
+        ) {
 
             clearInterval(
                 callTimer
             );
 
+
             callTimer =
                 null;
+
         }
+
 
         callStartedAt =
             0;
+
     }
 
+
+    /* =====================================================
+       MICROPHONE
+       ===================================================== */
 
     async function getMicrophone() {
 
@@ -498,68 +1043,132 @@ id="v1a8kc"
             throw new Error(
                 "microphone_not_supported"
             );
+
         }
 
-        return navigator
-            .mediaDevices
-            .getUserMedia({
-                audio: {
-                    echoCancellation:
-                        true,
 
-                    noiseSuppression:
-                        true,
+        notify(
+            "🎙️ میکروفن",
+            "درخواست دسترسی به میکروفن...",
+            false,
+            false
+        );
 
-                    autoGainControl:
-                        true
-                },
 
-                video:
-                    false
-            });
+        try {
+
+            const stream =
+                await navigator
+                    .mediaDevices
+                    .getUserMedia({
+                        audio: {
+                            echoCancellation:
+                                true,
+
+                            noiseSuppression:
+                                true,
+
+                            autoGainControl:
+                                true
+                        },
+
+                        video:
+                            false
+                    });
+
+
+            notify(
+                "🎙️ میکروفن فعال شد",
+                "دسترسی به میکروفن برقرار است.",
+                true,
+                false
+            );
+
+
+            return stream;
+
+        } catch (error) {
+
+            notify(
+                "❌ میکروفن",
+                "دسترسی به میکروفن داده نشد.",
+                true,
+                false
+            );
+
+
+            throw error;
+
+        }
+
     }
 
 
+    /* =====================================================
+       REMOTE AUDIO
+       ===================================================== */
+
     function ensureRemoteAudio() {
 
-        if (remoteAudio) {
+        if (
+            remoteAudio
+        ) {
+
             return remoteAudio;
+
         }
+
 
         remoteAudio =
             document.createElement(
                 "audio"
             );
 
+
         remoteAudio.id =
             "gapinoRemoteAudio";
+
 
         remoteAudio.autoplay =
             true;
 
+
         remoteAudio.playsInline =
             true;
 
+
         remoteAudio.style.display =
             "none";
+
 
         document.body.appendChild(
             remoteAudio
         );
 
+
         return remoteAudio;
+
     }
 
+
+    /* =====================================================
+       PEER CONNECTION
+       ===================================================== */
 
     function createPeerConnection(
         receiverId
     ) {
 
-        if (peerConnection) {
+        if (
+            peerConnection
+        ) {
 
             try {
+
                 peerConnection.close();
+
             } catch (_) {}
+
         }
 
 
@@ -578,6 +1187,7 @@ id="v1a8kc"
                 ) {
 
                     return;
+
                 }
 
 
@@ -594,7 +1204,9 @@ id="v1a8kc"
 
                     candidate:
                         event.candidate
+
                 });
+
             };
 
 
@@ -604,6 +1216,7 @@ id="v1a8kc"
                 const audio =
                     ensureRemoteAudio();
 
+
                 if (
                     event.streams &&
                     event.streams[0]
@@ -612,22 +1225,52 @@ id="v1a8kc"
                     audio.srcObject =
                         event.streams[0];
 
+
                     audio.play().catch(
                         () => {}
                     );
+
+
+                    notify(
+                        "🟢 تماس وصل شد",
+                        `در حال مکالمه با ${getUserName(callTarget)}`,
+                        false,
+                        false
+                    );
+
                 }
+
             };
 
 
         peerConnection.onconnectionstatechange =
             () => {
 
-                if (!peerConnection) {
+                if (
+                    !peerConnection
+                ) {
+
                     return;
+
                 }
 
+
                 const state =
-                    peerConnection.connectionState;
+                    peerConnection
+                        .connectionState;
+
+
+                if (
+                    state ===
+                    "connecting"
+                ) {
+
+                    showCallUI(
+                        callTarget,
+                        "🔄 در حال اتصال..."
+                    );
+
+                }
 
 
                 if (
@@ -638,12 +1281,38 @@ id="v1a8kc"
                     activeCall =
                         true;
 
+
                     showCallUI(
                         callTarget,
-                        "در حال مکالمه"
+                        "🟢 در حال مکالمه"
                     );
 
+
                     startTimer();
+
+
+                    notify(
+                        "🟢 تماس برقرار شد",
+                        `مکالمه با ${getUserName(callTarget)} شروع شد.`,
+                        true,
+                        false
+                    );
+
+                }
+
+
+                if (
+                    state ===
+                        "disconnected"
+                ) {
+
+                    notify(
+                        "📡 اتصال تماس",
+                        "ارتباط تماس ناپایدار یا قطع شده است.",
+                        true,
+                        false
+                    );
+
                 }
 
 
@@ -654,25 +1323,34 @@ id="v1a8kc"
                         "closed"
                 ) {
 
-                    window.GAPINO?.showToast?.(
-                        "ارتباط تماس قطع شد."
+                    notify(
+                        "❌ تماس",
+                        "ارتباط تماس قطع شد.",
+                        true,
+                        false
                     );
+
 
                     endCall(
                         true,
                         false
                     );
+
                 }
+
             };
 
 
         return peerConnection;
+
     }
 
 
     async function addLocalTracks() {
 
-        if (!localStream) {
+        if (
+            !localStream
+        ) {
 
             localStream =
                 await getMicrophone();
@@ -680,8 +1358,12 @@ id="v1a8kc"
         }
 
 
-        if (!peerConnection) {
+        if (
+            !peerConnection
+        ) {
+
             return;
+
         }
 
 
@@ -694,23 +1376,36 @@ id="v1a8kc"
                 track,
                 localStream
             );
+
         }
+
     }
 
 
     /* =====================================================
-       OUTGOING
+       OUTGOING CALL
        ===================================================== */
 
     async function startCall() {
 
-        if (activeCall) {
+        await unlockAudio();
 
-            window.GAPINO?.showToast?.(
-                "یک تماس در حال اجراست."
+        await requestNotificationPermission();
+
+
+        if (
+            activeCall
+        ) {
+
+            notify(
+                "📞 تماس",
+                "یک تماس در حال اجراست.",
+                true,
+                false
             );
 
             return;
+
         }
 
 
@@ -719,7 +1414,9 @@ id="v1a8kc"
 
 
         const targetId =
-            getUserId(target);
+            getUserId(
+                target
+            );
 
 
         const me =
@@ -727,7 +1424,9 @@ id="v1a8kc"
 
 
         const myId =
-            getUserId(me);
+            getUserId(
+                me
+            );
 
 
         if (
@@ -736,27 +1435,33 @@ id="v1a8kc"
             !myId
         ) {
 
-            window.GAPINO?.showToast?.(
-                "ابتدا یک کاربر را انتخاب کن."
+            notify(
+                "📞 تماس",
+                "ابتدا یک کاربر را انتخاب کن.",
+                true,
+                false
             );
 
             return;
+
         }
 
 
         if (
             !target.online &&
-            !(
-                target.status ===
+            target.status !==
                 "آنلاین"
-            )
         ) {
 
-            window.GAPINO?.showToast?.(
-                "کاربر آفلاین است."
+            notify(
+                "📵 تماس",
+                "کاربر آفلاین است.",
+                true,
+                false
             );
 
             return;
+
         }
 
 
@@ -782,7 +1487,15 @@ id="v1a8kc"
 
             showCallUI(
                 target,
-                "در حال تماس..."
+                "📤 در حال تماس..."
+            );
+
+
+            notify(
+                "📞 تماس خروجی",
+                `در حال تماس با ${getUserName(target)}`,
+                true,
+                false
             );
 
 
@@ -824,14 +1537,18 @@ id="v1a8kc"
                     offer:
                         peerConnection
                             .localDescription
+
                 });
 
 
-            if (!sent) {
+            if (
+                !sent
+            ) {
 
                 cleanup();
 
                 return;
+
             }
 
         } catch (error) {
@@ -841,24 +1558,38 @@ id="v1a8kc"
                 error
             );
 
+
             cleanup();
 
-            window.GAPINO?.showToast?.(
-                "دسترسی به میکروفن ممکن نشد."
+
+            notify(
+                "❌ تماس",
+                "برقراری تماس انجام نشد.",
+                true,
+                false
             );
+
         }
+
     }
 
 
     /* =====================================================
-       INCOMING
+       INCOMING CALL
        ===================================================== */
 
     async function handleOffer(
         data
     ) {
 
-        if (activeCall) {
+        await unlockAudio();
+
+        await requestNotificationPermission();
+
+
+        if (
+            activeCall
+        ) {
 
             send({
 
@@ -870,9 +1601,20 @@ id="v1a8kc"
 
                 call_id:
                     data.call_id
+
             });
 
+
+            notify(
+                "📵 تماس ورودی",
+                "شما در حال مکالمه هستید.",
+                true,
+                false
+            );
+
+
             return;
+
         }
 
 
@@ -887,7 +1629,9 @@ id="v1a8kc"
         const caller =
             users.find(
                 user =>
-                    getUserId(user) ===
+                    getUserId(
+                        user
+                    ) ===
                     String(
                         data.sender_id
                     )
@@ -930,10 +1674,31 @@ id="v1a8kc"
             caller,
             "📞 تماس ورودی"
         );
+
+
+        notify(
+            "📞 تماس ورودی",
+            `${getUserName(caller)} با شما تماس می‌گیرد.`,
+            true,
+            true
+        );
+
+
+        startRing();
+
     }
 
 
+    /* =====================================================
+       ACCEPT CALL
+       ===================================================== */
+
     async function acceptCall() {
+
+        await unlockAudio();
+
+        stopRing();
+
 
         if (
             !pendingOffer ||
@@ -941,10 +1706,19 @@ id="v1a8kc"
         ) {
 
             return;
+
         }
 
 
         try {
+
+            notify(
+                "✅ تماس",
+                "در حال پاسخ به تماس...",
+                true,
+                false
+            );
+
 
             localStream =
                 await getMicrophone();
@@ -998,6 +1772,7 @@ id="v1a8kc"
                 answer:
                     peerConnection
                         .localDescription
+
             });
 
 
@@ -1007,7 +1782,15 @@ id="v1a8kc"
 
             showCallUI(
                 callTarget,
-                "در حال اتصال..."
+                "🔄 در حال اتصال..."
+            );
+
+
+            notify(
+                "🔄 تماس",
+                "در حال اتصال...",
+                false,
+                false
             );
 
         } catch (error) {
@@ -1017,15 +1800,22 @@ id="v1a8kc"
                 error
             );
 
-            window.GAPINO?.showToast?.(
-                "برقراری تماس انجام نشد."
+
+            notify(
+                "❌ تماس",
+                "پاسخ به تماس انجام نشد.",
+                true,
+                false
             );
+
 
             endCall(
                 true,
                 false
             );
+
         }
+
     }
 
 
@@ -1043,6 +1833,7 @@ id="v1a8kc"
         ) {
 
             return;
+
         }
 
 
@@ -1056,6 +1847,7 @@ id="v1a8kc"
         ) {
 
             return;
+
         }
 
 
@@ -1074,7 +1866,15 @@ id="v1a8kc"
 
             showCallUI(
                 callTarget,
-                "در حال اتصال..."
+                "🔄 در حال اتصال..."
+            );
+
+
+            notify(
+                "✅ پاسخ تماس",
+                `${getUserName(callTarget)} تماس را پذیرفت.`,
+                true,
+                false
             );
 
         } catch (error) {
@@ -1084,11 +1884,22 @@ id="v1a8kc"
                 error
             );
 
+
+            notify(
+                "❌ تماس",
+                "پاسخ تماس نامعتبر بود.",
+                true,
+                false
+            );
+
+
             endCall(
                 true,
                 false
             );
+
         }
+
     }
 
 
@@ -1100,8 +1911,12 @@ id="v1a8kc"
         data
     ) {
 
-        if (!data.candidate) {
+        if (
+            !data.candidate
+        ) {
+
             return;
+
         }
 
 
@@ -1115,6 +1930,7 @@ id="v1a8kc"
             );
 
             return;
+
         }
 
 
@@ -1133,7 +1949,9 @@ id="v1a8kc"
                 "ICE error:",
                 error
             );
+
         }
+
     }
 
 
@@ -1145,11 +1963,14 @@ id="v1a8kc"
         ) {
 
             return;
+
         }
 
 
         const list =
-            pendingIce.splice(0);
+            pendingIce.splice(
+                0
+            );
 
 
         for (
@@ -1167,17 +1988,24 @@ id="v1a8kc"
                     );
 
             } catch (_) {}
+
         }
+
     }
 
 
     /* =====================================================
-       REJECT / BUSY
+       REJECT
        ===================================================== */
 
     function rejectCall() {
 
-        if (callTarget) {
+        stopRing();
+
+
+        if (
+            callTarget
+        ) {
 
             send({
 
@@ -1191,55 +2019,109 @@ id="v1a8kc"
 
                 call_id:
                     currentCallId
+
             });
+
         }
 
 
+        notify(
+            "❌ تماس",
+            "تماس رد شد.",
+            true,
+            false
+        );
+
+
         cleanup();
+
     }
 
 
     function handleReject() {
 
-        window.GAPINO?.showToast?.(
-            "تماس رد شد."
+        stopRing();
+
+
+        notify(
+            "❌ تماس",
+            "تماس شما رد شد.",
+            true,
+            true
         );
 
-        cleanup();
-    }
-
-
-    function handleBusy() {
-
-        window.GAPINO?.showToast?.(
-            "کاربر در حال مکالمه است."
-        );
 
         cleanup();
-    }
 
-
-    function handleRemoteEnd() {
-
-        window.GAPINO?.showToast?.(
-            "تماس پایان یافت."
-        );
-
-        cleanup();
     }
 
 
     /* =====================================================
-       END
+       BUSY
+       ===================================================== */
+
+    function handleBusy() {
+
+        stopRing();
+
+
+        notify(
+            "📵 تماس",
+            "کاربر در حال مکالمه است.",
+            true,
+            true
+        );
+
+
+        cleanup();
+
+    }
+
+
+    /* =====================================================
+       REMOTE END
+       ===================================================== */
+
+    function handleRemoteEnd() {
+
+        stopRing();
+
+
+        notify(
+            "☎️ تماس پایان یافت",
+            `تماس با ${getUserName(callTarget)}`,
+            true,
+            true
+        );
+
+
+        cleanup();
+
+    }
+
+
+    /* =====================================================
+       END CALL
        ===================================================== */
 
     function endCall(
-        notify = true,
+        notifyRemote = true,
         showMessage = true
     ) {
 
+        stopRing();
+
+
+        const targetName =
+            callTarget
+                ? getUserName(
+                    callTarget
+                )
+                : "کاربر";
+
+
         if (
-            notify &&
+            notifyRemote &&
             callTarget
         ) {
 
@@ -1255,31 +2137,48 @@ id="v1a8kc"
 
                 call_id:
                     currentCallId
+
             });
+
         }
 
 
         if (
-            showMessage &&
-            activeCall
+            showMessage
         ) {
 
-            window.GAPINO?.showToast?.(
-                "تماس قطع شد."
+            notify(
+                "☎️ تماس",
+                "تماس قطع شد.",
+                true,
+                false
             );
+
         }
 
 
         cleanup();
+
     }
 
 
+    /* =====================================================
+       CLEANUP
+       ===================================================== */
+
     function cleanup() {
 
-        if (peerConnection) {
+        stopRing();
+
+
+        if (
+            peerConnection
+        ) {
 
             try {
+
                 peerConnection.close();
+
             } catch (_) {}
 
         }
@@ -1289,7 +2188,9 @@ id="v1a8kc"
             null;
 
 
-        if (localStream) {
+        if (
+            localStream
+        ) {
 
             localStream
                 .getTracks()
@@ -1297,7 +2198,9 @@ id="v1a8kc"
                     track => {
 
                         try {
+
                             track.stop();
+
                         } catch (_) {}
 
                     }
@@ -1310,15 +2213,24 @@ id="v1a8kc"
             null;
 
 
-        if (remoteAudio) {
+        if (
+            remoteAudio
+        ) {
 
             remoteAudio.srcObject =
                 null;
 
-            remoteAudio.remove();
+
+            try {
+
+                remoteAudio.remove();
+
+            } catch (_) {}
+
 
             remoteAudio =
                 null;
+
         }
 
 
@@ -1347,6 +2259,7 @@ id="v1a8kc"
 
 
         hideCallUI();
+
     }
 
 
@@ -1362,8 +2275,12 @@ id="v1a8kc"
                 event.detail;
 
 
-            if (!data) {
+            if (
+                !data
+            ) {
+
                 return;
+
             }
 
 
@@ -1377,6 +2294,7 @@ id="v1a8kc"
                 );
 
                 return;
+
             }
 
 
@@ -1390,6 +2308,7 @@ id="v1a8kc"
                 );
 
                 return;
+
             }
 
 
@@ -1403,6 +2322,7 @@ id="v1a8kc"
                 );
 
                 return;
+
             }
 
 
@@ -1414,6 +2334,7 @@ id="v1a8kc"
                 handleReject();
 
                 return;
+
             }
 
 
@@ -1425,6 +2346,7 @@ id="v1a8kc"
                 handleBusy();
 
                 return;
+
             }
 
 
@@ -1436,17 +2358,19 @@ id="v1a8kc"
                 handleRemoteEnd();
 
             }
+
         }
     );
 
 
     /* =====================================================
-       INIT
+       INITIALIZATION
        ===================================================== */
 
     function init() {
 
         createCallUI();
+
 
         window.GAPINO_CALL = {
 
@@ -1466,6 +2390,7 @@ id="v1a8kc"
                 rejectCall
 
         };
+
     }
 
 
@@ -1477,7 +2402,10 @@ id="v1a8kc"
         document.addEventListener(
             "DOMContentLoaded",
             init,
-            { once: true }
+            {
+                once:
+                    true
+            }
         );
 
     } else {
