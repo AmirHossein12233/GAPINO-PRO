@@ -1,5065 +1,2871 @@
-from __future__ import annotations
-
-import hashlib
-import hmac
-import json
-import mimetypes
-import os
-import re
-import secrets
-import sqlite3
-import time
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any
-
-from fastapi import (
-    FastAPI,
-    File,
-    Form,
-    HTTPException,
-    Request,
-    UploadFile,
-    WebSocket,
-    WebSocketDisconnect,
-)
-from fastapi.responses import (
-    FileResponse,
-    HTMLResponse,
-    JSONResponse,
-)
-from fastapi.staticfiles import StaticFiles
-from passlib.context import CryptContext
-from starlette.middleware.sessions import SessionMiddleware
-
-
-# =========================================================
-# PATHS
-# =========================================================
-
-BASE_DIR = Path(__file__).resolve().parent
-
-DATA_DIR = BASE_DIR / "data"
-FRONTEND_DIR = BASE_DIR / "frontend"
-UPLOADS_DIR = DATA_DIR / "uploads"
-DB_PATH = DATA_DIR / "gapino.db"
-
-DATA_DIR.mkdir(
-    parents=True,
-    exist_ok=True,
-)
-
-FRONTEND_DIR.mkdir(
-    parents=True,
-    exist_ok=True,
-)
-
-UPLOADS_DIR.mkdir(
-    parents=True,
-    exist_ok=True,
-)
-
-
-# =========================================================
-# CONFIG
-# =========================================================
-
-SESSION_SECRET = os.getenv(
-    "GAPINO_SESSION_SECRET",
-    "change-this-gapino-secret-before-production",
-)
-
-MAX_UPLOAD_SIZE = 10 * 1024 * 1024
-MAX_AVATAR_SIZE = 5 * 1024 * 1024
-MAX_LIVE_CHAT_LENGTH = 1000
-WS_TICKET_TTL = 10 * 60
-
-
-# =========================================================
-# APP
-# =========================================================
-
-app = FastAPI(
-    title="GAPINO Pro",
-    version="1.2.0",
-    description="GAPINO Messenger + Live",
-)
-
-
-# =========================================================
-# SESSION
-# =========================================================
-
-app.add_middleware(
-    SessionMiddleware,
-    secret_key=SESSION_SECRET,
-    session_cookie="gapino_session",
-    max_age=60 * 60 * 24 * 30,
-    same_site="lax",
-    https_only=True,
-)
-
-
-# =========================================================
-# STATIC FILES
-# =========================================================
-
-app.mount(
-    "/frontend",
-    StaticFiles(
-        directory=FRONTEND_DIR
-    ),
-    name="frontend",
-)
-
-app.mount(
-    "/static",
-    StaticFiles(
-        directory=FRONTEND_DIR
-    ),
-    name="static",
-)
-
-app.mount(
-    "/uploads",
-    StaticFiles(
-        directory=UPLOADS_DIR
-    ),
-    name="uploads",
-)
-
-
-# =========================================================
-# PASSWORD
-# =========================================================
-
-pwd = CryptContext(
-    schemes=["pbkdf2_sha256"],
-    deprecated="auto",
-)
-
-
-# =========================================================
-# NORMAL WEBSOCKET CONNECTIONS
-# =========================================================
-
-connections: dict[
-    int,
-    set[WebSocket]
-] = {}
-
-
-# =========================================================
-# WEBSOCKET TICKETS
-# =========================================================
-
-ws_tickets: dict[
-    str,
-    dict[str, Any]
-] = {}
-
-
-# =========================================================
-# LIVE ROOMS
-# =========================================================
-
-live_rooms: dict[
-    str,
-    dict[str, Any]
-] = {}
-
-
-live_socket_peers: dict[
-    WebSocket,
-    set[tuple[str, str]]
-] = {}
-
-
-# =========================================================
-# TIME
-# =========================================================
-
-def now() -> str:
-    return datetime.now(
-        timezone.utc
-    ).isoformat()
-
-
-# =========================================================
-# DATABASE
-# =========================================================
-
-def db() -> sqlite3.Connection:
-    conn = sqlite3.connect(
-        DB_PATH,
-        timeout=20,
-    )
-
-    conn.row_factory = sqlite3.Row
-
-    conn.execute(
-        "PRAGMA foreign_keys = ON"
-    )
-
-    return conn
-
-
-def init_db() -> None:
-
-    conn = db()
-
-    conn.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            display_name TEXT NOT NULL,
-            bio TEXT DEFAULT '',
-            avatar TEXT DEFAULT '',
-            status TEXT DEFAULT 'در دسترس',
-            created_at TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            sender_id INTEGER NOT NULL,
-            receiver_id INTEGER,
-            group_id INTEGER,
-            text TEXT DEFAULT '',
-            file_name TEXT DEFAULT '',
-            file_url TEXT DEFAULT '',
-            mime_type TEXT DEFAULT '',
-            created_at TEXT NOT NULL,
-            edited INTEGER DEFAULT 0,
-            deleted INTEGER DEFAULT 0,
-            FOREIGN KEY(sender_id)
-                REFERENCES users(id)
-                ON DELETE CASCADE,
-            FOREIGN KEY(receiver_id)
-                REFERENCES users(id)
-                ON DELETE CASCADE
-        );
-
-        CREATE TABLE IF NOT EXISTS groups (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            owner_id INTEGER NOT NULL,
-            created_at TEXT NOT NULL,
-            FOREIGN KEY(owner_id)
-                REFERENCES users(id)
-                ON DELETE CASCADE
-        );
-
-        CREATE TABLE IF NOT EXISTS group_members (
-            group_id INTEGER NOT NULL,
-            user_id INTEGER NOT NULL,
-            PRIMARY KEY(group_id, user_id),
-            FOREIGN KEY(group_id)
-                REFERENCES groups(id)
-                ON DELETE CASCADE,
-            FOREIGN KEY(user_id)
-                REFERENCES users(id)
-                ON DELETE CASCADE
-        );
-
-        CREATE TABLE IF NOT EXISTS reactions (
-            message_id INTEGER NOT NULL,
-            user_id INTEGER NOT NULL,
-            emoji TEXT NOT NULL,
-            PRIMARY KEY(
-                message_id,
-                user_id,
-                emoji
-            ),
-            FOREIGN KEY(message_id)
-                REFERENCES messages(id)
-                ON DELETE CASCADE,
-            FOREIGN KEY(user_id)
-                REFERENCES users(id)
-                ON DELETE CASCADE
-        );
-        """
-    )
-
-    conn.commit()
-    conn.close()
-
-
-init_db()
-
-
-# =========================================================
-# RECOVERY COLUMN
-# =========================================================
-
-def ensure_recovery_column() -> None:
-
-    conn = db()
-
-    columns = {
-        row[1]
-        for row in conn.execute(
-            "PRAGMA table_info(users)"
-        ).fetchall()
-    }
-
-    if "recovery_code" not in columns:
-
-        conn.execute(
-            """
-            ALTER TABLE users
-            ADD COLUMN recovery_code TEXT DEFAULT ''
-            """
-        )
-
-        conn.commit()
-
-    conn.close()
-
-
-ensure_recovery_column()
-
-
-# =========================================================
-# PASSWORD HELPERS
-# =========================================================
-
-def hash_password(
-    password: str,
-) -> str:
-
-    return pwd.hash(
-        password
-    )
-
-
-def verify_password(
-    password: str,
-    stored_hash: str,
-) -> bool:
-
-    if (
-        not password
-        or not stored_hash
-    ):
-
-        return False
-
-    stored_hash = str(
-        stored_hash
-    ).strip()
-
-    if (
-        stored_hash.startswith(
-            "$pbkdf2$"
-        )
-        and not stored_hash.startswith(
-            "$pbkdf2-sha256$"
-        )
-    ):
-
-        parts = stored_hash.split(
-            "$"
-        )
-
-        if len(parts) != 4:
-            return False
-
-        try:
-
-            digest = hashlib.pbkdf2_hmac(
-                "sha256",
-                password.encode(
-                    "utf-8"
-                ),
-                parts[2].encode(
-                    "utf-8"
-                ),
-                120_000,
-            ).hex()
-
-            return hmac.compare_digest(
-                digest,
-                parts[3],
-            )
-
-        except Exception:
-
-            return False
-
-    try:
-
-        return bool(
-            pwd.verify(
-                password,
-                stored_hash,
-            )
-        )
-
-    except Exception:
-
-        pass
-
-    for scheme_name, prefixes in (
-        (
-            "argon2",
-            ("$argon2",),
-        ),
-        (
-            "bcrypt",
-            (
-                "$2a$",
-                "$2b$",
-                "$2y$",
-            ),
-        ),
-    ):
-
-        try:
-
-            matches = (
-                stored_hash.startswith(
-                    prefixes
-                )
-            )
-
-            if not matches:
-                continue
-
-            scheme = getattr(
-                __import__(
-                    "passlib.hash",
-                    fromlist=[
-                        scheme_name
-                    ],
-                ),
-                scheme_name,
-            )
-
-            return bool(
-                scheme.verify(
-                    password,
-                    stored_hash,
-                )
-            )
-
-        except Exception:
-
-            return False
-
-    return False
-
-
-def needs_password_upgrade(
-    stored_hash: str,
-) -> bool:
-
-    value = str(
-        stored_hash or ""
-    ).strip()
-
-    return (
-        (
-            value.startswith(
-                "$pbkdf2$"
-            )
-            and not value.startswith(
-                "$pbkdf2-sha256$"
-            )
-        )
-        or value.startswith(
-            "$argon2"
-        )
-        or value.startswith(
-            (
-                "$2a$",
-                "$2b$",
-                "$2y$",
-            )
-        )
-    )
-
-
-# =========================================================
-# USER HELPERS
-# =========================================================
-
-def user_by_id(
-    user_id: int,
-) -> dict[str, Any] | None:
-
-    conn = db()
-
-    row = conn.execute(
-        """
-        SELECT
-            id,
-            username,
-            display_name,
-            bio,
-            avatar,
-            status,
-            created_at
-        FROM users
-        WHERE id = ?
-        """,
-        (
-            user_id,
-        ),
-    ).fetchone()
-
-    conn.close()
-
-    return (
-        dict(row)
-        if row
-        else None
-    )
-
-
-def user_by_username(
-    username: str,
-) -> dict[str, Any] | None:
-
-    conn = db()
-
-    row = conn.execute(
-        """
-        SELECT
-            id,
-            username,
-            display_name,
-            bio,
-            avatar,
-            status,
-            created_at
-        FROM users
-        WHERE LOWER(username)
-            = LOWER(?)
-        """,
-        (
-            str(
-                username or ""
-            )
-            .strip()
-            .lower(),
-        ),
-    ).fetchone()
-
-    conn.close()
-
-    return (
-        dict(row)
-        if row
-        else None
-    )
-
-
-def public_user(
-    user: dict[str, Any],
-) -> dict[str, Any]:
-
-    return {
-        "id": user["id"],
-        "username": user["username"],
-        "display_name": user["display_name"],
-        "bio": user.get(
-            "bio",
-            "",
-        ),
-        "avatar": user.get(
-            "avatar",
-            "",
-        ),
-        "status": user.get(
-            "status",
-            "در دسترس",
-        ),
-        "created_at": user.get(
-            "created_at",
-            "",
-        ),
-    }
-
-
-# =========================================================
-# AUTH HELPERS
-# =========================================================
-
-def current_user(
-    request: Request,
-) -> dict[str, Any] | None:
-
-    uid = request.session.get(
-        "uid"
-    )
-
-    if uid is None:
-        return None
-
-    try:
-
-        return user_by_id(
-            int(uid)
-        )
-
-    except (
-        TypeError,
-        ValueError,
-    ):
-
-        return None
-
-
-def require_user(
-    request: Request,
-) -> dict[str, Any]:
-
-    user = current_user(
-        request
-    )
-
-    if not user:
-
-        raise HTTPException(
-            status_code=401,
-            detail="نیاز به ورود دارید",
-        )
-
-    return user
-
-
-# =========================================================
-# WS TICKET
-# =========================================================
-
-def cleanup_tickets() -> None:
-
-    current = time.time()
-
-    for ticket in list(
-        ws_tickets
-    ):
-
-        info = ws_tickets.get(
-            ticket
-        )
-
-        if not info:
-            continue
-
-        if float(
-            info.get(
-                "expires",
-                0,
-            )
-        ) <= current:
-
-            ws_tickets.pop(
-                ticket,
-                None,
-            )
-
-
-def make_ws_ticket(
-    user_id: int,
-) -> str:
-
-    cleanup_tickets()
-
-    ticket = secrets.token_urlsafe(
-        32
-    )
-
-    ws_tickets[
-        ticket
-    ] = {
-        "uid":
-            int(user_id),
-        "expires":
-            time.time()
-            + WS_TICKET_TTL,
-    }
-
-    return ticket
-
-
-def consume_ws_ticket(
-    ticket: str,
-) -> int | None:
-
-    cleanup_tickets()
-
-    info = ws_tickets.pop(
-        ticket,
-        None,
-    )
-
-    if not info:
-        return None
-
-    if float(
-        info.get(
-            "expires",
-            0,
-        )
-    ) <= time.time():
-
-        return None
-
-    try:
-
-        return int(
-            info["uid"]
-        )
-
-    except (
-        KeyError,
-        TypeError,
-        ValueError,
-    ):
-
-        return None
-
-
-def set_ws_cookie(
-    user_id: int,
-    response: JSONResponse,
-) -> None:
-
-    response.set_cookie(
-        "gapino_ws_ticket",
-        make_ws_ticket(
-            user_id
-        ),
-        max_age=WS_TICKET_TTL,
-        httponly=True,
-        samesite="lax",
-        secure=True,
-        path="/",
-    )
-
-
-# =========================================================
-# GENERAL WS BROADCAST
-# =========================================================
-
-async def send_ws(
-    websocket: WebSocket,
-    payload: dict[str, Any],
-) -> None:
-
-    try:
-
-        await websocket.send_text(
-            json.dumps(
-                payload,
-                ensure_ascii=False,
-            )
-        )
-
-    except Exception:
-
-        pass
-
-
-async def broadcast(
-    user_id: int,
-    payload: dict[str, Any],
-) -> None:
-
-    sockets = connections.get(
-        int(user_id),
-        set(),
-    )
-
-    if not sockets:
-        return
-
-    text = json.dumps(
-        payload,
-        ensure_ascii=False,
-    )
-
-    dead = []
-
-    for websocket in list(
-        sockets
-    ):
-
-        try:
-
-            await websocket.send_text(
-                text
-            )
-
-        except Exception:
-
-            dead.append(
-                websocket
-            )
-
-    for websocket in dead:
-
-        sockets.discard(
-            websocket
-        )
-
-    if not sockets:
-
-        connections.pop(
-            int(user_id),
-            None,
-        )
-
-
-# =========================================================
-# LIVE HELPERS
-# =========================================================
-
-def get_live_room(
-    room_id: str,
-) -> dict[str, Any] | None:
-
-    room_id = str(
-        room_id or ""
-    ).strip()
-
-    if not room_id:
-        return None
-
-    return live_rooms.get(
-        room_id
-    )
-
-
-def live_peer_uid(
-    room: dict[str, Any],
-    peer_id: str,
-) -> int | None:
-
-    try:
-
-        return int(
-            room[
-                "peers"
-            ].get(
-                peer_id
-            )
-        )
-
-    except (
-        TypeError,
-        ValueError,
-    ):
-
-        return None
-
-
-def live_peer_count(
-    room: dict[str, Any],
-) -> int:
-
-    return max(
-        0,
-        len(
-            room.get(
-                "peers",
-                {},
-            )
-        ),
-    )
-
-
-def live_host_user(
-    room: dict[str, Any],
-) -> dict[str, Any] | None:
-
-    try:
-
-        host_uid = int(
-            room[
-                "host_uid"
-            ]
-        )
-
-    except (
-        KeyError,
-        TypeError,
-        ValueError,
-    ):
-
-        return None
-
-    return user_by_id(
-        host_uid
-    )
-
-
-async def send_live_to_uid(
-    uid: int,
-    payload: dict[str, Any],
-) -> None:
-
-    await broadcast(
-        int(uid),
-        payload,
-    )
-
-
-async def broadcast_live_room(
-    room: dict[str, Any],
-    payload: dict[str, Any],
-    exclude_peer_id: str | None = None,
-) -> None:
-
-    peers = room.get(
-        "peers",
-        {},
-    )
-
-    sent_users: set[int] = set()
-
-    for (
-        peer_id,
-        uid,
-    ) in list(
-        peers.items()
-    ):
-
-        if (
-            exclude_peer_id
-            and peer_id
-            == exclude_peer_id
-        ):
-            continue
-
-        try:
-
-            uid_int = int(
-                uid
-            )
-
-        except (
-            TypeError,
-            ValueError,
-        ):
-
-            continue
-
-        if uid_int in sent_users:
-            continue
-
-        sent_users.add(
-            uid_int
-        )
-
-        await send_live_to_uid(
-            uid_int,
-            payload,
-        )
-
-
-async def send_live_viewer_count(
-    room: dict[str, Any],
-) -> None:
-
-    await broadcast_live_room(
-        room,
-        {
-            "type":
-                "live_viewers",
-
-            "room_id":
-                room["room_id"],
-
-            "count":
-                live_peer_count(
-                    room
-                ),
-        },
-    )
-
-
-async def remove_live_peer(
-    room_id: str,
-    peer_id: str,
-    notify: bool = True,
-) -> None:
-
-    room = live_rooms.get(
-        room_id
-    )
-
-    if not room:
-        return
-
-    peers = room.get(
-        "peers",
-        {},
-    )
-
-    uid = peers.pop(
-        peer_id,
-        None,
-    )
-
-    if uid is None:
-        return
-
-    if (
-        int(uid)
-        == int(
-            room["host_uid"]
-        )
-    ):
-
-        if notify:
-
-            await broadcast_live_room(
-                room,
-                {
-                    "type":
-                        "live_stopped",
-
-                    "room_id":
-                        room_id,
-
-                    "reason":
-                        "host_left",
-                },
-                exclude_peer_id=peer_id,
-            )
-
-        live_rooms.pop(
-            room_id,
-            None,
-        )
-
-        return
-
-    if notify:
-
-        await broadcast_live_room(
-            room,
-            {
-                "type":
-                    "live_peer_left",
-
-                "room_id":
-                    room_id,
-
-                "peer_id":
-                    peer_id,
-            },
-        )
-
-        await send_live_viewer_count(
-            room
-        )
-
-    if not peers:
-
-        live_rooms.pop(
-            room_id,
-            None,
-        )
-
-
-# =========================================================
-# PAGES
-# =========================================================
-
-@app.get(
-    "/",
-    response_class=HTMLResponse,
-)
-def root(
-    request: Request,
-):
-
-    filename = (
-        "chat.html"
-        if current_user(
-            request
-        )
-        else "login.html"
-    )
-
-    path = (
-        FRONTEND_DIR
-        / filename
-    )
-
-    if not path.exists():
-
-        raise HTTPException(
-            status_code=500,
-            detail=(
-                f"{filename} پیدا نشد"
-            ),
-        )
-
-    return FileResponse(
-        path,
-        media_type=(
-            "text/html; "
-            "charset=utf-8"
-        ),
-    )
-
-
-@app.get(
-    "/login.html",
-    response_class=HTMLResponse,
-)
-def login_page():
-
-    path = (
-        FRONTEND_DIR
-        / "login.html"
-    )
-
-    if not path.exists():
-
-        raise HTTPException(
-            status_code=404,
-            detail=(
-                "login.html پیدا نشد"
-            ),
-        )
-
-    return FileResponse(
-        path,
-        media_type=(
-            "text/html; "
-            "charset=utf-8"
-        ),
-    )
-
-
-@app.get(
-    "/register.html",
-    response_class=HTMLResponse,
-)
-def register_page():
-
-    path = (
-        FRONTEND_DIR
-        / "register.html"
-    )
-
-    if not path.exists():
-
-        raise HTTPException(
-            status_code=404,
-            detail=(
-                "register.html پیدا نشد"
-            ),
-        )
-
-    return FileResponse(
-        path,
-        media_type=(
-            "text/html; "
-            "charset=utf-8"
-        ),
-    )
-
-
-@app.get(
-    "/chat.html",
-    response_class=HTMLResponse,
-)
-def chat_page():
-
-    path = (
-        FRONTEND_DIR
-        / "chat.html"
-    )
-
-    if not path.exists():
-
-        raise HTTPException(
-            status_code=404,
-            detail=(
-                "chat.html پیدا نشد"
-            ),
-        )
-
-    return FileResponse(
-        path,
-        media_type=(
-            "text/html; "
-            "charset=utf-8"
-        ),
-    )
-
-
-@app.get(
-    "/live.html",
-    response_class=HTMLResponse,
-)
-def live_page():
-
-    path = (
-        FRONTEND_DIR
-        / "live.html"
-    )
-
-    if not path.exists():
-
-        raise HTTPException(
-            status_code=404,
-            detail=(
-                "live.html پیدا نشد"
-            ),
-        )
-
-    return FileResponse(
-        path,
-        media_type=(
-            "text/html; "
-            "charset=utf-8"
-        ),
-    )
-
-
-@app.get(
-    "/profile.html",
-    response_class=HTMLResponse,
-)
-def profile_page():
-
-    path = (
-        FRONTEND_DIR
-        / "profile.html"
-    )
-
-    if not path.exists():
-
-        raise HTTPException(
-            status_code=404,
-            detail=(
-                "profile.html پیدا نشد"
-            ),
-        )
-
-    return FileResponse(
-        path,
-        media_type=(
-            "text/html; "
-            "charset=utf-8"
-        ),
-    )
-
-
-@app.get(
-    "/recovery.html",
-    response_class=HTMLResponse,
-)
-def recovery_page():
-
-    path = (
-        FRONTEND_DIR
-        / "recovery.html"
-    )
-
-    if not path.exists():
-
-        raise HTTPException(
-            status_code=404,
-            detail=(
-                "recovery.html پیدا نشد"
-            ),
-        )
-
-    return FileResponse(
-        path,
-        media_type=(
-            "text/html; "
-            "charset=utf-8"
-        ),
-    )
-
-
-# =========================================================
-# HEALTH
-# =========================================================
-
-@app.get("/health")
-def health():
-
-    return {
-        "ok":
-            True,
-
-        "status":
-            "ok",
-
-        "app":
-            "GAPINO Pro",
-
-        "version":
-            "1.2.0",
-
-        "time":
-            now(),
-
-        "database":
-            DB_PATH.exists(),
-
-        "frontend":
-            FRONTEND_DIR.exists(),
-
-        "online_users":
-            len(
-                connections
-            ),
-
-        "live_rooms":
-            len(
-                live_rooms
-            ),
-    }
-
-
-# =========================================================
-# REGISTER
-# =========================================================
-
-@app.post(
-    "/api/register"
-)
-def register(
-    request: Request,
-    username: str = Form(...),
-    password: str = Form(...),
-    display_name: str = Form(...),
-):
-
-    username = (
-        username
-        .strip()
-        .lower()
-    )
-
-    display_name = (
-        display_name
-        .strip()
-        or username
-    )
-
-    if (
-        len(username) < 3
-        or len(username) > 32
-    ):
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "نام کاربری باید "
-                "بین ۳ تا ۳۲ کاراکتر باشد"
-            ),
-        )
-
-    if not re.fullmatch(
-        r"[a-zA-Z0-9_.-]+",
-        username,
-    ):
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "نام کاربری فقط می‌تواند "
-                "شامل حروف انگلیسی، عدد، "
-                "نقطه، خط تیره و زیرخط باشد"
-            ),
-        )
-
-    if len(password) < 6:
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "رمز عبور حداقل "
-                "۶ کاراکتر باشد"
-            ),
-        )
-
-    if len(display_name) > 60:
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "نام نمایشی خیلی طولانی است"
-            ),
-        )
-
-    recovery_code = (
-        secrets.token_hex(
-            8
-        ).upper()
-    )
-
-    conn = db()
-
-    try:
-
-        cursor = conn.execute(
-            """
-            INSERT INTO users(
-                username,
-                password,
-                display_name,
-                created_at,
-                recovery_code
-            )
-            VALUES(
-                ?,
-                ?,
-                ?,
-                ?,
-                ?
-            )
-            """,
-            (
-                username,
-                hash_password(
-                    password
-                ),
-                display_name,
-                now(),
-                recovery_code,
-            ),
-        )
-
-        conn.commit()
-
-        user_id = int(
-            cursor.lastrowid
-        )
-
-    except sqlite3.IntegrityError:
-
-        conn.rollback()
-
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                "این نام کاربری "
-                "قبلاً ثبت شده است"
-            ),
-        )
-
-    finally:
-
-        conn.close()
-
-    request.session.clear()
-
-    request.session["uid"] = (
-        user_id
-    )
-
-    user = user_by_id(
-        user_id
-    )
-
-    response = JSONResponse(
-        {
-            "ok":
-                True,
-
-            "success":
-                True,
-
-            "user":
-                public_user(
-                    user
-                ),
-
-            "recovery_code":
-                recovery_code,
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    >
+
+    <meta
+        name="theme-color"
+        content="#0f172a"
+    >
+
+    <title>گپینو | چت</title>
+
+    <link
+        rel="stylesheet"
+        href="/static/style.css?v=310"
+    >
+
+    <style>
+        /* =====================================================
+           BASE
+           ===================================================== */
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
         }
-    )
 
-    set_ws_cookie(
-        user_id,
-        response,
-    )
-
-    return response
-
-
-# =========================================================
-# LOGIN
-# =========================================================
-
-@app.post(
-    "/api/login"
-)
-def login(
-    request: Request,
-    username: str = Form(...),
-    password: str = Form(...),
-):
-
-    username = (
-        username
-        .strip()
-        .lower()
-    )
-
-    conn = db()
-
-    row = conn.execute(
-        """
-        SELECT *
-        FROM users
-        WHERE LOWER(username)
-            = LOWER(?)
-        """,
-        (
-            username,
-        ),
-    ).fetchone()
-
-    conn.close()
-
-    if (
-        not row
-        or not verify_password(
-            password,
-            row["password"],
-        )
-    ):
-
-        raise HTTPException(
-            status_code=401,
-            detail=(
-                "نام کاربری یا "
-                "رمز عبور نادرست است"
-            ),
-        )
-
-    user_id = int(
-        row["id"]
-    )
-
-    if needs_password_upgrade(
-        row["password"]
-    ):
-
-        conn = db()
-
-        conn.execute(
-            """
-            UPDATE users
-            SET password = ?
-            WHERE id = ?
-            """,
-            (
-                hash_password(
-                    password
-                ),
-                user_id,
-            ),
-        )
-
-        conn.commit()
-        conn.close()
-
-    request.session.clear()
-
-    request.session["uid"] = (
-        user_id
-    )
-
-    user = user_by_id(
-        user_id
-    )
-
-    response = JSONResponse(
-        {
-            "ok":
-                True,
-
-            "success":
-                True,
-
-            "user":
-                public_user(
-                    user
-                ),
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
         }
-    )
 
-    set_ws_cookie(
-        user_id,
-        response,
-    )
-
-    return response
-
-
-# =========================================================
-# LOGOUT
-# =========================================================
-
-@app.post(
-    "/api/logout"
-)
-def logout(
-    request: Request,
-):
-
-    uid = request.session.get(
-        "uid"
-    )
-
-    request.session.clear()
-
-    if uid is not None:
-
-        try:
-
-            connections.pop(
-                int(uid),
-                None,
-            )
-
-        except (
-            TypeError,
-            ValueError,
-        ):
-
-            pass
-
-    response = JSONResponse(
-        {
-            "ok":
-                True,
-
-            "success":
-                True,
+        html {
+            overflow: hidden;
         }
-    )
 
-    response.delete_cookie(
-        "gapino_session",
-        path="/",
-    )
+        body {
+            overflow: hidden;
+            font-family: inherit;
+        }
 
-    response.delete_cookie(
-        "gapino_ws_ticket",
-        path="/",
-    )
+        button,
+        input,
+        textarea {
+            font: inherit;
+        }
 
-    return response
+        button {
+            -webkit-tap-highlight-color: transparent;
+        }
 
+        /* =====================================================
+           APP
+           ===================================================== */
 
-# =========================================================
-# ME
-# =========================================================
+        .app-shell {
+            width: 100%;
+            height: 100dvh;
+            min-height: 100vh;
 
-@app.get(
-    "/api/me"
-)
-def me(
-    request: Request,
-):
+            display: flex;
+            flex-direction: row;
 
-    user = require_user(
-        request
-    )
+            overflow: hidden;
+        }
 
-    response = JSONResponse(
-        public_user(
-            user
-        )
-    )
+        /* =====================================================
+           SIDEBAR
+           ===================================================== */
 
-    set_ws_cookie(
-        int(
-            user["id"]
-        ),
-        response,
-    )
+        .sidebar {
+            width: 340px;
+            min-width: 340px;
+            height: 100%;
 
-    return response
+            display: flex;
+            flex-direction: column;
 
+            overflow: hidden;
+        }
 
-# =========================================================
-# RECOVERY
-# =========================================================
+        .sidebar-header {
+            flex: 0 0 auto;
 
-def normalize_recovery_code(
-    value: Any,
-) -> str:
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
 
-    return (
-        str(
-            value or ""
-        )
-        .strip()
-        .replace("-", "")
-        .replace(" ", "")
-        .upper()
-    )
+            gap: 12px;
 
+            padding: 14px;
+        }
 
-@app.post(
-    "/api/recover/username"
-)
-async def recover_username(
-    request: Request,
-):
+        .brand {
+            min-width: 0;
 
-    try:
+            display: flex;
+            align-items: center;
 
-        data = await request.json()
+            gap: 10px;
+        }
 
-    except Exception:
+        .brand-logo {
+            flex: 0 0 auto;
 
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "داده بازیابی نامعتبر است"
-            ),
-        )
+            width: 44px;
+            height: 44px;
 
-    display_name = str(
-        data.get(
-            "display_name",
-            "",
-        )
-        or ""
-    ).strip()
+            display: flex;
+            align-items: center;
+            justify-content: center;
 
-    recovery_code = (
-        normalize_recovery_code(
-            data.get(
-                "recovery_code"
-            )
-        )
-    )
+            border-radius: 14px;
 
-    if (
-        not display_name
-        or not recovery_code
-    ):
+            font-size: 20px;
+            font-weight: 900;
+        }
 
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "نام نمایشی و "
-                "کد بازیابی الزامی هستند"
-            ),
-        )
+        .brand-text {
+            min-width: 0;
 
-    conn = db()
+            display: flex;
+            flex-direction: column;
 
-    rows = conn.execute(
-        """
-        SELECT
-            username,
-            recovery_code
-        FROM users
-        WHERE LOWER(display_name)
-            = LOWER(?)
-        """,
-        (
-            display_name,
-        ),
-    ).fetchall()
+            gap: 2px;
+        }
 
-    conn.close()
+        .brand-text strong {
+            font-size: 18px;
+            font-weight: 900;
+        }
 
-    for row in rows:
+        .brand-text span {
+            font-size: 12px;
+            opacity: 0.65;
+        }
 
-        if (
-            normalize_recovery_code(
-                row["recovery_code"]
-            )
-            == recovery_code
-        ):
+        .search-box {
+            flex: 0 0 auto;
 
-            return {
-                "ok":
-                    True,
+            padding:
+                0 14px 12px;
+        }
 
-                "success":
-                    True,
+        .search-box input {
+            display: block;
 
-                "username":
-                    row["username"],
+            width: 100%;
+            height: 44px;
+
+            padding:
+                0 14px;
+
+            border-radius: 14px;
+
+            border: 0;
+            outline: none;
+        }
+
+        /* =====================================================
+           ACTIVE LIVES
+           ===================================================== */
+
+        .active-lives-section {
+            flex: 0 0 auto;
+
+            margin:
+                0 10px 8px;
+
+            padding: 10px;
+
+            border-radius: 18px;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    rgba(239, 68, 68, 0.11),
+                    rgba(220, 38, 38, 0.035)
+                );
+
+            border:
+                1px solid
+                rgba(239, 68, 68, 0.14);
+
+            box-shadow:
+                0 8px 24px
+                rgba(0, 0, 0, 0.04);
+        }
+
+        .active-lives-section[hidden] {
+            display: none !important;
+        }
+
+        .active-lives-header {
+            display: flex;
+
+            align-items: center;
+            justify-content: space-between;
+
+            gap: 8px;
+
+            margin-bottom: 9px;
+        }
+
+        .active-lives-title {
+            min-width: 0;
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 7px;
+
+            font-size: 13px;
+
+            font-weight: 900;
+
+            color: #dc2626;
+        }
+
+        .active-lives-title .live-dot {
+            width: 9px;
+            height: 9px;
+
+            flex: 0 0 auto;
+
+            border-radius: 50%;
+
+            background: #ef4444;
+
+            box-shadow:
+                0 0 0 4px
+                rgba(239, 68, 68, 0.11);
+
+            animation:
+                gapinoLivePulse
+                1.5s infinite;
+        }
+
+        @keyframes gapinoLivePulse {
+
+            0% {
+                opacity: 1;
+
+                transform:
+                    scale(1);
             }
 
-    raise HTTPException(
-        status_code=404,
-        detail=(
-            "اطلاعات بازیابی صحیح نیست"
-        ),
-    )
-
-
-@app.post(
-    "/api/recover/password"
-)
-async def recover_password(
-    request: Request,
-):
-
-    try:
-
-        data = await request.json()
-
-    except Exception:
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "داده بازیابی نامعتبر است"
-            ),
-        )
-
-    username = (
-        str(
-            data.get(
-                "username",
-                "",
-            )
-            or ""
-        )
-        .strip()
-        .lower()
-    )
-
-    recovery_code = (
-        normalize_recovery_code(
-            data.get(
-                "recovery_code"
-            )
-        )
-    )
-
-    new_password = str(
-        data.get(
-            "new_password",
-            "",
-        )
-        or ""
-    )
-
-    if (
-        not username
-        or not recovery_code
-        or not new_password
-    ):
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "همه فیلدها را وارد کنید"
-            ),
-        )
-
-    if len(new_password) < 6:
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "رمز عبور جدید باید "
-                "حداقل ۶ کاراکتر باشد"
-            ),
-        )
-
-    conn = db()
-
-    row = conn.execute(
-        """
-        SELECT
-            id,
-            recovery_code
-        FROM users
-        WHERE LOWER(username)
-            = LOWER(?)
-        """,
-        (
-            username,
-        ),
-    ).fetchone()
-
-    if not row:
-
-        conn.close()
-
-        raise HTTPException(
-            status_code=404,
-            detail="کاربر پیدا نشد",
-        )
-
-    if (
-        normalize_recovery_code(
-            row["recovery_code"]
-        )
-        != recovery_code
-    ):
-
-        conn.close()
-
-        raise HTTPException(
-            status_code=403,
-            detail=(
-                "کد بازیابی نادرست است"
-            ),
-        )
-
-    conn.execute(
-        """
-        UPDATE users
-        SET password = ?
-        WHERE id = ?
-        """,
-        (
-            hash_password(
-                new_password
-            ),
-            int(
-                row["id"]
-            ),
-        ),
-    )
-
-    conn.commit()
-    conn.close()
-
-    return {
-        "ok":
-            True,
-
-        "success":
-            True,
-
-        "message":
-            "رمز عبور با موفقیت تغییر کرد.",
-    }
-
-
-@app.post(
-    "/api/account/recovery-code"
-)
-def create_recovery_code(
-    request: Request,
-):
-
-    user = require_user(
-        request
-    )
-
-    code = secrets.token_hex(
-        8
-    ).upper()
-
-    conn = db()
-
-    conn.execute(
-        """
-        UPDATE users
-        SET recovery_code = ?
-        WHERE id = ?
-        """,
-        (
-            code,
-            int(
-                user["id"]
-            ),
-        ),
-    )
-
-    conn.commit()
-    conn.close()
-
-    return {
-        "ok":
-            True,
-
-        "success":
-            True,
-
-        "recovery_code":
-            code,
-    }
-
-
-# =========================================================
-# PROFILE
-# =========================================================
-
-@app.put(
-    "/api/profile"
-)
-async def update_profile(
-    request: Request,
-):
-
-    user = require_user(
-        request
-    )
-
-    try:
-
-        data = await request.json()
-
-    except Exception:
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "داده پروفایل نامعتبر است"
-            ),
-        )
-
-    display_name = str(
-        data.get(
-            "display_name",
-            user["display_name"],
-        )
-        or ""
-    ).strip()
-
-    bio = str(
-        data.get(
-            "bio",
-            user["bio"],
-        )
-        or ""
-    ).strip()
-
-    status = str(
-        data.get(
-            "status",
-            user["status"],
-        )
-        or ""
-    ).strip()
-
-    if not display_name:
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "نام نمایشی نمی‌تواند "
-                "خالی باشد"
-            ),
-        )
-
-    if len(display_name) > 60:
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "نام نمایشی خیلی طولانی است"
-            ),
-        )
-
-    if len(bio) > 250:
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "بیوگرافی حداکثر "
-                "۲۵۰ کاراکتر است"
-            ),
-        )
-
-    if len(status) > 40:
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "وضعیت خیلی طولانی است"
-            ),
-        )
-
-    conn = db()
-
-    conn.execute(
-        """
-        UPDATE users
-        SET
-            display_name = ?,
-            bio = ?,
-            status = ?
-        WHERE id = ?
-        """,
-        (
-            display_name,
-            bio,
-            status,
-            int(
-                user["id"]
-            ),
-        ),
-    )
-
-    conn.commit()
-    conn.close()
-
-    updated = user_by_id(
-        int(
-            user["id"]
-        )
-    )
-
-    return {
-        "ok":
-            True,
-
-        "user":
-            public_user(
-                updated
-            ),
-    }
-
-
-@app.put(
-    "/api/account/security"
-)
-async def update_account_security(
-    request: Request,
-):
-
-    user = require_user(
-        request
-    )
-
-    try:
-
-        data = await request.json()
-
-    except Exception:
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "داده امنیتی نامعتبر است"
-            ),
-        )
-
-    requested_username = data.get(
-        "username"
-    )
-
-    current_password = data.get(
-        "current_password"
-    )
-
-    new_password = data.get(
-        "new_password"
-    )
-
-    username_changed = (
-        requested_username is not None
-        and
-        str(
-            requested_username
-        )
-        .strip()
-        .lower()
-        !=
-        str(
-            user["username"]
-        )
-        .strip()
-        .lower()
-    )
-
-    password_changed = (
-        new_password is not None
-        and
-        str(
-            new_password
-        ) != ""
-    )
-
-    if (
-        not username_changed
-        and not password_changed
-    ):
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "تغییری برای ذخیره وجود ندارد"
-            ),
-        )
-
-    new_username = (
-        str(
-            user["username"]
-        )
-        .strip()
-        .lower()
-    )
-
-    if username_changed:
-
-        new_username = (
-            str(
-                requested_username
-            )
-            .strip()
-            .lower()
-        )
-
-        if (
-            len(new_username) < 3
-            or len(new_username) > 32
-        ):
-
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "نام کاربری باید "
-                    "بین ۳ تا ۳۲ کاراکتر باشد"
-                ),
-            )
-
-        if not re.fullmatch(
-            r"[a-zA-Z0-9_.-]+",
-            new_username,
-        ):
-
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "نام کاربری فقط می‌تواند "
-                    "شامل حروف انگلیسی، عدد، "
-                    "نقطه، خط تیره و زیرخط باشد"
-                ),
-            )
-
-        existing = user_by_username(
-            new_username
-        )
-
-        if (
-            existing
-            and int(
-                existing["id"]
-            )
-            != int(
-                user["id"]
-            )
-        ):
-
-            raise HTTPException(
-                status_code=409,
-                detail=(
-                    "این نام کاربری "
-                    "قبلاً استفاده شده است"
-                ),
-            )
-
-    hashed_password = None
-
-    if password_changed:
-
-        old_password = str(
-            current_password
-            or ""
-        )
-
-        new_password_value = str(
-            new_password
-            or ""
-        )
-
-        if not old_password:
-
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "رمز عبور فعلی "
-                    "را وارد کنید"
-                ),
-            )
-
-        if len(new_password_value) < 6:
-
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "رمز عبور جدید باید "
-                    "حداقل ۶ کاراکتر باشد"
-                ),
-            )
-
-        conn = db()
-
-        row = conn.execute(
-            """
-            SELECT password
-            FROM users
-            WHERE id = ?
-            """,
-            (
-                int(
-                    user["id"]
-                ),
-            ),
-        ).fetchone()
-
-        conn.close()
-
-        if (
-            not row
-            or not verify_password(
-                old_password,
-                row["password"],
-            )
-        ):
-
-            raise HTTPException(
-                status_code=401,
-                detail=(
-                    "رمز عبور فعلی اشتباه است"
-                ),
-            )
-
-        hashed_password = (
-            hash_password(
-                new_password_value
-            )
-        )
-
-    conn = db()
-
-    try:
-
-        if password_changed:
-
-            conn.execute(
-                """
-                UPDATE users
-                SET
-                    username = ?,
-                    password = ?
-                WHERE id = ?
-                """,
-                (
-                    new_username,
-                    hashed_password,
-                    int(
-                        user["id"]
-                    ),
-                ),
-            )
-
-        else:
-
-            conn.execute(
-                """
-                UPDATE users
-                SET username = ?
-                WHERE id = ?
-                """,
-                (
-                    new_username,
-                    int(
-                        user["id"]
-                    ),
-                ),
-            )
-
-        conn.commit()
-
-    except sqlite3.IntegrityError:
-
-        conn.rollback()
-
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                "این نام کاربری "
-                "قبلاً استفاده شده است"
-            ),
-        )
-
-    finally:
-
-        conn.close()
-
-    updated = user_by_id(
-        int(
-            user["id"]
-        )
-    )
-
-    return {
-        "ok":
-            True,
-
-        "success":
-            True,
-
-        "message":
-            "اطلاعات امنیتی با موفقیت تغییر کرد.",
-
-        "user":
-            public_user(
-                updated
-            ),
-    }
-
-
-@app.post(
-    "/api/profile/avatar"
-)
-async def update_avatar(
-    request: Request,
-    file: UploadFile = File(...),
-):
-
-    user = require_user(
-        request
-    )
-
-    extension = (
-        Path(
-            file.filename or ""
-        )
-        .suffix
-        .lower()
-    )
-
-    if extension not in {
-        ".png",
-        ".jpg",
-        ".jpeg",
-        ".webp",
-    }:
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "فقط PNG، JPG، JPEG "
-                "و WEBP مجاز است"
-            ),
-        )
-
-    content = await file.read()
-
-    if len(content) > MAX_AVATAR_SIZE:
-
-        raise HTTPException(
-            status_code=413,
-            detail=(
-                "حجم عکس نباید "
-                "بیشتر از ۵ مگابایت باشد"
-            ),
-        )
-
-    filename = (
-        f"{user['id']}_"
-        f"{secrets.token_hex(8)}"
-        f"{extension}"
-    )
-
-    (
-        UPLOADS_DIR
-        / filename
-    ).write_bytes(
-        content
-    )
-
-    avatar_url = (
-        f"/uploads/{filename}"
-    )
-
-    conn = db()
-
-    conn.execute(
-        """
-        UPDATE users
-        SET avatar = ?
-        WHERE id = ?
-        """,
-        (
-            avatar_url,
-            int(
-                user["id"]
-            ),
-        ),
-    )
-
-    conn.commit()
-    conn.close()
-
-    updated = user_by_id(
-        int(
-            user["id"]
-        )
-    )
-
-    return {
-        "ok":
-            True,
-
-        "avatar":
-            avatar_url,
-
-        "user":
-            public_user(
-                updated
-            ),
-    }
-
-
-# =========================================================
-# USERS
-# =========================================================
-
-@app.get(
-    "/api/users"
-)
-def users(
-    request: Request,
-):
-
-    user = require_user(
-        request
-    )
-
-    query = (
-        request.query_params
-        .get(
-            "q",
-            "",
-        )
-        .strip()
-        .lower()
-    )
-
-    conn = db()
-
-    if query:
-
-        pattern = (
-            f"%{query}%"
-        )
-
-        rows = conn.execute(
-            """
-            SELECT
-                id,
-                username,
-                display_name,
-                bio,
-                avatar,
-                status,
-                created_at
-            FROM users
-            WHERE
-                id != ?
-                AND (
-                    LOWER(username)
-                    LIKE ?
-                    OR
-                    LOWER(display_name)
-                    LIKE ?
-                )
-            ORDER BY
-                display_name
-                COLLATE NOCASE
-            """,
-            (
-                int(
-                    user["id"]
-                ),
-                pattern,
-                pattern,
-            ),
-        ).fetchall()
-
-    else:
-
-        rows = conn.execute(
-            """
-            SELECT
-                id,
-                username,
-                display_name,
-                bio,
-                avatar,
-                status,
-                created_at
-            FROM users
-            WHERE id != ?
-            ORDER BY
-                display_name
-                COLLATE NOCASE
-            """,
-            (
-                int(
-                    user["id"]
-                ),
-            ),
-        ).fetchall()
-
-    conn.close()
-
-    online_ids = set(
-        connections.keys()
-    )
-
-    result = []
-
-    for row in rows:
-
-        item = dict(
-            row
-        )
-
-        item[
-            "online"
-        ] = (
-            int(
-                row["id"]
-            )
-            in online_ids
-        )
-
-        result.append(
-            item
-        )
-
-    return result
-
-
-# =========================================================
-# ACTIVE LIVE ROOMS
-# =========================================================
-
-@app.get(
-    "/api/live/active"
-)
-def active_live_rooms(
-    request: Request,
-):
-
-    require_user(
-        request
-    )
-
-    result = []
-
-    for (
-        room_id,
-        room,
-    ) in list(
-        live_rooms.items()
-    ):
-
-        if not room:
-            continue
-
-        if not room.get(
-            "active",
-            False,
-        ):
-            continue
-
-        host_user = live_host_user(
-            room
-        )
-
-        if not host_user:
-            continue
-
-        total_connections = (
-            live_peer_count(
-                room
-            )
-        )
-
-        # خود صاحب Live جزو بیننده‌ها نیست
-        viewer_count = max(
-            0,
-            total_connections - 1
-        )
-
-        result.append(
-            {
-                "room_id":
-                    str(
-                        room_id
-                    ),
-
-                "host_id":
-                    int(
-                        room[
-                            "host_uid"
-                        ]
-                    ),
-
-                "host":
-                    public_user(
-                        host_user
-                    ),
-
-                "viewer_count":
-                    viewer_count,
-
-                "total_connections":
-                    total_connections,
-
-                "created_at":
-                    room.get(
-                        "created_at",
-                        0,
-                    ),
-
-                "url":
-                    (
-                        "/live.html?"
-                        f"room={room_id}"
-                        "&join=1"
-                    ),
+            50% {
+                opacity: 0.55;
+
+                transform:
+                    scale(0.82);
             }
-        )
-
-    result.sort(
-        key=lambda item:
-            float(
-                item.get(
-                    "created_at",
-                    0,
-                )
-            ),
-        reverse=True,
-    )
-
-    return {
-        "ok":
-            True,
-
-        "success":
-            True,
-
-        "count":
-            len(result),
-
-        "live_rooms":
-            result,
-    }
-
-
-# =========================================================
-# MESSAGES
-# =========================================================
-
-@app.get(
-    "/api/messages/{other_id}"
-)
-def get_messages(
-    request: Request,
-    other_id: int,
-):
-
-    user = require_user(
-        request
-    )
-
-    if (
-        other_id
-        == int(
-            user["id"]
-        )
-    ):
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "گفتگو با خودتان "
-                "مجاز نیست"
-            ),
-        )
-
-    if not user_by_id(
-        other_id
-    ):
-
-        raise HTTPException(
-            status_code=404,
-            detail="کاربر پیدا نشد",
-        )
-
-    conn = db()
-
-    rows = conn.execute(
-        """
-        SELECT *
-        FROM messages
-        WHERE
-            (
-                sender_id = ?
-                AND receiver_id = ?
-            )
-            OR
-            (
-                sender_id = ?
-                AND receiver_id = ?
-            )
-        ORDER BY id ASC
-        """,
-        (
-            int(
-                user["id"]
-            ),
-            other_id,
-            other_id,
-            int(
-                user["id"]
-            ),
-        ),
-    ).fetchall()
-
-    conn.close()
-
-    return [
-        dict(row)
-        for row in rows
-    ]
-
-
-@app.post(
-    "/api/messages"
-)
-async def create_message(
-    request: Request,
-):
-
-    user = require_user(
-        request
-    )
-
-    try:
-
-        data = await request.json()
-
-        receiver_id = int(
-            data.get(
-                "receiver_id"
-            )
-        )
-
-    except (
-        TypeError,
-        ValueError,
-        AttributeError,
-    ):
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "گیرنده پیام نامعتبر است"
-            ),
-        )
-
-    text = str(
-        data.get(
-            "text",
-            "",
-        )
-        or ""
-    ).strip()
-
-    if not text:
-
-        raise HTTPException(
-            status_code=400,
-            detail="پیام خالی است",
-        )
-
-    if len(text) > 5000:
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "پیام نمی‌تواند بیشتر "
-                "از ۵۰۰۰ کاراکتر باشد"
-            ),
-        )
-
-    if (
-        receiver_id
-        == int(
-            user["id"]
-        )
-    ):
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "ارسال پیام به خودتان "
-                "مجاز نیست"
-            ),
-        )
-
-    if not user_by_id(
-        receiver_id
-    ):
-
-        raise HTTPException(
-            status_code=404,
-            detail=(
-                "کاربر گیرنده پیدا نشد"
-            ),
-        )
-
-    conn = db()
-
-    cursor = conn.execute(
-        """
-        INSERT INTO messages(
-            sender_id,
-            receiver_id,
-            text,
-            created_at
-        )
-        VALUES(
-            ?,
-            ?,
-            ?,
-            ?
-        )
-        """,
-        (
-            int(
-                user["id"]
-            ),
-            receiver_id,
-            text,
-            now(),
-        ),
-    )
-
-    conn.commit()
-
-    row = conn.execute(
-        """
-        SELECT *
-        FROM messages
-        WHERE id = ?
-        """,
-        (
-            int(
-                cursor.lastrowid
-            ),
-        ),
-    ).fetchone()
-
-    conn.close()
-
-    payload = dict(
-        row
-    )
-
-    await broadcast(
-        receiver_id,
-        {
-            "type":
-                "message",
-
-            "message":
-                payload,
-        },
-    )
-
-    return payload
-
-
-@app.post(
-    "/api/messages/{message_id}/edit"
-)
-async def edit_message(
-    request: Request,
-    message_id: int,
-):
-
-    user = require_user(
-        request
-    )
-
-    try:
-
-        data = await request.json()
-
-    except Exception:
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "داده ویرایش نامعتبر است"
-            ),
-        )
-
-    text = str(
-        data.get(
-            "text",
-            "",
-        )
-        or ""
-    ).strip()
-
-    if not text:
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "متن جدید نمی‌تواند "
-                "خالی باشد"
-            ),
-        )
-
-    if len(text) > 5000:
-
-        raise HTTPException(
-            status_code=400,
-            detail="پیام خیلی طولانی است",
-        )
-
-    conn = db()
-
-    row = conn.execute(
-        """
-        SELECT *
-        FROM messages
-        WHERE id = ?
-        """,
-        (
-            message_id,
-        ),
-    ).fetchone()
-
-    if not row:
-
-        conn.close()
-
-        raise HTTPException(
-            status_code=404,
-            detail="پیام پیدا نشد",
-        )
-
-    if (
-        int(
-            row["sender_id"]
-        )
-        != int(
-            user["id"]
-        )
-    ):
-
-        conn.close()
-
-        raise HTTPException(
-            status_code=403,
-            detail=(
-                "اجازه ویرایش "
-                "این پیام را ندارید"
-            ),
-        )
-
-    if int(
-        row["deleted"]
-        or 0
-    ) == 1:
-
-        conn.close()
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "پیام حذف شده "
-                "قابل ویرایش نیست"
-            ),
-        )
-
-    conn.execute(
-        """
-        UPDATE messages
-        SET
-            text = ?,
-            edited = 1
-        WHERE id = ?
-        """,
-        (
-            text,
-            message_id,
-        ),
-    )
-
-    conn.commit()
-
-    updated = conn.execute(
-        """
-        SELECT *
-        FROM messages
-        WHERE id = ?
-        """,
-        (
-            message_id,
-        ),
-    ).fetchone()
-
-    conn.close()
-
-    payload = dict(
-        updated
-    )
-
-    receiver_id = payload.get(
-        "receiver_id"
-    )
-
-    if receiver_id is not None:
-
-        await broadcast(
-            int(
-                receiver_id
-            ),
-            {
-                "type":
-                    "message:update",
-
-                "message":
-                    payload,
-            },
-        )
-
-    return payload
-
-
-@app.delete(
-    "/api/messages/{message_id}"
-)
-async def delete_message(
-    request: Request,
-    message_id: int,
-):
-
-    user = require_user(
-        request
-    )
-
-    conn = db()
-
-    row = conn.execute(
-        """
-        SELECT *
-        FROM messages
-        WHERE id = ?
-        """,
-        (
-            message_id,
-        ),
-    ).fetchone()
-
-    if not row:
-
-        conn.close()
-
-        raise HTTPException(
-            status_code=404,
-            detail="پیام پیدا نشد",
-        )
-
-    if (
-        int(
-            row["sender_id"]
-        )
-        != int(
-            user["id"]
-        )
-    ):
-
-        conn.close()
-
-        raise HTTPException(
-            status_code=403,
-            detail=(
-                "اجازه حذف "
-                "این پیام را ندارید"
-            ),
-        )
-
-    conn.execute(
-        """
-        UPDATE messages
-        SET
-            deleted = 1,
-            text = '',
-            file_name = '',
-            file_url = ''
-        WHERE id = ?
-        """,
-        (
-            message_id,
-        ),
-    )
-
-    conn.commit()
-
-    updated = conn.execute(
-        """
-        SELECT *
-        FROM messages
-        WHERE id = ?
-        """,
-        (
-            message_id,
-        ),
-    ).fetchone()
-
-    conn.close()
-
-    payload = dict(
-        updated
-    )
-
-    receiver_id = payload.get(
-        "receiver_id"
-    )
-
-    if receiver_id is not None:
-
-        await broadcast(
-            int(
-                receiver_id
-            ),
-            {
-                "type":
-                    "message:update",
-
-                "message":
-                    payload,
-            },
-        )
-
-    return payload
-
-
-# =========================================================
-# UPLOAD
-# =========================================================
-
-@app.post(
-    "/api/upload"
-)
-async def upload(
-    request: Request,
-    receiver_id: int = Form(...),
-    file: UploadFile = File(...),
-):
-
-    user = require_user(
-        request
-    )
-
-    if (
-        receiver_id
-        == int(
-            user["id"]
-        )
-    ):
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "نمی‌توانید فایل را "
-                "برای خودتان ارسال کنید"
-            ),
-        )
-
-    if not user_by_id(
-        receiver_id
-    ):
-
-        raise HTTPException(
-            status_code=404,
-            detail=(
-                "کاربر گیرنده پیدا نشد"
-            ),
-        )
-
-    content = await file.read()
-
-    if len(content) > MAX_UPLOAD_SIZE:
-
-        raise HTTPException(
-            status_code=413,
-            detail=(
-                "حداکثر اندازه فایل "
-                "۱۰ مگابایت است"
-            ),
-        )
-
-    original_name = (
-        Path(
-            file.filename
-            or "file"
-        ).name
-        or "file"
-    )
-
-    extension = (
-        Path(
-            original_name
-        )
-        .suffix
-        .lower()
-    )
-
-    allowed = {
-        ".png",
-        ".jpg",
-        ".jpeg",
-        ".webp",
-        ".gif",
-        ".pdf",
-        ".txt",
-        ".csv",
-        ".zip",
-        ".rar",
-        ".mp3",
-        ".wav",
-        ".ogg",
-        ".webm",
-        ".mp4",
-        ".mov",
-        ".doc",
-        ".docx",
-        ".xls",
-        ".xlsx",
-        ".ppt",
-        ".pptx",
-    }
-
-    if (
-        extension
-        and extension not in allowed
-    ):
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "فرمت این فایل مجاز نیست"
-            ),
-        )
-
-    filename = (
-        f"{secrets.token_hex(8)}_"
-        f"{original_name}"
-    )
-
-    (
-        UPLOADS_DIR
-        / filename
-    ).write_bytes(
-        content
-    )
-
-    file_url = (
-        f"/uploads/{filename}"
-    )
-
-    mime_type = (
-        file.content_type
-        or mimetypes.guess_type(
-            original_name
-        )[0]
-        or "application/octet-stream"
-    )
-
-    conn = db()
-
-    cursor = conn.execute(
-        """
-        INSERT INTO messages(
-            sender_id,
-            receiver_id,
-            text,
-            file_name,
-            file_url,
-            mime_type,
-            created_at
-        )
-        VALUES(
-            ?,
-            ?,
-            ?,
-            ?,
-            ?,
-            ?,
-            ?
-        )
-        """,
-        (
-            int(
-                user["id"]
-            ),
-            receiver_id,
-            "",
-            original_name,
-            file_url,
-            mime_type,
-            now(),
-        ),
-    )
-
-    conn.commit()
-
-    row = conn.execute(
-        """
-        SELECT *
-        FROM messages
-        WHERE id = ?
-        """,
-        (
-            int(
-                cursor.lastrowid
-            ),
-        ),
-    ).fetchone()
-
-    conn.close()
-
-    payload = dict(
-        row
-    )
-
-    await broadcast(
-        receiver_id,
-        {
-            "type":
-                "message",
-
-            "message":
-                payload,
-        },
-    )
-
-    return payload
-
-
-# =========================================================
-# GROUP
-# =========================================================
-
-@app.post(
-    "/api/groups"
-)
-async def create_group(
-    request: Request,
-):
-
-    user = require_user(
-        request
-    )
-
-    try:
-
-        data = await request.json()
-
-    except Exception:
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "داده گروه نامعتبر است"
-            ),
-        )
-
-    name = str(
-        data.get(
-            "name",
-            "",
-        )
-        or ""
-    ).strip()
-
-    if not name:
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "نام گروه الزامی است"
-            ),
-        )
-
-    if len(name) > 80:
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "نام گروه خیلی طولانی است"
-            ),
-        )
-
-    raw_members = data.get(
-        "members",
-        [],
-    )
-
-    members: set[int] = set()
-
-    if isinstance(
-        raw_members,
-        list,
-    ):
-
-        for value in raw_members:
-
-            try:
-
-                member_id = int(
-                    value
-                )
-
-            except (
-                TypeError,
-                ValueError,
-            ):
-
-                continue
-
-            if (
-                member_id
-                != int(
-                    user["id"]
-                )
-            ):
-
-                members.add(
-                    member_id
-                )
-
-    conn = db()
-
-    cursor = conn.execute(
-        """
-        INSERT INTO groups(
-            name,
-            owner_id,
-            created_at
-        )
-        VALUES(
-            ?,
-            ?,
-            ?
-        )
-        """,
-        (
-            name,
-            int(
-                user["id"]
-            ),
-            now(),
-        ),
-    )
-
-    group_id = int(
-        cursor.lastrowid
-    )
-
-    conn.execute(
-        """
-        INSERT OR IGNORE INTO
-        group_members(
-            group_id,
-            user_id
-        )
-        VALUES(
-            ?,
-            ?
-        )
-        """,
-        (
-            group_id,
-            int(
-                user["id"]
-            ),
-        ),
-    )
-
-    for member_id in members:
-
-        if conn.execute(
-            """
-            SELECT id
-            FROM users
-            WHERE id = ?
-            """,
-            (
-                member_id,
-            ),
-        ).fetchone():
-
-            conn.execute(
-                """
-                INSERT OR IGNORE INTO
-                group_members(
-                    group_id,
-                    user_id
-                )
-                VALUES(
-                    ?,
-                    ?
-                )
-                """,
-                (
-                    group_id,
-                    member_id,
-                ),
-            )
-
-    conn.commit()
-    conn.close()
-
-    return {
-        "ok":
-            True,
-
-        "id":
-            group_id,
-
-        "name":
-            name,
-    }
-
-
-# =========================================================
-# WEBSOCKET
-# =========================================================
-
-@app.websocket(
-    "/ws"
-)
-async def websocket_endpoint(
-    websocket: WebSocket,
-):
-
-    await websocket.accept()
-
-    ticket = websocket.cookies.get(
-        "gapino_ws_ticket"
-    )
-
-    if not ticket:
-
-        await websocket.close(
-            code=4401,
-            reason=(
-                "Authentication required"
-            ),
-        )
-
-        return
-
-    uid = consume_ws_ticket(
-        ticket
-    )
-
-    if (
-        uid is None
-        or not user_by_id(
-            uid
-        )
-    ):
-
-        await websocket.close(
-            code=4401,
-            reason=(
-                "Invalid authentication"
-            ),
-        )
-
-        return
-
-    connections.setdefault(
-        uid,
-        set(),
-    ).add(
-        websocket
-    )
-
-    live_socket_peers.setdefault(
-        websocket,
-        set(),
-    )
-
-    try:
-
-        await send_ws(
-            websocket,
-            {
-                "type":
-                    "ready",
-
-                "online":
-                    list(
-                        connections.keys()
-                    ),
-            },
-        )
-
-        for other_uid in list(
-            connections.keys()
-        ):
-
-            if (
-                int(
-                    other_uid
-                )
-                != int(uid)
-            ):
-
-                await broadcast(
-                    other_uid,
-                    {
-                        "type":
-                            "user_online",
-
-                        "user_id":
-                            uid,
-                    },
-                )
-
-
-        # =====================================================
-        # MESSAGE LOOP
-        # =====================================================
-
-        while True:
-
-            raw = (
-                await websocket.receive_text()
-            )
-
-            try:
-
-                data = json.loads(
-                    raw
-                )
-
-            except json.JSONDecodeError:
-
-                continue
-
-            if not isinstance(
-                data,
-                dict,
-            ):
-
-                continue
-
-            message_type = (
-                str(
-                    data.get(
-                        "type",
-                        "",
+
+            100% {
+                opacity: 1;
+
+                transform:
+                    scale(1);
+            }
+        }
+
+        #refreshLivesButton {
+            width: 30px;
+            height: 30px;
+
+            flex: 0 0 auto;
+
+            border: 0;
+
+            border-radius: 10px;
+
+            cursor: pointer;
+
+            display: flex;
+
+            align-items: center;
+            justify-content: center;
+
+            font-size: 17px;
+
+            transition:
+                transform 0.15s ease;
+        }
+
+        #refreshLivesButton:active {
+            transform:
+                rotate(180deg)
+                scale(0.96);
+        }
+
+        .active-lives-list {
+            display: flex;
+
+            flex-direction: column;
+
+            gap: 7px;
+
+            max-height: 205px;
+
+            overflow-y: auto;
+
+            overflow-x: hidden;
+        }
+
+        .active-live-item {
+            width: 100%;
+
+            min-height: 58px;
+
+            border: 0;
+
+            border-radius: 15px;
+
+            padding:
+                7px 8px;
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 9px;
+
+            cursor: pointer;
+
+            text-align: right;
+
+            background:
+                rgba(
+                    255,
+                    255,
+                    255,
+                    0.6
+                );
+
+            transition:
+                transform 0.15s ease,
+                box-shadow 0.15s ease;
+        }
+
+        .active-live-item:hover {
+            transform:
+                translateY(-1px);
+
+            box-shadow:
+                0 7px 18px
+                rgba(0, 0, 0, 0.08);
+        }
+
+        .active-live-item:active {
+            transform:
+                scale(0.985);
+        }
+
+        .active-live-avatar {
+            width: 43px;
+            height: 43px;
+
+            flex: 0 0 auto;
+
+            overflow: hidden;
+
+            display: flex;
+
+            align-items: center;
+            justify-content: center;
+
+            border-radius: 50%;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #ef4444,
+                    #f97316
+                );
+
+            color: #ffffff;
+
+            font-size: 16px;
+
+            font-weight: 900;
+
+            box-shadow:
+                0 4px 13px
+                rgba(239, 68, 68, 0.22);
+        }
+
+        .active-live-avatar img {
+            width: 100%;
+            height: 100%;
+
+            object-fit: cover;
+        }
+
+        .active-live-info {
+            flex: 1 1 auto;
+
+            min-width: 0;
+
+            display: flex;
+
+            flex-direction: column;
+
+            gap: 3px;
+        }
+
+        .active-live-name {
+            overflow: hidden;
+
+            text-overflow: ellipsis;
+
+            white-space: nowrap;
+
+            font-size: 13px;
+
+            font-weight: 900;
+        }
+
+        .active-live-meta {
+            overflow: hidden;
+
+            text-overflow: ellipsis;
+
+            white-space: nowrap;
+
+            font-size: 11px;
+
+            opacity: 0.67;
+        }
+
+        .active-live-badge {
+            flex: 0 0 auto;
+
+            padding:
+                4px 7px;
+
+            border-radius: 8px;
+
+            background: #ef4444;
+
+            color: #ffffff;
+
+            font-size: 9px;
+
+            font-weight: 900;
+
+            letter-spacing:
+                0.2px;
+
+            box-shadow:
+                0 4px 10px
+                rgba(239, 68, 68, 0.2);
+        }
+
+        .active-lives-empty {
+            padding:
+                6px 3px;
+
+            text-align: center;
+
+            font-size: 11px;
+
+            opacity: 0.62;
+        }
+
+        /* =====================================================
+           USERS
+           ===================================================== */
+
+        .users-list {
+            flex: 1 1 auto;
+
+            min-height: 0;
+
+            overflow-y: auto;
+            overflow-x: hidden;
+
+            padding:
+                6px 8px 10px;
+        }
+
+        .user-item {
+            width: 100%;
+
+            border: 0;
+            outline: none;
+
+            background: transparent;
+
+            display: flex;
+            align-items: center;
+
+            gap: 10px;
+
+            padding: 10px;
+
+            border-radius: 16px;
+
+            text-align: right;
+
+            cursor: pointer;
+        }
+
+        .user-item-avatar {
+            flex: 0 0 auto;
+
+            width: 48px;
+            height: 48px;
+
+            border-radius: 50%;
+
+            overflow: hidden;
+
+            display: flex;
+
+            align-items: center;
+            justify-content: center;
+        }
+
+        .user-item-avatar img {
+            width: 100%;
+            height: 100%;
+
+            object-fit: cover;
+        }
+
+        .user-item-info {
+            flex: 1 1 auto;
+
+            min-width: 0;
+
+            display: flex;
+
+            flex-direction: column;
+
+            gap: 3px;
+        }
+
+        .user-item-info strong {
+            overflow: hidden;
+
+            text-overflow: ellipsis;
+
+            white-space: nowrap;
+        }
+
+        .user-item-info span {
+            font-size: 12px;
+
+            opacity: 0.65;
+
+            overflow: hidden;
+
+            text-overflow: ellipsis;
+
+            white-space: nowrap;
+        }
+
+        /* =====================================================
+           SIDEBAR FOOTER
+           ===================================================== */
+
+        .sidebar-footer {
+            flex: 0 0 auto;
+
+            display: grid;
+
+            grid-template-columns:
+                1fr
+                1fr
+                1fr;
+
+            gap: 8px;
+
+            padding:
+                10px 12px 14px;
+        }
+
+        .sidebar-action {
+            min-height: 42px;
+
+            border: 0;
+
+            border-radius: 14px;
+
+            cursor: pointer;
+
+            display: flex;
+
+            align-items: center;
+            justify-content: center;
+
+            gap: 5px;
+
+            white-space: nowrap;
+        }
+
+        /* =====================================================
+           START LIVE BUTTON
+           ===================================================== */
+
+        #liveButton {
+            font-weight: 900;
+
+            color: #ffffff;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #ef4444,
+                    #dc2626
+                );
+
+            box-shadow:
+                0 7px 20px
+                rgba(220, 38, 38, 0.24);
+
+            transition:
+                transform 0.15s ease,
+                box-shadow 0.15s ease;
+        }
+
+        #liveButton:hover {
+            transform:
+                translateY(-1px);
+
+            box-shadow:
+                0 10px 26px
+                rgba(220, 38, 38, 0.31);
+        }
+
+        #liveButton:active {
+            transform:
+                scale(0.98);
+        }
+
+        /* =====================================================
+           CHAT
+           ===================================================== */
+
+        .chat-area {
+            flex: 1 1 auto;
+
+            min-width: 0;
+            min-height: 0;
+
+            display: flex;
+
+            flex-direction: column;
+
+            overflow: hidden;
+        }
+
+        /* =====================================================
+           HEADER
+           ===================================================== */
+
+        .chat-header {
+            flex: 0 0 auto;
+
+            width: 100%;
+
+            min-height: 72px;
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 10px;
+
+            padding:
+                10px 14px;
+
+            overflow: hidden;
+        }
+
+        .chat-contact {
+            flex: 1 1 auto;
+
+            min-width: 0;
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 10px;
+        }
+
+        .chat-avatar {
+            flex: 0 0 auto;
+
+            width: 48px;
+            height: 48px;
+
+            border-radius: 50%;
+
+            overflow: hidden;
+
+            display: flex;
+
+            align-items: center;
+            justify-content: center;
+        }
+
+        .chat-avatar img {
+            width: 100%;
+            height: 100%;
+
+            object-fit: cover;
+        }
+
+        .chat-contact-info {
+            min-width: 0;
+
+            display: flex;
+
+            flex-direction: column;
+
+            gap: 3px;
+        }
+
+        .chat-contact-info strong,
+        .chat-contact-info span {
+            display: block;
+
+            overflow: hidden;
+
+            text-overflow: ellipsis;
+
+            white-space: nowrap;
+        }
+
+        .chat-contact-info span {
+            font-size: 12px;
+
+            opacity: 0.65;
+        }
+
+        .chat-header-actions {
+            flex: 0 0 auto;
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 5px;
+
+            margin-inline-start: auto;
+        }
+
+        .chat-header-actions .icon-button {
+            flex: 0 0 auto;
+
+            width: 42px !important;
+            min-width: 42px !important;
+            max-width: 42px !important;
+
+            height: 42px !important;
+            min-height: 42px !important;
+            max-height: 42px !important;
+
+            padding: 0 !important;
+
+            display: flex !important;
+
+            align-items: center !important;
+            justify-content: center !important;
+
+            visibility: visible !important;
+        }
+
+        /* =====================================================
+           HEADER LIVE BUTTON
+           ===================================================== */
+
+        #headerLiveButton {
+            display: flex !important;
+
+            align-items: center !important;
+            justify-content: center !important;
+
+            flex: 0 0 auto;
+
+            width: 42px !important;
+            min-width: 42px !important;
+            max-width: 42px !important;
+
+            height: 42px !important;
+            min-height: 42px !important;
+            max-height: 42px !important;
+
+            padding: 0 !important;
+
+            border: 0 !important;
+
+            border-radius: 12px !important;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #ef4444,
+                    #dc2626
+                ) !important;
+
+            color: #ffffff !important;
+
+            box-shadow:
+                0 5px 16px
+                rgba(220, 38, 38, 0.23);
+
+            cursor: pointer;
+
+            font-size: 18px !important;
+
+            transition:
+                transform 0.15s ease,
+                box-shadow 0.15s ease;
+        }
+
+        #headerLiveButton:hover {
+            transform:
+                translateY(-1px);
+
+            box-shadow:
+                0 8px 21px
+                rgba(220, 38, 38, 0.29);
+        }
+
+        #headerLiveButton:active {
+            transform:
+                scale(0.96);
+        }
+
+        #callButton {
+            display: flex !important;
+
+            visibility: visible !important;
+
+            opacity: 1 !important;
+
+            pointer-events: auto !important;
+
+            font-size: 19px !important;
+
+            cursor: pointer;
+        }
+
+        #callButton:disabled {
+            opacity: 0.45 !important;
+        }
+
+        /* =====================================================
+           MESSAGE AREA
+           ===================================================== */
+
+        .messages-container {
+            position: relative;
+
+            flex: 1 1 auto;
+
+            min-height: 0;
+
+            overflow-y: auto;
+            overflow-x: hidden;
+
+            padding:
+                18px 16px 12px;
+
+            scroll-behavior:
+                smooth;
+        }
+
+        /* =====================================================
+           MESSAGE BUBBLES
+           ===================================================== */
+
+        .messages-list {
+            width: 100%;
+
+            display: flex;
+
+            flex-direction: column;
+
+            gap: 5px;
+        }
+
+        .message-row {
+            width: 100%;
+
+            display: flex;
+
+            margin:
+                1px 0;
+        }
+
+        .message-row.mine {
+            justify-content: flex-start;
+
+            padding-left: 8px;
+        }
+
+        .message-row.theirs {
+            justify-content: flex-end;
+
+            padding-right: 8px;
+        }
+
+        .message-bubble {
+            position: relative;
+
+            width: fit-content;
+
+            max-width:
+                min(72%, 620px);
+
+            padding:
+                8px 12px;
+
+            border-radius: 18px;
+
+            font-size: 15px;
+
+            line-height: 1.55;
+
+            font-weight: 400;
+
+            word-wrap: break-word;
+
+            overflow-wrap: anywhere;
+
+            white-space: pre-wrap;
+
+            box-shadow:
+                0 1px 2px
+                rgba(0, 0, 0, 0.08);
+
+            transition:
+                transform 0.12s ease,
+                box-shadow 0.12s ease;
+        }
+
+        .message-row.mine
+            .message-bubble {
+
+            background: #229ed9;
+
+            color: #ffffff;
+
+            border-bottom-right-radius:
+                5px;
+        }
+
+        .message-row.theirs
+            .message-bubble {
+
+            background: #ffffff;
+
+            color: #222222;
+
+            border:
+                1px solid
+                rgba(0, 0, 0, 0.045);
+
+            border-bottom-left-radius:
+                5px;
+        }
+
+        .message-bubble p {
+            margin: 0;
+        }
+
+        .message-bubble a {
+            color: inherit;
+
+            text-decoration:
+                underline;
+        }
+
+        .message-file-link {
+            display: inline-flex;
+
+            align-items: center;
+
+            gap: 7px;
+
+            padding:
+                2px 0;
+
+            font-size: 14px;
+
+            font-weight: 600;
+
+            text-decoration:
+                none !important;
+        }
+
+        .message-bubble audio {
+            display: block;
+
+            width:
+                min(280px, 70vw);
+
+            max-width: 100%;
+
+            border-radius: 12px;
+        }
+
+        @media (hover: hover) {
+
+            .message-bubble:hover {
+                transform:
+                    translateY(-1px);
+
+                box-shadow:
+                    0 3px 10px
+                    rgba(0, 0, 0, 0.10);
+            }
+        }
+
+        /* =====================================================
+           EMPTY CHAT
+           ===================================================== */
+
+        .empty-chat {
+            min-height: 100%;
+
+            display: flex;
+
+            flex-direction: column;
+
+            align-items: center;
+
+            justify-content: center;
+
+            text-align: center;
+
+            padding: 30px;
+        }
+
+        .empty-chat-icon {
+            font-size: 48px;
+
+            margin-bottom: 12px;
+        }
+
+        .empty-chat h2 {
+            margin:
+                0 0 8px;
+        }
+
+        .empty-chat p {
+            margin: 0;
+
+            opacity: 0.65;
+        }
+
+        .typing-indicator {
+            position: sticky;
+
+            bottom: 8px;
+
+            width: max-content;
+
+            margin-top: 5px;
+
+            padding:
+                6px 11px;
+
+            border-radius: 12px;
+
+            font-size: 12px;
+        }
+
+        /* =====================================================
+           COMPOSER
+           ===================================================== */
+
+        .chat-composer {
+            flex: 0 0 auto;
+
+            display: flex;
+
+            align-items: flex-end;
+
+            gap: 8px;
+
+            padding:
+                10px 12px
+                max(
+                    10px,
+                    env(safe-area-inset-bottom)
+                );
+        }
+
+        .chat-composer textarea {
+            flex: 1 1 auto;
+
+            min-width: 0;
+
+            max-height: 150px;
+
+            resize: none;
+
+            padding:
+                11px 14px;
+
+            border-radius: 18px;
+
+            outline: none;
+        }
+
+        .composer-button,
+        .send-button {
+            flex: 0 0 auto;
+
+            width: 44px;
+            height: 44px;
+
+            min-width: 44px;
+            min-height: 44px;
+
+            border: 0;
+
+            border-radius: 14px;
+
+            display: flex;
+
+            align-items: center;
+            justify-content: center;
+
+            cursor: pointer;
+        }
+
+        /* =====================================================
+           MODALS
+           ===================================================== */
+
+        .modal-overlay {
+            position: fixed;
+
+            inset: 0;
+
+            z-index: 100000;
+
+            display: flex;
+
+            align-items: center;
+            justify-content: center;
+
+            padding: 18px;
+
+            background:
+                rgba(
+                    2,
+                    6,
+                    23,
+                    0.74
+                );
+
+            backdrop-filter:
+                blur(8px);
+        }
+
+        .modal-overlay[hidden] {
+            display: none !important;
+        }
+
+        .modal-card {
+            width:
+                min(440px, 100%);
+
+            max-height:
+                calc(100dvh - 36px);
+
+            overflow: auto;
+
+            position: relative;
+
+            padding: 22px;
+
+            border-radius: 24px;
+        }
+
+        .modal-close {
+            position: absolute;
+
+            inset-inline-start:
+                14px;
+
+            top: 12px;
+
+            width: 36px;
+            height: 36px;
+
+            border: 0;
+
+            border-radius: 10px;
+
+            cursor: pointer;
+        }
+
+        .modal-header {
+            margin-bottom: 18px;
+        }
+
+        .profile-form {
+            display: flex;
+
+            flex-direction: column;
+
+            gap: 10px;
+        }
+
+        .profile-avatar-preview {
+            width: 88px;
+            height: 88px;
+
+            margin:
+                0 auto 10px;
+
+            border-radius: 50%;
+
+            display: flex;
+
+            align-items: center;
+            justify-content: center;
+
+            overflow: hidden;
+
+            font-size: 28px;
+
+            font-weight: 800;
+        }
+
+        .profile-avatar-preview img {
+            width: 100%;
+            height: 100%;
+
+            object-fit: cover;
+        }
+
+        .form-input {
+            width: 100%;
+
+            border: 0;
+
+            outline: none;
+
+            padding:
+                11px 13px;
+
+            border-radius: 13px;
+        }
+
+        .primary-button {
+            min-height: 46px;
+
+            border: 0;
+
+            border-radius: 14px;
+
+            cursor: pointer;
+
+            font-weight: 800;
+        }
+
+        .message-search-results {
+            margin-top: 14px;
+
+            display: flex;
+
+            flex-direction: column;
+
+            gap: 8px;
+        }
+
+        .message-search-item {
+            padding:
+                10px 12px;
+
+            border-radius: 12px;
+        }
+
+        /* =====================================================
+           TOAST
+           ===================================================== */
+
+        .toast-container {
+            position: fixed;
+
+            z-index: 110000;
+
+            left: 50%;
+
+            bottom: 18px;
+
+            transform:
+                translateX(-50%);
+
+            width:
+                min(92vw, 420px);
+
+            pointer-events: none;
+        }
+
+        .gapino-toast {
+            padding:
+                11px 14px;
+
+            border-radius: 14px;
+
+            text-align: center;
+
+            margin-top: 8px;
+
+            box-shadow:
+                0 12px 30px
+                rgba(0, 0, 0, 0.18);
+        }
+
+        /* =====================================================
+           CALL OVERLAY
+           ===================================================== */
+
+        .gapino-call-overlay {
+            position: fixed;
+
+            inset: 0;
+
+            z-index: 120000;
+
+            display: flex;
+
+            align-items: center;
+            justify-content: center;
+
+            padding: 18px;
+
+            background:
+                rgba(
+                    2,
+                    6,
+                    23,
+                    0.80
+                );
+
+            backdrop-filter:
+                blur(13px);
+
+            opacity: 0;
+
+            visibility: hidden;
+
+            pointer-events: none;
+
+            transition:
+                opacity 0.2s ease,
+                visibility 0.2s ease;
+        }
+
+        .gapino-call-overlay.show {
+            opacity: 1;
+
+            visibility: visible;
+
+            pointer-events: auto;
+        }
+
+        .gapino-call-card {
+            width:
+                min(410px, 100%);
+
+            padding:
+                28px 22px;
+
+            border-radius: 28px;
+
+            background:
+                #0f172a;
+
+            color: #ffffff;
+
+            text-align: center;
+
+            box-shadow:
+                0 30px 90px
+                rgba(0, 0, 0, 0.45);
+        }
+
+        .gapino-call-avatar {
+            width: 96px;
+            height: 96px;
+
+            margin:
+                0 auto 16px;
+
+            border-radius: 50%;
+
+            display: flex;
+
+            align-items: center;
+            justify-content: center;
+
+            overflow: hidden;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #2563eb,
+                    #7c3aed
+                );
+
+            font-size: 34px;
+
+            font-weight: 900;
+        }
+
+        .gapino-call-avatar img {
+            width: 100%;
+            height: 100%;
+
+            object-fit: cover;
+        }
+
+        .gapino-call-name {
+            font-size: 22px;
+
+            font-weight: 900;
+
+            margin-bottom: 7px;
+        }
+
+        .gapino-call-status {
+            font-size: 14px;
+
+            opacity: 0.72;
+
+            margin-bottom: 10px;
+        }
+
+        .gapino-call-timer {
+            font-size: 30px;
+
+            font-weight: 900;
+
+            margin-bottom: 22px;
+        }
+
+        .gapino-call-actions {
+            display: flex;
+
+            flex-wrap: wrap;
+
+            justify-content: center;
+
+            gap: 9px;
+        }
+
+        .gapino-call-button {
+            min-width: 120px;
+
+            padding:
+                12px 16px;
+
+            border: 0;
+
+            border-radius: 14px;
+
+            color: #ffffff;
+
+            font-weight: 800;
+
+            cursor: pointer;
+        }
+
+        .gapino-call-button.accept {
+            background:
+                #16a34a;
+        }
+
+        .gapino-call-button.reject {
+            background:
+                #dc2626;
+        }
+
+        /* =====================================================
+           MOBILE
+           ===================================================== */
+
+        @media (max-width: 800px) {
+
+            html,
+            body {
+                width: 100%;
+
+                height: 100dvh;
+            }
+
+            .app-shell {
+                width: 100%;
+
+                height: 100dvh;
+
+                min-height: 100dvh;
+            }
+
+            .sidebar {
+                width: 100%;
+
+                min-width: 100%;
+            }
+
+            .chat-area {
+                display: none;
+
+                width: 100%;
+
+                min-width: 100%;
+            }
+
+            .app-shell.chat-open
+                .sidebar {
+                display: none;
+            }
+
+            .app-shell.chat-open
+                .chat-area {
+                display: flex;
+            }
+
+            .active-lives-section {
+                margin:
+                    0 8px 7px;
+            }
+
+            .active-lives-list {
+                max-height:
+                    155px;
+            }
+
+            .sidebar-footer {
+                grid-template-columns:
+                    1fr
+                    1fr
+                    1fr;
+
+                padding:
+                    9px 9px
+                    max(
+                        9px,
+                        env(
+                            safe-area-inset-bottom
+                        )
+                    );
+            }
+
+            .sidebar-action {
+                min-height: 40px;
+
+                font-size: 12px;
+
+                border-radius: 12px;
+            }
+
+            .chat-header {
+                min-height: 64px;
+
+                padding:
+                    max(
+                        8px,
+                        env(
+                            safe-area-inset-top
+                        )
                     )
+                    8px
+                    8px
+                    8px;
+            }
+
+            .chat-contact {
+                gap: 7px;
+            }
+
+            .chat-header-actions {
+                gap: 3px;
+            }
+
+            .chat-header-actions
+                .icon-button {
+
+                width: 40px !important;
+
+                min-width: 40px !important;
+
+                max-width: 40px !important;
+
+                height: 40px !important;
+
+                min-height: 40px !important;
+
+                max-height: 40px !important;
+            }
+
+            #headerLiveButton {
+
+                width: 40px !important;
+
+                min-width: 40px !important;
+
+                max-width: 40px !important;
+
+                height: 40px !important;
+
+                min-height: 40px !important;
+
+                max-height: 40px !important;
+            }
+
+            #callButton {
+                display: flex !important;
+
+                visibility: visible !important;
+
+                opacity: 1 !important;
+
+                font-size: 18px !important;
+            }
+
+            .chat-avatar {
+                width: 42px;
+
+                height: 42px;
+            }
+
+            .messages-container {
+                padding:
+                    12px 10px 8px;
+            }
+
+            .messages-list {
+                gap: 4px;
+            }
+
+            .message-row.mine {
+                padding-left: 4px;
+            }
+
+            .message-row.theirs {
+                padding-right: 4px;
+            }
+
+            .message-bubble {
+                max-width: 84%;
+
+                padding:
+                    8px 11px;
+
+                font-size: 14px;
+
+                line-height: 1.55;
+
+                border-radius: 16px;
+            }
+
+            .message-row.mine
+                .message-bubble {
+
+                border-bottom-right-radius:
+                    5px;
+            }
+
+            .message-row.theirs
+                .message-bubble {
+
+                border-bottom-left-radius:
+                    5px;
+            }
+
+            .message-bubble audio {
+                width:
+                    min(
+                        250px,
+                        68vw
+                    );
+            }
+
+            .chat-composer {
+                padding:
+                    8px
+                    8px
+                    max(
+                        8px,
+                        env(
+                            safe-area-inset-bottom
+                        )
+                    );
+            }
+
+            .composer-button,
+            .send-button {
+
+                width: 42px;
+
+                height: 42px;
+
+                min-width: 42px;
+
+                min-height: 42px;
+            }
+
+            .gapino-call-card {
+
+                width:
+                    min(
+                        360px,
+                        100%
+                    );
+
+                padding:
+                    24px 16px;
+
+                border-radius: 24px;
+            }
+
+            .gapino-call-avatar {
+
+                width: 82px;
+
+                height: 82px;
+
+                font-size: 30px;
+            }
+
+            .gapino-call-name {
+                font-size: 20px;
+            }
+
+            .gapino-call-timer {
+                font-size: 27px;
+            }
+
+            .gapino-call-button {
+                width: 100%;
+            }
+        }
+
+        /* =====================================================
+           SMALL PHONES
+           ===================================================== */
+
+        @media (max-width: 420px) {
+
+            .sidebar-footer {
+                gap: 5px;
+            }
+
+            .sidebar-action {
+                padding:
+                    0 4px;
+
+                font-size: 11px;
+            }
+
+            .active-live-name {
+                font-size: 12px;
+            }
+
+            .active-live-meta {
+                font-size: 10px;
+            }
+
+            .active-live-avatar {
+                width: 40px;
+
+                height: 40px;
+            }
+
+            .active-live-badge {
+                padding:
+                    4px 6px;
+
+                font-size: 8px;
+            }
+
+            .chat-header-actions
+                .icon-button {
+
+                width: 38px !important;
+
+                min-width: 38px !important;
+
+                max-width: 38px !important;
+
+                height: 38px !important;
+
+                min-height: 38px !important;
+
+                max-height: 38px !important;
+            }
+
+            #headerLiveButton {
+
+                width: 38px !important;
+
+                min-width: 38px !important;
+
+                max-width: 38px !important;
+
+                height: 38px !important;
+
+                min-height: 38px !important;
+
+                max-height: 38px !important;
+
+                font-size: 17px !important;
+            }
+
+            #callButton {
+                font-size:
+                    17px !important;
+            }
+
+            .chat-contact-info strong {
+                font-size: 14px;
+            }
+
+            .chat-contact-info span {
+                font-size: 11px;
+            }
+
+            .message-bubble {
+                max-width: 88%;
+
+                padding:
+                    7px 10px;
+
+                font-size: 13.5px;
+
+                border-radius: 15px;
+            }
+
+            .message-row.mine {
+                padding-left: 2px;
+            }
+
+            .message-row.theirs {
+                padding-right: 2px;
+            }
+        }
+
+        /* =====================================================
+           DARK MODE
+           ===================================================== */
+
+        @media (prefers-color-scheme: dark) {
+
+            .active-live-item {
+                background:
+                    rgba(
+                        31,
+                        41,
+                        55,
+                        0.82
+                    );
+            }
+
+            .message-row.theirs
+                .message-bubble {
+
+                background:
+                    #1f2937;
+
+                color:
+                    #f3f4f6;
+
+                border-color:
+                    rgba(
+                        255,
+                        255,
+                        255,
+                        0.05
+                    );
+            }
+
+            .message-row.mine
+                .message-bubble {
+
+                background:
+                    #229ed9;
+
+                color:
+                    #ffffff;
+            }
+        }
+
+        /* =====================================================
+           SAFE AREA
+           ===================================================== */
+
+        @supports (
+            padding:
+                env(
+                    safe-area-inset-bottom
                 )
-                .strip()
-                .lower()
-            )
+        ) {
 
+            .gapino-call-overlay {
 
-            # =================================================
-            # PING
-            # =================================================
+                padding-top:
+                    max(
+                        18px,
+                        env(
+                            safe-area-inset-top
+                        )
+                    );
 
-            if message_type == "ping":
+                padding-bottom:
+                    max(
+                        18px,
+                        env(
+                            safe-area-inset-bottom
+                        )
+                    );
+            }
+        }
 
-                await send_ws(
-                    websocket,
-                    {
-                        "type":
-                            "pong",
-                    },
+        /* =====================================================
+           REDUCE MOTION
+           ===================================================== */
+
+        @media (
+            prefers-reduced-motion: reduce
+        ) {
+
+            *,
+            *::before,
+            *::after {
+
+                scroll-behavior:
+                    auto !important;
+
+                transition:
+                    none !important;
+
+                animation:
+                    none !important;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- =====================================================
+         GAPINO APP
+         ===================================================== -->
+
+    <div
+        class="app-shell"
+        id="appShell"
+    >
+
+        <!-- =================================================
+             SIDEBAR
+             ================================================= -->
+
+        <aside
+            id="sidebar"
+            class="sidebar"
+        >
+
+            <!-- BRAND -->
+
+            <div class="sidebar-header">
+
+                <div class="brand">
+
+                    <div class="brand-logo">
+                        G
+                    </div>
+
+                    <div class="brand-text">
+
+                        <strong>
+                            گپینو
+                        </strong>
+
+                        <span>
+                            پیام‌رسان
+                        </span>
+
+                    </div>
+
+                </div>
+
+                <button
+                    id="newChatButton"
+                    class="icon-button"
+                    type="button"
+                    title="گفتگوی جدید"
+                    aria-label="گفتگوی جدید"
+                >
+                    ✏️
+                </button>
+
+            </div>
+
+            <!-- SEARCH -->
+
+            <div class="search-box">
+
+                <input
+                    id="userSearch"
+                    type="search"
+                    placeholder="جستجوی کاربران..."
+                    autocomplete="off"
+                    spellcheck="false"
+                >
+
+            </div>
+
+            <!-- =================================================
+                 ACTIVE LIVE ROOMS
+                 ================================================= -->
+
+            <section
+                id="activeLivesSection"
+                class="active-lives-section"
+                hidden
+            >
+
+                <div class="active-lives-header">
+
+                    <div
+                        class="active-lives-title"
+                    >
+
+                        <span
+                            class="live-dot"
+                            aria-hidden="true"
+                        ></span>
+
+                        <span>
+                            لایوهای فعال
+                        </span>
+
+                    </div>
+
+                    <button
+                        id="refreshLivesButton"
+                        type="button"
+                        title="به‌روزرسانی لایوها"
+                        aria-label="به‌روزرسانی لایوها"
+                    >
+                        ↻
+                    </button>
+
+                </div>
+
+                <div
+                    id="activeLivesList"
+                    class="active-lives-list"
+                >
+                </div>
+
+            </section>
+
+            <!-- USERS -->
+
+            <div
+                id="usersList"
+                class="users-list"
+            >
+            </div>
+
+            <!-- FOOTER -->
+
+            <div class="sidebar-footer">
+
+                <button
+                    id="liveButton"
+                    class="sidebar-action"
+                    type="button"
+                    title="شروع پخش زنده"
+                    aria-label="شروع پخش زنده"
+                >
+                    🔴
+
+                    <span>
+                        پخش زنده
+                    </span>
+                </button>
+
+                <button
+                    id="profileButton"
+                    class="sidebar-action"
+                    type="button"
+                    title="پروفایل"
+                    aria-label="پروفایل"
+                >
+                    👤
+
+                    <span>
+                        پروفایل
+                    </span>
+                </button>
+
+                <button
+                    id="logoutButton"
+                    class="sidebar-action"
+                    type="button"
+                    title="خروج"
+                    aria-label="خروج"
+                >
+                    🚪
+
+                    <span>
+                        خروج
+                    </span>
+                </button>
+
+            </div>
+
+        </aside>
+
+        <!-- =================================================
+             CHAT AREA
+             ================================================= -->
+
+        <main
+            id="chatArea"
+            class="chat-area"
+        >
+
+            <!-- HEADER -->
+
+            <header class="chat-header">
+
+                <div class="chat-contact">
+
+                    <div
+                        id="chatAvatar"
+                        class="chat-avatar"
+                    >
+                        G
+                    </div>
+
+                    <div
+                        class="chat-contact-info"
+                    >
+
+                        <strong
+                            id="chatUserName"
+                        >
+                            انتخاب گفتگو
+                        </strong>
+
+                        <span
+                            id="chatUserStatus"
+                        >
+                            یک کاربر را انتخاب کنید
+                        </span>
+
+                    </div>
+
+                </div>
+
+                <div
+                    class="chat-header-actions"
+                >
+
+                    <!-- LIVE -->
+
+                    <button
+                        id="headerLiveButton"
+                        type="button"
+                        title="پخش زنده"
+                        aria-label="پخش زنده"
+                    >
+                        🔴
+                    </button>
+
+                    <!-- CALL -->
+
+                    <button
+                        id="callButton"
+                        class="icon-button"
+                        type="button"
+                        title="تماس صوتی"
+                        aria-label="تماس صوتی"
+                    >
+                        📞
+                    </button>
+
+                    <!-- MESSAGE SEARCH -->
+
+                    <button
+                        id="chatSearchButton"
+                        class="icon-button"
+                        type="button"
+                        title="جستجوی پیام"
+                        aria-label="جستجوی پیام"
+                    >
+                        🔎
+                    </button>
+
+                    <!-- MENU -->
+
+                    <button
+                        id="chatMenuButton"
+                        class="icon-button"
+                        type="button"
+                        title="منو"
+                        aria-label="منو"
+                    >
+                        ⋮
+                    </button>
+
+                </div>
+
+            </header>
+
+            <!-- =================================================
+                 MESSAGES
+                 ================================================= -->
+
+            <section
+                id="messagesContainer"
+                class="messages-container"
+            >
+
+                <div
+                    id="emptyChat"
+                    class="empty-chat"
+                >
+
+                    <div
+                        class="empty-chat-icon"
+                    >
+                        💬
+                    </div>
+
+                    <h2>
+                        به گپینو خوش آمدی
+                    </h2>
+
+                    <p>
+                        برای شروع، یک کاربر را از فهرست انتخاب کن.
+                    </p>
+
+                </div>
+
+                <div
+                    id="messagesList"
+                    class="messages-list"
+                >
+                </div>
+
+                <div
+                    id="typingIndicator"
+                    class="typing-indicator"
+                    hidden
+                >
+                    در حال نوشتن...
+                </div>
+
+            </section>
+
+            <!-- FILE PREVIEW -->
+
+            <div
+                id="attachmentPreview"
+                class="attachment-preview"
+                hidden
+            >
+            </div>
+
+            <!-- =================================================
+                 COMPOSER
+                 ================================================= -->
+
+            <div class="chat-composer">
+
+                <button
+                    id="attachButton"
+                    class="composer-button"
+                    type="button"
+                    title="پیوست فایل"
+                    aria-label="پیوست فایل"
+                >
+                    📎
+                </button>
+
+                <input
+                    id="fileInput"
+                    type="file"
+                    hidden
+                >
+
+                <textarea
+                    id="messageInput"
+                    rows="1"
+                    placeholder="پیامت را بنویس..."
+                    autocomplete="off"
+                    spellcheck="false"
+                ></textarea>
+
+                <button
+                    id="voiceButton"
+                    class="composer-button"
+                    type="button"
+                    title="ضبط صدا"
+                    aria-label="ضبط صدا"
+                >
+                    🎙️
+                </button>
+
+                <button
+                    id="sendButton"
+                    class="send-button"
+                    type="button"
+                    title="ارسال"
+                    aria-label="ارسال"
+                >
+                    ➤
+                </button>
+
+            </div>
+
+        </main>
+
+    </div>
+
+    <!-- =====================================================
+         PROFILE MODAL
+         ===================================================== -->
+
+    <div
+        id="profileModal"
+        class="modal-overlay"
+        hidden
+    >
+
+        <div class="modal-card">
+
+            <button
+                id="closeProfileModal"
+                class="modal-close"
+                type="button"
+                aria-label="بستن"
+            >
+                ×
+            </button>
+
+            <div class="modal-header">
+
+                <h2>
+                    پروفایل
+                </h2>
+
+            </div>
+
+            <div class="profile-form">
+
+                <div
+                    id="profileAvatarPreview"
+                    class="profile-avatar-preview"
+                >
+                    G
+                </div>
+
+                <label
+                    class="form-label"
+                    for="profileDisplayName"
+                >
+                    نام نمایشی
+                </label>
+
+                <input
+                    id="profileDisplayName"
+                    class="form-input"
+                    type="text"
+                    maxlength="60"
+                    autocomplete="off"
+                >
+
+                <label
+                    class="form-label"
+                    for="profileBio"
+                >
+                    درباره من
+                </label>
+
+                <textarea
+                    id="profileBio"
+                    class="form-input"
+                    rows="4"
+                    maxlength="250"
+                ></textarea>
+
+                <button
+                    id="saveProfileButton"
+                    class="primary-button"
+                    type="button"
+                >
+                    ذخیره تغییرات
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- =====================================================
+         MESSAGE SEARCH MODAL
+         ===================================================== -->
+
+    <div
+        id="messageSearchModal"
+        class="modal-overlay"
+        hidden
+    >
+
+        <div class="modal-card">
+
+            <button
+                id="closeMessageSearchModal"
+                class="modal-close"
+                type="button"
+                aria-label="بستن"
+            >
+                ×
+            </button>
+
+            <div class="modal-header">
+
+                <h2>
+                    جستجوی پیام
+                </h2>
+
+            </div>
+
+            <input
+                id="messageSearchInput"
+                class="form-input"
+                type="search"
+                placeholder="متن پیام..."
+                autocomplete="off"
+            >
+
+            <div
+                id="messageSearchResults"
+                class="message-search-results"
+            >
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- =====================================================
+         TOAST
+         ===================================================== -->
+
+    <div
+        id="toastContainer"
+        class="toast-container"
+        aria-live="polite"
+        aria-atomic="true"
+    ></div>
+
+    <!-- =====================================================
+         TURN SERVERS
+         ===================================================== -->
+
+    <script>
+        /*
+         * فعلاً TURN اختصاصی نداریم.
+         * STUN در call.js و live.js استفاده می‌شود.
+         */
+
+        window.GAPINO_TURN_SERVERS = [];
+    </script>
+
+    <!-- =====================================================
+         LIVE NAVIGATION + ACTIVE LIVE ROOMS
+         ===================================================== -->
+
+    <script>
+        (function () {
+
+            "use strict";
+
+            const API =
+                window.GAPINO_API_BASE ||
+                window.location.origin;
+
+            const liveButton =
+                document.getElementById(
+                    "liveButton"
+                );
+
+            const headerLiveButton =
+                document.getElementById(
+                    "headerLiveButton"
+                );
+
+            const activeLivesSection =
+                document.getElementById(
+                    "activeLivesSection"
+                );
+
+            const activeLivesList =
+                document.getElementById(
+                    "activeLivesList"
+                );
+
+            const refreshLivesButton =
+                document.getElementById(
+                    "refreshLivesButton"
+                );
+
+            function escapeHtml(value) {
+
+                return String(
+                    value ?? ""
                 )
-
-                continue
-
-
-            # =================================================
-            # LIVE JOIN
-            # =================================================
-
-            if (
-                message_type
-                == "live_join"
-            ):
-
-                room_id = str(
-                    data.get(
-                        "room_id",
-                        "",
-                    )
-                    or ""
-                ).strip()
-
-                peer_id = str(
-                    data.get(
-                        "peer_id",
-                        "",
-                    )
-                    or ""
-                ).strip()
-
-                is_host = bool(
-                    data.get(
-                        "host",
-                        False,
-                    )
+                .replaceAll(
+                    "&",
+                    "&amp;"
                 )
+                .replaceAll(
+                    "<",
+                    "&lt;"
+                )
+                .replaceAll(
+                    ">",
+                    "&gt;"
+                )
+                .replaceAll(
+                    '"',
+                    "&quot;"
+                )
+                .replaceAll(
+                    "'",
+                    "&#039;"
+                );
+            }
+
+            function hostName(host) {
+
+                return (
+                    host?.display_name ||
+                    host?.username ||
+                    "کاربر"
+                );
+            }
+
+            function hostAvatar(host) {
+
+                const avatar =
+                    String(
+                        host?.avatar ||
+                        ""
+                    ).trim();
+
+                if (!avatar) {
+
+                    return escapeHtml(
+                        hostName(host)
+                            .charAt(0)
+                            .toUpperCase() ||
+                        "G"
+                    );
+                }
+
+                const avatarUrl =
+                    avatar.startsWith(
+                        "http"
+                    )
+                        ? avatar
+                        : API + avatar;
+
+                return (
+                    '<img src="' +
+                    escapeHtml(
+                        avatarUrl
+                    ) +
+                    '" alt="">'
+                );
+            }
+
+            function openLive() {
+
+                window.location.href =
+                    "/live.html";
+            }
+
+            function joinLive(roomId) {
+
+                const room =
+                    String(
+                        roomId || ""
+                    ).trim();
+
+                if (!room) {
+                    return;
+                }
+
+                window.location.href =
+                    "/live.html?room=" +
+                    encodeURIComponent(
+                        room
+                    ) +
+                    "&join=1";
+            }
+
+            async function loadActiveLives() {
 
                 if (
-                    not room_id
-                    or not peer_id
-                ):
+                    !activeLivesSection ||
+                    !activeLivesList
+                ) {
+                    return;
+                }
 
-                    await send_ws(
-                        websocket,
-                        {
-                            "type":
-                                "error",
+                try {
 
-                            "message":
-                                "اطلاعات اتاق Live ناقص است",
-                        },
-                    )
+                    const response =
+                        await fetch(
+                            API +
+                            "/api/live/active",
+                            {
+                                method: "GET",
 
-                    continue
+                                credentials:
+                                    "include",
 
+                                cache:
+                                    "no-store",
 
-                # -------------------------------------------------
-                # HOST JOIN
-                # -------------------------------------------------
+                                headers: {
+                                    "Accept":
+                                        "application/json"
+                                }
+                            }
+                        );
 
-                if is_host:
+                    if (
+                        !response.ok
+                    ) {
 
-                    room = live_rooms.get(
-                        room_id
-                    )
+                        activeLivesSection.hidden =
+                            true;
 
-                    if room is None:
+                        activeLivesList.innerHTML =
+                            "";
 
-                        room = {
-                            "room_id":
-                                room_id,
+                        return;
+                    }
 
-                            "host_uid":
-                                int(uid),
+                    const data =
+                        await response.json();
 
-                            "host_peer_id":
-                                peer_id,
+                    const rooms =
+                        Array.isArray(
+                            data.live_rooms
+                        )
+                            ? data.live_rooms
+                            : [];
 
-                            "active":
-                                False,
+                    activeLivesList.innerHTML =
+                        "";
 
-                            "created_at":
-                                time.time(),
+                    if (!rooms.length) {
 
-                            "peers": {
-                                peer_id:
-                                    int(uid)
-                            },
+                        activeLivesSection.hidden =
+                            true;
+
+                        return;
+                    }
+
+                    activeLivesSection.hidden =
+                        false;
+
+                    for (
+                        const room
+                        of rooms
+                    ) {
+
+                        const host =
+                            room.host ||
+                            {};
+
+                        const roomId =
+                            String(
+                                room.room_id ||
+                                ""
+                            ).trim();
+
+                        if (!roomId) {
+                            continue;
                         }
 
-                        live_rooms[
-                            room_id
-                        ] = room
+                        const name =
+                            hostName(
+                                host
+                            );
 
-                    else:
+                        const viewers =
+                            Math.max(
+                                0,
+                                Number(
+                                    room.viewer_count
+                                ) || 0
+                            );
 
-                        if (
-                            int(
-                                room[
-                                    "host_uid"
-                                ]
-                            )
-                            != int(uid)
-                        ):
+                        const button =
+                            document.createElement(
+                                "button"
+                            );
 
-                            await send_ws(
-                                websocket,
-                                {
-                                    "type":
-                                        "error",
+                        button.type =
+                            "button";
 
-                                    "message":
-                                        "این اتاق متعلق به کاربر دیگری است",
-                                },
-                            )
+                        button.className =
+                            "active-live-item";
 
-                            continue
+                        button.dataset.room =
+                            roomId;
 
-                        room[
-                            "host_peer_id"
-                        ] = peer_id
+                        button.title =
+                            "ورود به لایو " +
+                            name;
 
-                        room[
-                            "peers"
-                        ][
-                            peer_id
-                        ] = int(uid)
+                        button.innerHTML =
+                            '<div class="active-live-avatar">' +
+                                hostAvatar(host) +
+                            "</div>" +
 
-                    live_socket_peers[
-                        websocket
-                    ].add(
-                        (
-                            room_id,
-                            peer_id,
-                        )
-                    )
+                            '<div class="active-live-info">' +
 
-                    await send_ws(
-                        websocket,
-                        {
-                            "type":
-                                "live_room_ready",
+                                '<div class="active-live-name">' +
+                                    escapeHtml(name) +
+                                "</div>" +
 
-                            "room_id":
-                                room_id,
+                                '<div class="active-live-meta">' +
+                                    "👁️ " +
+                                    viewers +
+                                    " بیننده" +
+                                "</div>" +
 
-                            "peer_id":
-                                peer_id,
+                            "</div>" +
 
-                            "host":
-                                True,
+                            '<span class="active-live-badge">' +
+                                "LIVE" +
+                            "</span>";
 
-                            "count":
-                                live_peer_count(
-                                    room
-                                ),
-                        },
-                    )
+                        button.addEventListener(
+                            "click",
+                            function () {
 
-                    await send_live_viewer_count(
-                        room
-                    )
+                                joinLive(
+                                    button.dataset.room
+                                );
 
-                    continue
+                            }
+                        );
 
-
-                # -------------------------------------------------
-                # VIEWER JOIN
-                # -------------------------------------------------
-
-                room = live_rooms.get(
-                    room_id
-                )
-
-                if (
-                    room is None
-                    or not room.get(
-                        "active",
-                        False,
-                    )
-                ):
-
-                    await send_ws(
-                        websocket,
-                        {
-                            "type":
-                                "error",
-
-                            "message":
-                                "این پخش زنده وجود ندارد یا پایان یافته است",
-                        },
-                    )
-
-                    continue
-
-                room[
-                    "peers"
-                ][
-                    peer_id
-                ] = int(uid)
-
-                live_socket_peers[
-                    websocket
-                ].add(
-                    (
-                        room_id,
-                        peer_id,
-                    )
-                )
-
-                host_user = (
-                    live_host_user(
-                        room
-                    )
-                )
-
-                await send_ws(
-                    websocket,
-                    {
-                        "type":
-                            "live_started",
-
-                        "room_id":
-                            room_id,
-
-                        "host":
-                            True,
-
-                        "host_user":
-                            (
-                                public_user(
-                                    host_user
-                                )
-                                if host_user
-                                else None
-                            ),
-
-                        "count":
-                            live_peer_count(
-                                room
-                            ),
-                    },
-                )
-
-                await send_live_to_uid(
-                    int(
-                        room[
-                            "host_uid"
-                        ]
-                    ),
-                    {
-                        "type":
-                            "live_peer_join",
-
-                        "room_id":
-                            room_id,
-
-                        "peer_id":
-                            peer_id,
-
-                        "user_id":
-                            int(uid),
-                    },
-                )
-
-                await send_live_viewer_count(
-                    room
-                )
-
-                continue
-
-
-            # =================================================
-            # LIVE START
-            # =================================================
-
-            if (
-                message_type
-                == "live_start"
-            ):
-
-                room_id = str(
-                    data.get(
-                        "room_id",
-                        "",
-                    )
-                    or ""
-                ).strip()
-
-                peer_id = str(
-                    data.get(
-                        "peer_id",
-                        "",
-                    )
-                    or ""
-                ).strip()
-
-                if (
-                    not room_id
-                    or not peer_id
-                ):
-                    continue
-
-                room = live_rooms.get(
-                    room_id
-                )
-
-                if room is None:
-
-                    room = {
-                        "room_id":
-                            room_id,
-
-                        "host_uid":
-                            int(uid),
-
-                        "host_peer_id":
-                            peer_id,
-
-                        "active":
-                            True,
-
-                        "created_at":
-                            time.time(),
-
-                        "peers": {
-                            peer_id:
-                                int(uid)
-                        },
+                        activeLivesList.appendChild(
+                            button
+                        );
                     }
 
-                    live_rooms[
-                        room_id
-                    ] = room
+                    if (
+                        !activeLivesList.children.length
+                    ) {
 
-                if (
-                    int(
-                        room[
-                            "host_uid"
-                        ]
-                    )
-                    != int(uid)
-                ):
-
-                    continue
-
-                room[
-                    "active"
-                ] = True
-
-                room[
-                    "host_peer_id"
-                ] = peer_id
-
-                room[
-                    "peers"
-                ][
-                    peer_id
-                ] = int(uid)
-
-                user = user_by_id(
-                    int(uid)
-                )
-
-                await broadcast_live_room(
-                    room,
-                    {
-                        "type":
-                            "live_started",
-
-                        "room_id":
-                            room_id,
-
-                        "host":
-                            True,
-
-                        "host_user":
-                            (
-                                public_user(
-                                    user
-                                )
-                                if user
-                                else None
-                            ),
-
-                        "count":
-                            live_peer_count(
-                                room
-                            ),
-                    },
-                )
-
-                await send_live_viewer_count(
-                    room
-                )
-
-                continue
-
-
-            # =================================================
-            # LIVE STOP
-            # =================================================
-
-            if (
-                message_type
-                == "live_stop"
-            ):
-
-                room_id = str(
-                    data.get(
-                        "room_id",
-                        "",
-                    )
-                    or ""
-                ).strip()
-
-                room = live_rooms.get(
-                    room_id
-                )
-
-                if not room:
-                    continue
-
-                if (
-                    int(
-                        room[
-                            "host_uid"
-                        ]
-                    )
-                    != int(uid)
-                ):
-
-                    continue
-
-                await broadcast_live_room(
-                    room,
-                    {
-                        "type":
-                            "live_stopped",
-
-                        "room_id":
-                            room_id,
-
-                        "reason":
-                            "host_stopped",
-                    },
-                )
-
-                live_rooms.pop(
-                    room_id,
-                    None,
-                )
-
-                for (
-                    ws,
-                    peer_set,
-                ) in list(
-                    live_socket_peers.items()
-                ):
-
-                    filtered = {
-                        item
-                        for item
-                        in peer_set
-                        if item[0]
-                        != room_id
+                        activeLivesSection.hidden =
+                            true;
                     }
 
-                    if filtered:
-
-                        live_socket_peers[
-                            ws
-                        ] = filtered
-
-                    else:
-
-                        live_socket_peers.pop(
-                            ws,
-                            None,
-                        )
-
-                continue
-
-
-            # =================================================
-            # LIVE LEAVE
-            # =================================================
-
-            if (
-                message_type
-                == "live_leave"
-            ):
-
-                room_id = str(
-                    data.get(
-                        "room_id",
-                        "",
-                    )
-                    or ""
-                ).strip()
-
-                peer_id = str(
-                    data.get(
-                        "peer_id",
-                        "",
-                    )
-                    or ""
-                ).strip()
-
-                room = live_rooms.get(
-                    room_id
-                )
-
-                if room:
-
-                    await remove_live_peer(
-                        room_id,
-                        peer_id,
-                        notify=True,
-                    )
-
-                live_socket_peers[
-                    websocket
-                ].discard(
-                    (
-                        room_id,
-                        peer_id,
-                    )
-                )
-
-                continue
-
-
-            # =================================================
-            # LIVE OFFER / ANSWER
-            # =================================================
-
-            if message_type in {
-                "live_offer",
-                "live_answer",
-            }:
-
-                room_id = str(
-                    data.get(
-                        "room_id",
-                        "",
-                    )
-                    or ""
-                ).strip()
-
-                peer_id = str(
-                    data.get(
-                        "peer_id",
-                        "",
-                    )
-                    or ""
-                ).strip()
-
-                target_peer_id = str(
-                    data.get(
-                        "target_peer_id",
-                        "",
-                    )
-                    or ""
-                ).strip()
-
-                room = live_rooms.get(
-                    room_id
-                )
-
-                if not room:
-                    continue
-
-                if (
-                    peer_id not in
-                    room[
-                        "peers"
-                    ]
-                ):
-
-                    continue
-
-                if (
-                    target_peer_id
-                    not in room[
-                        "peers"
-                    ]
-                ):
-
-                    continue
-
-                sender_uid = live_peer_uid(
-                    room,
-                    peer_id,
-                )
-
-                if (
-                    sender_uid
-                    != int(uid)
-                ):
-
-                    continue
-
-                receiver_uid = live_peer_uid(
-                    room,
-                    target_peer_id,
-                )
-
-                if receiver_uid is None:
-                    continue
-
-                payload = dict(
-                    data
-                )
-
-                payload[
-                    "sender_id"
-                ] = int(uid)
-
-                await send_live_to_uid(
-                    receiver_uid,
-                    payload,
-                )
-
-                continue
-
-
-            # =================================================
-            # LIVE ICE
-            # =================================================
-
-            if (
-                message_type
-                == "live_ice"
-            ):
-
-                room_id = str(
-                    data.get(
-                        "room_id",
-                        "",
-                    )
-                    or ""
-                ).strip()
-
-                peer_id = str(
-                    data.get(
-                        "peer_id",
-                        "",
-                    )
-                    or ""
-                ).strip()
-
-                target_peer_id = str(
-                    data.get(
-                        "target_peer_id",
-                        "",
-                    )
-                    or ""
-                ).strip()
-
-                room = live_rooms.get(
-                    room_id
-                )
-
-                if not room:
-                    continue
-
-                if (
-                    peer_id not in
-                    room[
-                        "peers"
-                    ]
-                ):
-
-                    continue
-
-                if (
-                    target_peer_id
-                    not in room[
-                        "peers"
-                    ]
-                ):
-
-                    continue
-
-                sender_uid = live_peer_uid(
-                    room,
-                    peer_id,
-                )
-
-                if (
-                    sender_uid
-                    != int(uid)
-                ):
-
-                    continue
-
-                receiver_uid = live_peer_uid(
-                    room,
-                    target_peer_id,
-                )
-
-                if receiver_uid is None:
-                    continue
-
-                payload = dict(
-                    data
-                )
-
-                payload[
-                    "sender_id"
-                ] = int(uid)
-
-                await send_live_to_uid(
-                    receiver_uid,
-                    payload,
-                )
-
-                continue
-
-
-            # =================================================
-            # LIVE CHAT
-            # =================================================
-
-            if (
-                message_type
-                == "live_chat"
-            ):
-
-                room_id = str(
-                    data.get(
-                        "room_id",
-                        "",
-                    )
-                    or ""
-                ).strip()
-
-                peer_id = str(
-                    data.get(
-                        "peer_id",
-                        "",
-                    )
-                    or ""
-                ).strip()
-
-                message = str(
-                    data.get(
-                        "message",
-                        "",
-                    )
-                    or ""
-                ).strip()
-
-                if not message:
-                    continue
-
-                if len(message) > MAX_LIVE_CHAT_LENGTH:
-
-                    message = message[
-                        :MAX_LIVE_CHAT_LENGTH
-                    ]
-
-                room = live_rooms.get(
-                    room_id
-                )
-
-                if not room:
-                    continue
-
-                if (
-                    peer_id not in
-                    room[
-                        "peers"
-                    ]
-                ):
-
-                    continue
-
-                sender_uid = live_peer_uid(
-                    room,
-                    peer_id,
-                )
-
-                if (
-                    sender_uid
-                    != int(uid)
-                ):
-
-                    continue
-
-                user = user_by_id(
-                    int(uid)
-                )
-
-                await broadcast_live_room(
-                    room,
-                    {
-                        "type":
-                            "live_chat",
-
-                        "room_id":
-                            room_id,
-
-                        "peer_id":
-                            peer_id,
-
-                        "user_id":
-                            int(uid),
-
-                        "username":
-                            (
-                                user[
-                                    "display_name"
-                                ]
-                                if user
-                                else "کاربر"
-                            ),
-
-                        "avatar":
-                            (
-                                user[
-                                    "avatar"
-                                ]
-                                if user
-                                else ""
-                            ),
-
-                        "message":
-                            message,
-
-                        "created_at":
-                            now(),
-                    },
-                )
-
-                continue
-
-
-            # =================================================
-            # LIVE MEDIA STATE
-            # =================================================
-
-            if (
-                message_type
-                == "live_media_state"
-            ):
-
-                room_id = str(
-                    data.get(
-                        "room_id",
-                        "",
-                    )
-                    or ""
-                ).strip()
-
-                peer_id = str(
-                    data.get(
-                        "peer_id",
-                        "",
-                    )
-                    or ""
-                ).strip()
-
-                room = live_rooms.get(
-                    room_id
-                )
-
-                if not room:
-                    continue
-
-                if (
-                    peer_id not in
-                    room[
-                        "peers"
-                    ]
-                ):
-
-                    continue
-
-                sender_uid = live_peer_uid(
-                    room,
-                    peer_id,
-                )
-
-                if (
-                    sender_uid
-                    != int(uid)
-                ):
-
-                    continue
-
-                await broadcast_live_room(
-                    room,
-                    {
-                        "type":
-                            "live_media_state",
-
-                        "room_id":
-                            room_id,
-
-                        "peer_id":
-                            peer_id,
-
-                        "media":
-                            data.get(
-                                "media"
-                            ),
-
-                        "enabled":
-                            bool(
-                                data.get(
-                                    "enabled",
-                                    False,
-                                )
-                            ),
-                    },
-                    exclude_peer_id=peer_id,
-                )
-
-                continue
-
-
-            # =================================================
-            # CALL SIGNALING
-            # =================================================
-
-            if message_type in {
-                "call_offer",
-                "call_answer",
-                "call_ice",
-                "call_reject",
-                "call_busy",
-                "call_end",
-            }:
-
-                try:
-
-                    receiver_id = int(
-                        data.get(
-                            "receiver_id"
-                        )
-                    )
-
-                except (
-                    TypeError,
-                    ValueError,
-                ):
-
-                    continue
-
-                if (
-                    receiver_id
-                    == int(uid)
-                    or not user_by_id(
-                        receiver_id
-                    )
-                ):
-
-                    continue
-
-                payload = dict(
-                    data
-                )
-
-                payload[
-                    "sender_id"
-                ] = int(uid)
-
-                await broadcast(
-                    receiver_id,
-                    payload,
-                )
-
-                continue
-
-
-            # =================================================
-            # TYPING
-            # =================================================
-
-            if message_type == "typing":
-
-                try:
-
-                    target_id = int(
-                        data.get(
-                            "receiver_id",
-                            data.get(
-                                "to"
-                            ),
-                        )
-                    )
-
-                except (
-                    TypeError,
-                    ValueError,
-                ):
-
-                    continue
-
-                if (
-                    target_id
-                    == int(uid)
-                    or not user_by_id(
-                        target_id
-                    )
-                ):
-
-                    continue
-
-                await broadcast(
-                    target_id,
-                    {
-                        "type":
-                            "typing",
-
-                        "from":
-                            uid,
-
-                        "sender_id":
-                            uid,
-
-                        "value":
-                            bool(
-                                data.get(
-                                    "value",
-                                    False,
-                                )
-                            ),
-                    },
-                )
-
-                continue
-
-
-            # =================================================
-            # NORMAL MESSAGE
-            # =================================================
-
-            if message_type in {
-                "message",
-                "send_message",
-            }:
-
-                try:
-
-                    receiver_id = int(
-                        data.get(
-                            "receiver_id",
-                            data.get(
-                                "to"
-                            ),
-                        )
-                    )
-
-                except (
-                    TypeError,
-                    ValueError,
-                ):
-
-                    continue
-
-                text = str(
-                    data.get(
-                        "text",
-                        "",
-                    )
-                    or ""
-                ).strip()
-
-                if (
-                    not text
-                    or len(text) > 5000
-                    or receiver_id
-                    == int(uid)
-                    or not user_by_id(
-                        receiver_id
-                    )
-                ):
-
-                    continue
-
-                conn = db()
-
-                cursor = conn.execute(
-                    """
-                    INSERT INTO messages(
-                        sender_id,
-                        receiver_id,
-                        text,
-                        created_at
-                    )
-                    VALUES(
-                        ?,
-                        ?,
-                        ?,
-                        ?
-                    )
-                    """,
-                    (
-                        uid,
-                        receiver_id,
-                        text,
-                        now(),
-                    ),
-                )
-
-                conn.commit()
-
-                row = conn.execute(
-                    """
-                    SELECT *
-                    FROM messages
-                    WHERE id = ?
-                    """,
-                    (
-                        int(
-                            cursor.lastrowid
-                        ),
-                    ),
-                ).fetchone()
-
-                conn.close()
-
-                if row:
-
-                    outgoing = {
-                        "type":
-                            "message",
-
-                        "message":
-                            dict(
-                                row
-                            ),
-                    }
-
-                    await broadcast(
-                        receiver_id,
-                        outgoing,
-                    )
-
-                    await send_ws(
-                        websocket,
-                        outgoing,
-                    )
-
-                continue
-
-
-            # =================================================
-            # ONLINE
-            # =================================================
-
-            if message_type in {
-                "online",
-                "online_users",
-            }:
-
-                await send_ws(
-                    websocket,
-                    {
-                        "type":
-                            "ready",
-
-                        "online":
-                            list(
-                                connections.keys()
-                            ),
-                    },
-                )
-
-                continue
-
-
-    except WebSocketDisconnect:
-
-        pass
-
-    except Exception as exc:
-
-        print(
-            "WebSocket error:",
-            repr(exc),
-        )
-
-    finally:
-
-        # -------------------------------------------------
-        # Normal WebSocket cleanup
-        # -------------------------------------------------
-
-        sockets = connections.get(
-            uid,
-            set(),
-        )
-
-        sockets.discard(
-            websocket
-        )
-
-        if not sockets:
-
-            connections.pop(
-                uid,
-                None,
-            )
-
-
-        # -------------------------------------------------
-        # Live cleanup
-        # -------------------------------------------------
-
-        live_items = list(
-            live_socket_peers.get(
-                websocket,
-                set(),
-            )
-        )
-
-        for (
-            room_id,
-            peer_id,
-        ) in live_items:
-
-            try:
-
-                await remove_live_peer(
-                    room_id,
-                    peer_id,
-                    notify=True,
-                )
-
-            except Exception as exc:
-
-                print(
-                    "LIVE cleanup error:",
-                    repr(exc),
-                )
-
-        live_socket_peers.pop(
-            websocket,
-            None,
-        )
-
-
-        # -------------------------------------------------
-        # Offline notification
-        # -------------------------------------------------
-
-        if uid not in connections:
-
-            for other_uid in list(
-                connections.keys()
-            ):
-
-                try:
-
-                    await broadcast(
-                        other_uid,
-                        {
-                            "type":
-                                "user_offline",
-
-                            "user_id":
-                                uid,
-                        },
-                    )
-
-                except Exception:
-
-                    pass
+                } catch (error) {
+
+                    console.error(
+                        "GAPINO active live rooms error:",
+                        error
+                    );
+
+                    activeLivesSection.hidden =
+                        true;
+                }
+            }
+
+            if (liveButton) {
+
+                liveButton.addEventListener(
+                    "click",
+                    openLive
+                );
+            }
+
+            if (headerLiveButton) {
+
+                headerLiveButton.addEventListener(
+                    "click",
+                    openLive
+                );
+            }
+
+            if (refreshLivesButton) {
+
+                refreshLivesButton.addEventListener(
+                    "click",
+                    loadActiveLives
+                );
+            }
+
+            document.addEventListener(
+                "DOMContentLoaded",
+                function () {
+
+                    loadActiveLives();
+
+                    /*
+                     * هر ۵ ثانیه فهرست Liveها
+                     * تازه می‌شود.
+                     */
+
+                    window.setInterval(
+                        loadActiveLives,
+                        5000
+                    );
+
+                }
+            );
+
+        })();
+    </script>
+
+    <!-- =====================================================
+         CHAT JAVASCRIPT
+         ===================================================== -->
+
+    <script
+        src="/frontend/chat.js?v=309"
+        defer
+    ></script>
+
+    <!-- =====================================================
+         CALL JAVASCRIPT
+         ===================================================== -->
+
+    <script
+        src="/frontend/call.js?v=6"
+        defer
+    ></script>
+
+</body>
+</html>
