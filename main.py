@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import mimetypes
 import os
@@ -72,38 +74,34 @@ app.add_middleware(
     secret_key=SESSION_SECRET,
     session_cookie="gapino_session",
     same_site="lax",
-    https_only=True,
+    https_only=False,
 )
 
 
 # =========================================================
 # STATIC FILES
 # =========================================================
-#
-# این بخش مهم است:
-#
-# /frontend/chat.js
-# /frontend/call.js
-# /frontend/chat.css
-# ...
-#
-# از پوشه frontend خوانده می‌شوند.
-#
 
+# فایل‌های frontend:
+#
+# https://mygapino.shop/frontend/chat.js
+# https://mygapino.shop/frontend/call.js
+# https://mygapino.shop/frontend/chat.css
+#
 app.mount(
     "/frontend",
     StaticFiles(directory=FRONTEND_DIR),
     name="frontend",
 )
 
-# مسیر قبلی برای سازگاری با فایل‌های قدیمی پروژه
+# مسیر قدیمی برای سازگاری
 app.mount(
     "/static",
     StaticFiles(directory=FRONTEND_DIR),
     name="static",
 )
 
-# فایل‌های آپلودی کاربران
+# فایل‌های آپلودی
 app.mount(
     "/uploads",
     StaticFiles(directory=UPLOADS_DIR),
@@ -121,6 +119,184 @@ pwd = CryptContext(
 )
 
 
+def hash_password(password: str) -> str:
+    """
+    هش جدید رمز عبور.
+    """
+    return pwd.hash(password)
+
+
+def verify_password(
+    password: str,
+    stored_hash: str,
+) -> bool:
+    """
+    بررسی رمزهای جدید و قدیمی GAPINO.
+
+    پشتیبانی از:
+    1) pbkdf2-sha256 جدید Passlib
+    2) فرمت قدیمی سفارشی:
+       $pbkdf2$salt$digest
+    3) Argon2
+    4) bcrypt
+    """
+
+    if not password or not stored_hash:
+        return False
+
+    stored_hash = str(
+        stored_hash
+    ).strip()
+
+    # -----------------------------------------------------
+    # PBKDF2-SHA256 جدید Passlib
+    # -----------------------------------------------------
+
+    if stored_hash.startswith(
+        "$pbkdf2-sha256$"
+    ):
+        try:
+            return bool(
+                pwd.verify(
+                    password,
+                    stored_hash,
+                )
+            )
+        except Exception:
+            return False
+
+    # -----------------------------------------------------
+    # فرمت قدیمی GAPINO
+    #
+    # $pbkdf2$salt$digest
+    # -----------------------------------------------------
+
+    if stored_hash.startswith(
+        "$pbkdf2$"
+    ):
+        parts = stored_hash.split("$")
+
+        if len(parts) == 4:
+            try:
+                salt = parts[2]
+                expected_digest = parts[3]
+
+                digest = hashlib.pbkdf2_hmac(
+                    "sha256",
+                    password.encode("utf-8"),
+                    salt.encode("utf-8"),
+                    120_000,
+                ).hex()
+
+                return hmac.compare_digest(
+                    digest,
+                    expected_digest,
+                )
+
+            except Exception:
+                return False
+
+        return False
+
+    # -----------------------------------------------------
+    # Argon2
+    # -----------------------------------------------------
+
+    if stored_hash.startswith(
+        "$argon2"
+    ):
+        try:
+            return bool(
+                pwd.verify(
+                    password,
+                    stored_hash,
+                )
+            )
+        except Exception:
+            try:
+                from passlib.hash import argon2
+
+                return bool(
+                    argon2.verify(
+                        password,
+                        stored_hash,
+                    )
+                )
+            except Exception:
+                return False
+
+    # -----------------------------------------------------
+    # bcrypt
+    # -----------------------------------------------------
+
+    if stored_hash.startswith(
+        (
+            "$2a$",
+            "$2b$",
+            "$2y$",
+        )
+    ):
+        try:
+            from passlib.hash import bcrypt
+
+            return bool(
+                bcrypt.verify(
+                    password,
+                    stored_hash,
+                )
+            )
+        except Exception:
+            return False
+
+    # -----------------------------------------------------
+    # آخرین تلاش با Passlib
+    # -----------------------------------------------------
+
+    try:
+        return bool(
+            pwd.verify(
+                password,
+                stored_hash,
+            )
+        )
+    except Exception:
+        return False
+
+
+def needs_password_upgrade(
+    stored_hash: str,
+) -> bool:
+    """
+    مشخص می‌کند هش قدیمی است و باید
+    بعد از ورود به روش جدید تبدیل شود.
+    """
+
+    stored_hash = str(
+        stored_hash or ""
+    ).strip()
+
+    if stored_hash.startswith(
+        "$pbkdf2$"
+    ):
+        return True
+
+    if stored_hash.startswith(
+        "$argon2"
+    ):
+        return True
+
+    if stored_hash.startswith(
+        (
+            "$2a$",
+            "$2b$",
+            "$2y$",
+        )
+    ):
+        return True
+
+    return False
+
+
 # =========================================================
 # WEBSOCKET STATE
 # =========================================================
@@ -135,7 +311,9 @@ ws_tickets: dict[str, dict[str, Any]] = {}
 # =========================================================
 
 def now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(
+        timezone.utc
+    ).isoformat()
 
 
 # =========================================================
@@ -150,7 +328,9 @@ def db() -> sqlite3.Connection:
 
     conn.row_factory = sqlite3.Row
 
-    conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute(
+        "PRAGMA foreign_keys = ON"
+    )
 
     return conn
 
@@ -183,8 +363,12 @@ def init_db() -> None:
             created_at TEXT NOT NULL,
             edited INTEGER DEFAULT 0,
             deleted INTEGER DEFAULT 0,
-            FOREIGN KEY(sender_id) REFERENCES users(id) ON DELETE CASCADE,
-            FOREIGN KEY(receiver_id) REFERENCES users(id) ON DELETE CASCADE
+            FOREIGN KEY(sender_id)
+                REFERENCES users(id)
+                ON DELETE CASCADE,
+            FOREIGN KEY(receiver_id)
+                REFERENCES users(id)
+                ON DELETE CASCADE
         );
 
         CREATE TABLE IF NOT EXISTS groups (
@@ -192,24 +376,38 @@ def init_db() -> None:
             name TEXT NOT NULL,
             owner_id INTEGER NOT NULL,
             created_at TEXT NOT NULL,
-            FOREIGN KEY(owner_id) REFERENCES users(id) ON DELETE CASCADE
+            FOREIGN KEY(owner_id)
+                REFERENCES users(id)
+                ON DELETE CASCADE
         );
 
         CREATE TABLE IF NOT EXISTS group_members (
             group_id INTEGER NOT NULL,
             user_id INTEGER NOT NULL,
             PRIMARY KEY(group_id, user_id),
-            FOREIGN KEY(group_id) REFERENCES groups(id) ON DELETE CASCADE,
-            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            FOREIGN KEY(group_id)
+                REFERENCES groups(id)
+                ON DELETE CASCADE,
+            FOREIGN KEY(user_id)
+                REFERENCES users(id)
+                ON DELETE CASCADE
         );
 
         CREATE TABLE IF NOT EXISTS reactions (
             message_id INTEGER NOT NULL,
             user_id INTEGER NOT NULL,
             emoji TEXT NOT NULL,
-            PRIMARY KEY(message_id, user_id, emoji),
-            FOREIGN KEY(message_id) REFERENCES messages(id) ON DELETE CASCADE,
-            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            PRIMARY KEY(
+                message_id,
+                user_id,
+                emoji
+            ),
+            FOREIGN KEY(message_id)
+                REFERENCES messages(id)
+                ON DELETE CASCADE,
+            FOREIGN KEY(user_id)
+                REFERENCES users(id)
+                ON DELETE CASCADE
         );
         """
     )
@@ -237,7 +435,10 @@ def ensure_recovery_column() -> None:
 
     if "recovery_code" not in columns:
         conn.execute(
-            "ALTER TABLE users ADD COLUMN recovery_code TEXT DEFAULT ''"
+            """
+            ALTER TABLE users
+            ADD COLUMN recovery_code TEXT DEFAULT ''
+            """
         )
         conn.commit()
 
@@ -251,7 +452,10 @@ ensure_recovery_column()
 # USER HELPERS
 # =========================================================
 
-def user_by_id(user_id: int) -> dict[str, Any] | None:
+def user_by_id(
+    user_id: int,
+) -> dict[str, Any] | None:
+
     conn = db()
 
     row = conn.execute(
@@ -275,13 +479,13 @@ def user_by_id(user_id: int) -> dict[str, Any] | None:
     return dict(row) if row else None
 
 
-def user_by_username(username: str) -> dict[str, Any] | None:
-    """
-    جستجوی کاربر بر اساس نام کاربری.
-    این تابع در نسخه قبلی استفاده شده بود اما تعریف نشده بود.
-    """
+def user_by_username(
+    username: str,
+) -> dict[str, Any] | None:
 
-    username = str(username or "").strip().lower()
+    username = str(
+        username or ""
+    ).strip().lower()
 
     if not username:
         return None
@@ -309,19 +513,31 @@ def user_by_username(username: str) -> dict[str, Any] | None:
     return dict(row) if row else None
 
 
-def public_user(user: dict[str, Any]) -> dict[str, Any]:
+def public_user(
+    user: dict[str, Any],
+) -> dict[str, Any]:
+
     return {
         "id": user["id"],
         "username": user["username"],
         "display_name": user["display_name"],
         "bio": user.get("bio", ""),
         "avatar": user.get("avatar", ""),
-        "status": user.get("status", "در دسترس"),
-        "created_at": user.get("created_at", ""),
+        "status": user.get(
+            "status",
+            "در دسترس",
+        ),
+        "created_at": user.get(
+            "created_at",
+            "",
+        ),
     }
 
 
-def current_user(request: Request) -> dict[str, Any] | None:
+def current_user(
+    request: Request,
+) -> dict[str, Any] | None:
+
     uid = request.session.get("uid")
 
     if uid is None:
@@ -329,13 +545,19 @@ def current_user(request: Request) -> dict[str, Any] | None:
 
     try:
         uid = int(uid)
-    except (TypeError, ValueError):
+    except (
+        TypeError,
+        ValueError,
+    ):
         return None
 
     return user_by_id(uid)
 
 
-def require_user(request: Request) -> dict[str, Any]:
+def require_user(
+    request: Request,
+) -> dict[str, Any]:
+
     user = current_user(request)
 
     if not user:
@@ -352,41 +574,71 @@ def require_user(request: Request) -> dict[str, Any]:
 # =========================================================
 
 def cleanup_tickets() -> None:
+
     current = time.time()
 
     for ticket in list(ws_tickets):
+
         if float(
-            ws_tickets[ticket].get("expires", 0)
+            ws_tickets[ticket].get(
+                "expires",
+                0,
+            )
         ) <= current:
-            ws_tickets.pop(ticket, None)
+
+            ws_tickets.pop(
+                ticket,
+                None,
+            )
 
 
-def make_ws_ticket(user_id: int) -> str:
+def make_ws_ticket(
+    user_id: int,
+) -> str:
+
     cleanup_tickets()
 
-    ticket = secrets.token_urlsafe(32)
+    ticket = secrets.token_urlsafe(
+        32
+    )
 
     ws_tickets[ticket] = {
         "uid": int(user_id),
-        "expires": time.time() + WS_TICKET_TTL,
+        "expires": (
+            time.time()
+            + WS_TICKET_TTL
+        ),
     }
 
     return ticket
 
 
-def consume_ws_ticket(ticket: str) -> int | None:
+def consume_ws_ticket(
+    ticket: str,
+) -> int | None:
+
     cleanup_tickets()
 
-    info = ws_tickets.pop(ticket, None)
+    info = ws_tickets.pop(
+        ticket,
+        None,
+    )
 
     if not info:
         return None
 
-    if float(info.get("expires", 0)) <= time.time():
+    if float(
+        info.get(
+            "expires",
+            0,
+        )
+    ) <= time.time():
         return None
 
     try:
-        return int(info["uid"])
+        return int(
+            info["uid"]
+        )
     except (
         KeyError,
         TypeError,
@@ -400,7 +652,9 @@ def set_ws_cookie(
     response: JSONResponse,
 ) -> None:
 
-    ticket = make_ws_ticket(user_id)
+    ticket = make_ws_ticket(
+        user_id
+    )
 
     response.set_cookie(
         "gapino_ws_ticket",
@@ -413,7 +667,7 @@ def set_ws_cookie(
 
 
 # =========================================================
-# WEBSOCKET BROADCAST
+# BROADCAST
 # =========================================================
 
 async def broadcast(
@@ -439,8 +693,9 @@ async def broadcast(
     for websocket in list(sockets):
 
         try:
-            await websocket.send_text(text)
-
+            await websocket.send_text(
+                text
+            )
         except Exception:
             dead.append(websocket)
 
@@ -462,7 +717,9 @@ async def broadcast(
     "/",
     response_class=HTMLResponse,
 )
-def root(request: Request):
+def root(
+    request: Request,
+):
 
     filename = (
         "chat.html"
@@ -593,7 +850,10 @@ def register(
     display_name: str = Form(...),
 ):
 
-    username = username.strip().lower()
+    username = (
+        username.strip()
+        .lower()
+    )
 
     display_name = (
         display_name.strip()
@@ -614,7 +874,8 @@ def register(
             status_code=400,
             detail=(
                 "نام کاربری فقط می‌تواند شامل "
-                "حروف انگلیسی، عدد، نقطه، خط تیره و زیرخط باشد"
+                "حروف انگلیسی، عدد، نقطه، "
+                "خط تیره و زیرخط باشد"
             ),
         )
 
@@ -630,9 +891,12 @@ def register(
             detail="نام نمایشی خیلی طولانی است",
         )
 
-    conn = db()
+    recovery_code = (
+        secrets.token_hex(8)
+        .upper()
+    )
 
-    recovery_code = secrets.token_hex(8).upper()
+    conn = db()
 
     try:
 
@@ -649,7 +913,7 @@ def register(
             """,
             (
                 username,
-                pwd.hash(password),
+                hash_password(password),
                 display_name,
                 now(),
                 recovery_code,
@@ -658,7 +922,9 @@ def register(
 
         conn.commit()
 
-        user_id = int(cursor.lastrowid)
+        user_id = int(
+            cursor.lastrowid
+        )
 
     except sqlite3.IntegrityError:
 
@@ -673,9 +939,12 @@ def register(
         conn.close()
 
     request.session.clear()
+
     request.session["uid"] = user_id
 
-    user = user_by_id(user_id)
+    user = user_by_id(
+        user_id
+    )
 
     return {
         "ok": True,
@@ -696,12 +965,25 @@ def login(
     password: str = Form(...),
 ):
 
-    username = username.strip().lower()
+    username = (
+        username.strip()
+        .lower()
+    )
+
+    if not username or not password:
+        raise HTTPException(
+            status_code=401,
+            detail="نام کاربری یا رمز عبور نادرست است",
+        )
 
     conn = db()
 
     row = conn.execute(
-        "SELECT * FROM users WHERE username = ?",
+        """
+        SELECT *
+        FROM users
+        WHERE LOWER(username) = LOWER(?)
+        """,
         (username,),
     ).fetchone()
 
@@ -713,14 +995,15 @@ def login(
             detail="نام کاربری یا رمز عبور نادرست است",
         )
 
-    try:
-        valid = pwd.verify(
-            password,
-            row["password"],
-        )
+    stored_hash = str(
+        row["password"] or ""
+    ).strip()
 
-    except Exception:
-        valid = False
+    # بررسی با روش‌های قدیمی و جدید
+    valid = verify_password(
+        password,
+        stored_hash,
+    )
 
     if not valid:
         raise HTTPException(
@@ -728,18 +1011,72 @@ def login(
             detail="نام کاربری یا رمز عبور نادرست است",
         )
 
-    request.session.clear()
-
-    request.session["uid"] = int(row["id"])
-
-    user = user_by_id(
-        int(row["id"])
+    user_id = int(
+        row["id"]
     )
 
-    return {
-        "ok": True,
-        "user": public_user(user),
-    }
+    # -----------------------------------------------------
+    # ارتقای خودکار رمزهای قدیمی
+    # -----------------------------------------------------
+
+    if needs_password_upgrade(
+        stored_hash
+    ):
+
+        new_hash = hash_password(
+            password
+        )
+
+        conn = db()
+
+        conn.execute(
+            """
+            UPDATE users
+            SET password = ?
+            WHERE id = ?
+            """,
+            (
+                new_hash,
+                user_id,
+            ),
+        )
+
+        conn.commit()
+        conn.close()
+
+    # -----------------------------------------------------
+    # Session
+    # -----------------------------------------------------
+
+    request.session.clear()
+
+    request.session["uid"] = user_id
+
+    user = user_by_id(
+        user_id
+    )
+
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="حساب کاربری پیدا نشد",
+        )
+
+    response = JSONResponse(
+        {
+            "ok": True,
+            "success": True,
+            "user": public_user(user),
+        }
+    )
+
+    # WebSocket ticket
+    set_ws_cookie(
+        user_id,
+        response,
+    )
+
+    return response
 
 
 # =========================================================
@@ -774,12 +1111,19 @@ async def recover_username(
         )
 
     display_name = str(
-        data.get("display_name", "")
+        data.get(
+            "display_name",
+            "",
+        )
         or ""
     ).strip()
 
-    recovery_code = normalize_recovery_code(
-        data.get("recovery_code")
+    recovery_code = (
+        normalize_recovery_code(
+            data.get(
+                "recovery_code"
+            )
+        )
     )
 
     if not display_name or not recovery_code:
@@ -803,9 +1147,12 @@ async def recover_username(
 
     for row in rows:
 
-        if normalize_recovery_code(
-            row["recovery_code"]
-        ) == recovery_code:
+        if (
+            normalize_recovery_code(
+                row["recovery_code"]
+            )
+            == recovery_code
+        ):
 
             return {
                 "ok": True,
@@ -834,16 +1181,26 @@ async def recover_password(
         )
 
     username = str(
-        data.get("username", "")
+        data.get(
+            "username",
+            "",
+        )
         or ""
     ).strip().lower()
 
-    recovery_code = normalize_recovery_code(
-        data.get("recovery_code")
+    recovery_code = (
+        normalize_recovery_code(
+            data.get(
+                "recovery_code"
+            )
+        )
     )
 
     new_password = str(
-        data.get("new_password", "")
+        data.get(
+            "new_password",
+            "",
+        )
         or ""
     )
 
@@ -904,7 +1261,9 @@ async def recover_password(
         WHERE id = ?
         """,
         (
-            pwd.hash(new_password),
+            hash_password(
+                new_password
+            ),
             int(row["id"]),
         ),
     )
@@ -919,14 +1278,21 @@ async def recover_password(
     }
 
 
-@app.post("/api/account/recovery-code")
+@app.post(
+    "/api/account/recovery-code"
+)
 async def create_recovery_code(
     request: Request,
 ):
 
-    user = require_user(request)
+    user = require_user(
+        request
+    )
 
-    new_code = secrets.token_hex(8).upper()
+    new_code = (
+        secrets.token_hex(8)
+        .upper()
+    )
 
     conn = db()
 
@@ -957,9 +1323,13 @@ async def create_recovery_code(
 # =========================================================
 
 @app.post("/api/logout")
-def logout(request: Request):
+def logout(
+    request: Request,
+):
 
-    uid = request.session.get("uid")
+    uid = request.session.get(
+        "uid"
+    )
 
     request.session.clear()
 
@@ -971,11 +1341,16 @@ def logout(request: Request):
                 None,
             )
 
-        except (TypeError, ValueError):
+        except (
+            TypeError,
+            ValueError,
+        ):
             pass
 
     response = JSONResponse(
-        {"ok": True}
+        {
+            "ok": True
+        }
     )
 
     response.delete_cookie(
@@ -990,13 +1365,17 @@ def logout(request: Request):
 
 
 # =========================================================
-# ME
+# CURRENT USER
 # =========================================================
 
 @app.get("/api/me")
-def me(request: Request):
+def me(
+    request: Request,
+):
 
-    user = require_user(request)
+    user = require_user(
+        request
+    )
 
     response = JSONResponse(
         public_user(user)
@@ -1019,7 +1398,9 @@ async def update_profile(
     request: Request,
 ):
 
-    user = require_user(request)
+    user = require_user(
+        request
+    )
 
     try:
         data = await request.json()
@@ -1114,12 +1495,16 @@ async def update_profile(
 # ACCOUNT SECURITY
 # =========================================================
 
-@app.put("/api/account/security")
+@app.put(
+    "/api/account/security"
+)
 async def update_account_security(
     request: Request,
 ):
 
-    user = require_user(request)
+    user = require_user(
+        request
+    )
 
     try:
         data = await request.json()
@@ -1145,14 +1530,19 @@ async def update_account_security(
     username_changed = (
         requested_username is not None
         and
-        str(requested_username).strip().lower()
+        str(
+            requested_username
+        ).strip().lower()
         !=
-        str(user["username"]).strip().lower()
+        str(
+            user["username"]
+        ).strip().lower()
     )
 
     password_changed = (
         new_password is not None
-        and str(new_password) != ""
+        and
+        str(new_password) != ""
     )
 
     if (
@@ -1197,8 +1587,9 @@ async def update_account_security(
             raise HTTPException(
                 status_code=400,
                 detail=(
-                    "نام کاربری فقط می‌تواند شامل حروف انگلیسی، "
-                    "عدد، نقطه، خط تیره و زیرخط باشد"
+                    "نام کاربری فقط می‌تواند شامل "
+                    "حروف انگلیسی، عدد، نقطه، "
+                    "خط تیره و زیرخط باشد"
                 ),
             )
 
@@ -1261,14 +1652,10 @@ async def update_account_security(
                 detail="حساب پیدا نشد",
             )
 
-        try:
-            password_ok = pwd.verify(
-                old_password,
-                row["password"],
-            )
-
-        except Exception:
-            password_ok = False
+        password_ok = verify_password(
+            old_password,
+            row["password"],
+        )
 
         if not password_ok:
             raise HTTPException(
@@ -1276,7 +1663,7 @@ async def update_account_security(
                 detail="رمز عبور فعلی اشتباه است",
             )
 
-        hashed_password = pwd.hash(
+        hashed_password = hash_password(
             new_password_value
         )
 
@@ -1345,13 +1732,17 @@ async def update_account_security(
 # AVATAR
 # =========================================================
 
-@app.post("/api/profile/avatar")
+@app.post(
+    "/api/profile/avatar"
+)
 async def update_avatar(
     request: Request,
     file: UploadFile = File(...),
 ):
 
-    user = require_user(request)
+    user = require_user(
+        request
+    )
 
     extension = Path(
         file.filename or ""
@@ -1384,11 +1775,16 @@ async def update_avatar(
         f"{extension}"
     )
 
-    path = UPLOADS_DIR / filename
+    path = (
+        UPLOADS_DIR
+        / filename
+    )
 
     path.write_bytes(content)
 
-    avatar_url = f"/uploads/{filename}"
+    avatar_url = (
+        f"/uploads/{filename}"
+    )
 
     conn = db()
 
@@ -1418,9 +1814,13 @@ async def update_avatar(
 # =========================================================
 
 @app.get("/api/users")
-def users(request: Request):
+def users(
+    request: Request,
+):
 
-    user = require_user(request)
+    user = require_user(
+        request
+    )
 
     query = (
         request.query_params
@@ -1433,7 +1833,9 @@ def users(request: Request):
 
     if query:
 
-        pattern = f"%{query}%"
+        pattern = (
+            f"%{query}%"
+        )
 
         rows = conn.execute(
             """
@@ -1452,7 +1854,8 @@ def users(request: Request):
                 OR
                 LOWER(display_name) LIKE ?
             )
-            ORDER BY display_name COLLATE NOCASE
+            ORDER BY
+                display_name COLLATE NOCASE
             """,
             (
                 int(user["id"]),
@@ -1475,9 +1878,12 @@ def users(request: Request):
                 created_at
             FROM users
             WHERE id != ?
-            ORDER BY display_name COLLATE NOCASE
+            ORDER BY
+                display_name COLLATE NOCASE
             """,
-            (int(user["id"]),),
+            (
+                int(user["id"]),
+            ),
         ).fetchall()
 
     conn.close()
@@ -1503,24 +1909,32 @@ def users(request: Request):
 
 
 # =========================================================
-# MESSAGES
+# GET MESSAGES
 # =========================================================
 
-@app.get("/api/messages/{other_id}")
+@app.get(
+    "/api/messages/{other_id}"
+)
 def get_messages(
     request: Request,
     other_id: int,
 ):
 
-    user = require_user(request)
+    user = require_user(
+        request
+    )
 
-    if other_id == int(user["id"]):
+    if other_id == int(
+        user["id"]
+    ):
         raise HTTPException(
             status_code=400,
             detail="گفتگو با خودتان مجاز نیست",
         )
 
-    if not user_by_id(other_id):
+    if not user_by_id(
+        other_id
+    ):
         raise HTTPException(
             status_code=404,
             detail="کاربر پیدا نشد",
@@ -1560,19 +1974,27 @@ def get_messages(
     ]
 
 
+# =========================================================
+# CREATE TEXT MESSAGE
+# =========================================================
+
 @app.post("/api/messages")
 async def create_message(
     request: Request,
 ):
 
-    user = require_user(request)
+    user = require_user(
+        request
+    )
 
     try:
 
         data = await request.json()
 
         receiver_id = int(
-            data.get("receiver_id")
+            data.get(
+                "receiver_id"
+            )
         )
 
     except (
@@ -1587,7 +2009,10 @@ async def create_message(
         )
 
     text = str(
-        data.get("text", "")
+        data.get(
+            "text",
+            "",
+        )
         or ""
     ).strip()
 
@@ -1603,13 +2028,17 @@ async def create_message(
             detail="پیام نمی‌تواند بیشتر از ۵۰۰۰ کاراکتر باشد",
         )
 
-    if receiver_id == int(user["id"]):
+    if receiver_id == int(
+        user["id"]
+    ):
         raise HTTPException(
             status_code=400,
             detail="ارسال پیام به خودتان مجاز نیست",
         )
 
-    if not user_by_id(receiver_id):
+    if not user_by_id(
+        receiver_id
+    ):
         raise HTTPException(
             status_code=404,
             detail="کاربر گیرنده پیدا نشد",
@@ -1643,7 +2072,11 @@ async def create_message(
         FROM messages
         WHERE id = ?
         """,
-        (int(cursor.lastrowid),),
+        (
+            int(
+                cursor.lastrowid
+            ),
+        ),
     ).fetchone()
 
     conn.close()
@@ -1667,13 +2100,17 @@ async def create_message(
 # EDIT MESSAGE
 # =========================================================
 
-@app.post("/api/messages/{message_id}/edit")
+@app.post(
+    "/api/messages/{message_id}/edit"
+)
 async def edit_message(
     request: Request,
     message_id: int,
 ):
 
-    user = require_user(request)
+    user = require_user(
+        request
+    )
 
     try:
         data = await request.json()
@@ -1685,7 +2122,10 @@ async def edit_message(
         )
 
     text = str(
-        data.get("text", "")
+        data.get(
+            "text",
+            "",
+        )
         or ""
     ).strip()
 
@@ -1709,7 +2149,9 @@ async def edit_message(
         FROM messages
         WHERE id = ?
         """,
-        (message_id,),
+        (
+            message_id,
+        ),
     ).fetchone()
 
     if not row:
@@ -1721,7 +2163,11 @@ async def edit_message(
             detail="پیام پیدا نشد",
         )
 
-    if int(row["sender_id"]) != int(user["id"]):
+    if int(
+        row["sender_id"]
+    ) != int(
+        user["id"]
+    ):
 
         conn.close()
 
@@ -1730,7 +2176,9 @@ async def edit_message(
             detail="اجازه ویرایش این پیام را ندارید",
         )
 
-    if int(row["deleted"] or 0) == 1:
+    if int(
+        row["deleted"] or 0
+    ) == 1:
 
         conn.close()
 
@@ -1761,7 +2209,9 @@ async def edit_message(
         FROM messages
         WHERE id = ?
         """,
-        (message_id,),
+        (
+            message_id,
+        ),
     ).fetchone()
 
     conn.close()
@@ -1789,13 +2239,17 @@ async def edit_message(
 # DELETE MESSAGE
 # =========================================================
 
-@app.delete("/api/messages/{message_id}")
+@app.delete(
+    "/api/messages/{message_id}"
+)
 async def delete_message(
     request: Request,
     message_id: int,
 ):
 
-    user = require_user(request)
+    user = require_user(
+        request
+    )
 
     conn = db()
 
@@ -1805,7 +2259,9 @@ async def delete_message(
         FROM messages
         WHERE id = ?
         """,
-        (message_id,),
+        (
+            message_id,
+        ),
     ).fetchone()
 
     if not row:
@@ -1817,7 +2273,11 @@ async def delete_message(
             detail="پیام پیدا نشد",
         )
 
-    if int(row["sender_id"]) != int(user["id"]):
+    if int(
+        row["sender_id"]
+    ) != int(
+        user["id"]
+    ):
 
         conn.close()
 
@@ -1836,7 +2296,9 @@ async def delete_message(
             file_url = ''
         WHERE id = ?
         """,
-        (message_id,),
+        (
+            message_id,
+        ),
     )
 
     conn.commit()
@@ -1847,7 +2309,9 @@ async def delete_message(
         FROM messages
         WHERE id = ?
         """,
-        (message_id,),
+        (
+            message_id,
+        ),
     ).fetchone()
 
     conn.close()
@@ -1872,7 +2336,7 @@ async def delete_message(
 
 
 # =========================================================
-# UPLOAD
+# UPLOAD FILE
 # =========================================================
 
 @app.post("/api/upload")
@@ -1882,15 +2346,21 @@ async def upload(
     file: UploadFile = File(...),
 ):
 
-    user = require_user(request)
+    user = require_user(
+        request
+    )
 
-    if receiver_id == int(user["id"]):
+    if receiver_id == int(
+        user["id"]
+    ):
         raise HTTPException(
             status_code=400,
             detail="نمی‌توانید فایل را برای خودتان ارسال کنید",
         )
 
-    if not user_by_id(receiver_id):
+    if not user_by_id(
+        receiver_id
+    ):
         raise HTTPException(
             status_code=404,
             detail="کاربر گیرنده پیدا نشد",
@@ -1951,7 +2421,10 @@ async def upload(
         f"{original_name}"
     )
 
-    path = UPLOADS_DIR / filename
+    path = (
+        UPLOADS_DIR
+        / filename
+    )
 
     path.write_bytes(content)
 
@@ -2001,7 +2474,11 @@ async def upload(
         FROM messages
         WHERE id = ?
         """,
-        (int(cursor.lastrowid),),
+        (
+            int(
+                cursor.lastrowid
+            ),
+        ),
     ).fetchone()
 
     conn.close()
@@ -2028,7 +2505,9 @@ async def create_group(
     request: Request,
 ):
 
-    user = require_user(request)
+    user = require_user(
+        request
+    )
 
     try:
         data = await request.json()
@@ -2040,7 +2519,10 @@ async def create_group(
         )
 
     name = str(
-        data.get("name", "")
+        data.get(
+            "name",
+            "",
+        )
         or ""
     ).strip()
 
@@ -2072,7 +2554,9 @@ async def create_group(
     for value in raw_members:
 
         try:
-            member_id = int(value)
+            member_id = int(
+                value
+            )
 
         except (
             TypeError,
@@ -2083,7 +2567,9 @@ async def create_group(
         if member_id != int(
             user["id"]
         ):
-            members.add(member_id)
+            members.add(
+                member_id
+            )
 
     conn = db()
 
@@ -2129,7 +2615,9 @@ async def create_group(
             FROM users
             WHERE id = ?
             """,
-            (member_id,),
+            (
+                member_id,
+            ),
         ).fetchone()
 
         if exists:
@@ -2182,9 +2670,14 @@ async def websocket_endpoint(
 
         return
 
-    uid = consume_ws_ticket(ticket)
+    uid = consume_ws_ticket(
+        ticket
+    )
 
-    if uid is None or not user_by_id(uid):
+    if (
+        uid is None
+        or not user_by_id(uid)
+    ):
 
         await websocket.close(
             code=4401,
@@ -2224,7 +2717,9 @@ async def websocket_endpoint(
             connections.keys()
         ):
 
-            if int(other_uid) != int(uid):
+            if int(
+                other_uid
+            ) != int(uid):
 
                 await broadcast(
                     other_uid,
@@ -2235,7 +2730,7 @@ async def websocket_endpoint(
                 )
 
         # -------------------------------------------------
-        # LOOP
+        # MAIN LOOP
         # -------------------------------------------------
 
         while True:
@@ -2244,10 +2739,11 @@ async def websocket_endpoint(
 
             try:
 
-                data = json.loads(raw)
+                data = json.loads(
+                    raw
+                )
 
             except json.JSONDecodeError:
-
                 continue
 
             if not isinstance(
@@ -2257,7 +2753,10 @@ async def websocket_endpoint(
                 continue
 
             message_type = str(
-                data.get("type", "")
+                data.get(
+                    "type",
+                    "",
+                )
             ).strip().lower()
 
             # =====================================================
@@ -2305,7 +2804,9 @@ async def websocket_endpoint(
 
                     continue
 
-                if receiver_id == int(uid):
+                if receiver_id == int(
+                    uid
+                ):
                     continue
 
                 if not user_by_id(
@@ -2313,7 +2814,9 @@ async def websocket_endpoint(
                 ):
                     continue
 
-                payload = dict(data)
+                payload = dict(
+                    data
+                )
 
                 payload["sender_id"] = int(
                     uid
@@ -2350,7 +2853,9 @@ async def websocket_endpoint(
 
                 if (
                     target_id == int(uid)
-                    or not user_by_id(target_id)
+                    or not user_by_id(
+                        target_id
+                    )
                 ):
                     continue
 
@@ -2384,7 +2889,9 @@ async def websocket_endpoint(
                     receiver_id = int(
                         data.get(
                             "receiver_id",
-                            data.get("to"),
+                            data.get(
+                                "to"
+                            ),
                         )
                     )
 
@@ -2396,7 +2903,10 @@ async def websocket_endpoint(
                     continue
 
                 text = str(
-                    data.get("text", "")
+                    data.get(
+                        "text",
+                        "",
+                    )
                     or ""
                 ).strip()
 
@@ -2455,7 +2965,9 @@ async def websocket_endpoint(
 
                     outgoing = {
                         "type": "message",
-                        "message": dict(row),
+                        "message": dict(
+                            row
+                        ),
                     }
 
                     await broadcast(
@@ -2463,7 +2975,6 @@ async def websocket_endpoint(
                         outgoing,
                     )
 
-                    # برای فرستنده هم پیام را بفرست
                     await websocket.send_text(
                         json.dumps(
                             outgoing,
