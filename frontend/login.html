@@ -1,516 +1,1020 @@
-<script>
-"use strict";
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    >
 
-/* =========================================================
-   GAPINO LOGIN
-   API: /api/login
-   SESSION: Cookie
-   ========================================================= */
+    <meta
+        name="theme-color"
+        content="#0f172a"
+    >
 
-const API =
-    window.GAPINO_API_BASE ||
-    window.location.origin;
+    <title>گپینو | ورود</title>
 
-const loginForm =
-    document.getElementById("loginForm");
-
-const usernameInput =
-    document.getElementById("username");
-
-const passwordInput =
-    document.getElementById("password");
-
-const loginButton =
-    document.getElementById("loginButton");
-
-const loginMessage =
-    document.getElementById("loginMessage");
-
-const togglePasswordButton =
-    document.getElementById("togglePassword");
-
-const registerButton =
-    document.getElementById("registerButton");
-
-const backButton =
-    document.getElementById("backButton");
-
-/* =========================================================
-   MESSAGE
-   ========================================================= */
-
-function showMessage(
-    text,
-    type = ""
-) {
-    if (!loginMessage) {
-        return;
-    }
-
-    loginMessage.textContent =
-        String(text || "");
-
-    loginMessage.className =
-        "message";
-
-    if (type) {
-        loginMessage.classList.add(
-            type
-        );
-    }
-}
-
-/* =========================================================
-   LOADING
-   ========================================================= */
-
-function setLoading(
-    loading
-) {
-    if (!loginButton) {
-        return;
-    }
-
-    loginButton.disabled =
-        Boolean(loading);
-
-    loginButton.textContent =
-        loading
-            ? "در حال ورود..."
-            : "ورود";
-}
-
-/* =========================================================
-   READ JSON
-   ========================================================= */
-
-async function readServerJson(
-    response
-) {
-    const text =
-        await response.text();
-
-    if (!text) {
-        return null;
-    }
-
-    try {
-        return JSON.parse(
-            text
-        );
-    } catch (error) {
-        console.error(
-            "GAPINO invalid JSON:",
-            text
-        );
-
-        throw new Error(
-            "پاسخ نامعتبر از سرور دریافت شد."
-        );
-    }
-}
-
-/* =========================================================
-   LOGIN
-   ========================================================= */
-
-async function loginUser(
-    username,
-    password
-) {
-    const form =
-        new URLSearchParams();
-
-    form.set(
-        "username",
-        username
-    );
-
-    form.set(
-        "password",
-        password
-    );
-
-    let response;
-
-    try {
-        response =
-            await fetch(
-                `${API}/api/login`,
-                {
-                    method:
-                        "POST",
-
-                    headers: {
-                        "Content-Type":
-                            "application/x-www-form-urlencoded"
-                    },
-
-                    body:
-                        form.toString(),
-
-                    credentials:
-                        "include",
-
-                    cache:
-                        "no-store"
-                }
-            );
-
-    } catch (error) {
-        console.error(
-            "GAPINO LOGIN FETCH ERROR:",
-            error
-        );
-
-        throw new Error(
-            "ارتباط با سرور برقرار نشد."
-        );
-    }
-
-    const data =
-        await readServerJson(
-            response
-        );
-
-    if (!response.ok) {
-        throw new Error(
-            data?.detail ||
-            data?.message ||
-            `خطای ورود (${response.status})`
-        );
-    }
-
-    if (
-        !data ||
-        data.ok !== true ||
-        !data.user ||
-        !data.user.id
-    ) {
-        console.error(
-            "GAPINO unexpected login response:",
-            data
-        );
-
-        throw new Error(
-            "پاسخ نامعتبر از سرور دریافت شد."
-        );
-    }
-
-    return data;
-}
-
-/* =========================================================
-   VERIFY SESSION
-   ========================================================= */
-
-async function verifySession() {
-    try {
-        const response =
-            await fetch(
-                `${API}/api/me`,
-                {
-                    method:
-                        "GET",
-
-                    credentials:
-                        "include",
-
-                    cache:
-                        "no-store"
-                }
-            );
-
-        if (!response.ok) {
-            return null;
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
         }
 
-        const data =
-            await response.json();
+        html,
+        body {
+            width: 100%;
+            min-height: 100%;
+            font-family:
+                Tahoma,
+                Arial,
+                sans-serif;
+            background:
+                linear-gradient(
+                    135deg,
+                    #0f172a 0%,
+                    #111827 45%,
+                    #1e3a8a 100%
+                );
+            color: #fff;
+        }
+
+        body {
+            min-height: 100vh;
+            min-height: 100dvh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        .background {
+            position: fixed;
+            inset: 0;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(60px);
+            opacity: 0.35;
+        }
+
+        .orb.one {
+            width: 300px;
+            height: 300px;
+            background: #2563eb;
+            top: -120px;
+            right: -100px;
+        }
+
+        .orb.two {
+            width: 260px;
+            height: 260px;
+            background: #06b6d4;
+            bottom: -100px;
+            left: -80px;
+        }
+
+        .login-page {
+            width: 100%;
+            max-width: 430px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .login-card {
+            width: 100%;
+            padding: 34px 28px 28px;
+            border-radius: 28px;
+            background:
+                rgba(15, 23, 42, 0.82);
+            border: 1px solid
+                rgba(255, 255, 255, 0.12);
+            box-shadow:
+                0 25px 80px
+                rgba(0, 0, 0, 0.38);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+
+        .brand {
+            text-align: center;
+            margin-bottom: 28px;
+        }
+
+        .brand-icon {
+            width: 82px;
+            height: 82px;
+            margin: 0 auto 15px;
+            border-radius: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            background:
+                linear-gradient(
+                    135deg,
+                    #38bdf8,
+                    #2563eb
+                );
+            box-shadow:
+                0 15px 40px
+                rgba(37, 99, 235, 0.38);
+        }
+
+        .brand h1 {
+            font-size: 28px;
+            font-weight: 900;
+            letter-spacing: -0.5px;
+        }
+
+        .brand p {
+            margin-top: 8px;
+            font-size: 14px;
+            color: #94a3b8;
+        }
+
+        .field {
+            margin-bottom: 16px;
+        }
+
+        .field label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: #cbd5e1;
+            font-weight: 700;
+        }
+
+        .input-wrap {
+            position: relative;
+        }
+
+        .input {
+            width: 100%;
+            height: 54px;
+            border: 1px solid
+                rgba(148, 163, 184, 0.24);
+            border-radius: 16px;
+            background:
+                rgba(255, 255, 255, 0.06);
+            color: #fff;
+            padding: 0 16px;
+            outline: none;
+            font-size: 15px;
+            transition:
+                border-color 0.2s,
+                background 0.2s,
+                box-shadow 0.2s;
+        }
+
+        .input.password {
+            padding-left: 52px;
+        }
+
+        .input::placeholder {
+            color: #64748b;
+        }
+
+        .input:focus {
+            border-color: #38bdf8;
+            background:
+                rgba(255, 255, 255, 0.09);
+            box-shadow:
+                0 0 0 4px
+                rgba(56, 189, 248, 0.10);
+        }
+
+        .password-toggle {
+            position: absolute;
+            top: 50%;
+            left: 10px;
+            transform: translateY(-50%);
+            width: 38px;
+            height: 38px;
+            border: 0;
+            border-radius: 12px;
+            background: transparent;
+            color: #cbd5e1;
+            cursor: pointer;
+            font-size: 18px;
+        }
+
+        .password-toggle:hover {
+            background:
+                rgba(255, 255, 255, 0.08);
+        }
+
+        .message {
+            min-height: 22px;
+            margin:
+                4px 0 14px;
+            text-align: center;
+            font-size: 13px;
+            color: #94a3b8;
+        }
+
+        .message.error {
+            color: #fca5a5;
+        }
+
+        .message.success {
+            color: #86efac;
+        }
+
+        .login-button {
+            width: 100%;
+            height: 55px;
+            border: 0;
+            border-radius: 17px;
+            background:
+                linear-gradient(
+                    135deg,
+                    #38bdf8,
+                    #2563eb
+                );
+            color: #fff;
+            font-size: 16px;
+            font-weight: 900;
+            cursor: pointer;
+            box-shadow:
+                0 15px 35px
+                rgba(37, 99, 235, 0.28);
+            transition:
+                transform 0.18s,
+                opacity 0.18s;
+        }
+
+        .login-button:hover {
+            transform: translateY(-1px);
+        }
+
+        .login-button:disabled {
+            cursor: wait;
+            opacity: 0.65;
+            transform: none;
+        }
+
+        .secondary-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .secondary-button {
+            height: 48px;
+            border-radius: 15px;
+            border: 1px solid
+                rgba(148, 163, 184, 0.18);
+            background:
+                rgba(255, 255, 255, 0.04);
+            color: #e2e8f0;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition:
+                background 0.18s,
+                transform 0.18s;
+        }
+
+        .secondary-button:hover {
+            background:
+                rgba(255, 255, 255, 0.08);
+            transform: translateY(-1px);
+        }
+
+        .footer-text {
+            text-align: center;
+            margin-top: 20px;
+            color: #64748b;
+            font-size: 12px;
+        }
+
+        .loading-dot {
+            display: inline-block;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%,
+            100% {
+                opacity: 0.35;
+            }
+
+            50% {
+                opacity: 1;
+            }
+        }
+
+        @media (max-width: 520px) {
+            body {
+                padding: 14px;
+            }
+
+            .login-card {
+                padding:
+                    27px 18px
+                    21px;
+                border-radius: 24px;
+            }
+
+            .brand-icon {
+                width: 72px;
+                height: 72px;
+                border-radius: 21px;
+                font-size: 34px;
+            }
+
+            .brand h1 {
+                font-size: 25px;
+            }
+
+            .input {
+                height: 52px;
+            }
+
+            .login-button {
+                height: 53px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="background">
+        <div class="orb one"></div>
+        <div class="orb two"></div>
+    </div>
+
+    <main class="login-page">
+
+        <section class="login-card">
+
+            <div class="brand">
+                <div class="brand-icon">
+                    💬
+                </div>
+
+                <h1>
+                    گپینو
+                </h1>
+
+                <p>
+                    به حساب گپینو خودت وارد شو
+                </p>
+            </div>
+
+
+            <form
+                id="loginForm"
+                novalidate
+            >
+
+                <div class="field">
+                    <label
+                        for="username"
+                    >
+                        نام کاربری
+                    </label>
+
+                    <input
+                        id="username"
+                        name="username"
+                        class="input"
+                        type="text"
+                        autocomplete="username"
+                        placeholder="نام کاربری را وارد کنید"
+                        maxlength="32"
+                        required
+                    >
+                </div>
+
+
+                <div class="field">
+
+                    <label
+                        for="password"
+                    >
+                        رمز عبور
+                    </label>
+
+                    <div class="input-wrap">
+
+                        <input
+                            id="password"
+                            name="password"
+                            class="input password"
+                            type="password"
+                            autocomplete="current-password"
+                            placeholder="رمز عبور را وارد کنید"
+                            required
+                        >
+
+                        <button
+                            id="togglePassword"
+                            class="password-toggle"
+                            type="button"
+                            aria-label="نمایش رمز عبور"
+                        >
+                            👁️
+                        </button>
+
+                    </div>
+
+                </div>
+
+
+                <div
+                    id="loginMessage"
+                    class="message"
+                    aria-live="polite"
+                ></div>
+
+
+                <button
+                    id="loginButton"
+                    class="login-button"
+                    type="submit"
+                >
+                    ورود
+                </button>
+
+
+                <div class="secondary-row">
+
+                    <button
+                        id="registerButton"
+                        class="secondary-button"
+                        type="button"
+                    >
+                        ✨ ثبت‌نام
+                    </button>
+
+                    <button
+                        id="backButton"
+                        class="secondary-button"
+                        type="button"
+                    >
+                        ← بازگشت
+                    </button>
+
+                </div>
+
+            </form>
+
+
+            <div class="footer-text">
+                GAPINO PRO
+            </div>
+
+        </section>
+
+    </main>
+
+
+    <script>
+        "use strict";
 
         /*
-         * نسخه فعلی بک‌اند:
-         * کاربر مستقیماً برمی‌گردد.
-         *
-         * برای نسخه قدیمی:
-         * { authenticated, user }
-         * هم پشتیبانی می‌شود.
+         * API روی همان دامنه‌ای است که صفحه
+         * از آن باز شده است.
          */
+        const API =
+            window.GAPINO_API_BASE ||
+            window.location.origin;
 
-        if (
-            data?.authenticated === true &&
-            data?.user?.id
+
+        const loginForm =
+            document.getElementById(
+                "loginForm"
+            );
+
+        const usernameInput =
+            document.getElementById(
+                "username"
+            );
+
+        const passwordInput =
+            document.getElementById(
+                "password"
+            );
+
+        const loginButton =
+            document.getElementById(
+                "loginButton"
+            );
+
+        const loginMessage =
+            document.getElementById(
+                "loginMessage"
+            );
+
+        const togglePasswordButton =
+            document.getElementById(
+                "togglePassword"
+            );
+
+        const registerButton =
+            document.getElementById(
+                "registerButton"
+            );
+
+        const backButton =
+            document.getElementById(
+                "backButton"
+            );
+
+
+        function showMessage(
+            text,
+            type = ""
         ) {
-            return data.user;
-        }
-
-        if (
-            data?.id
-        ) {
-            return data;
-        }
-
-        return null;
-
-    } catch (error) {
-        console.error(
-            "GAPINO ME ERROR:",
-            error
-        );
-
-        return null;
-    }
-}
-
-/* =========================================================
-   HANDLE LOGIN
-   ========================================================= */
-
-async function handleLogin(
-    event
-) {
-    event.preventDefault();
-
-    const username =
-        String(
-            usernameInput?.value ||
-            ""
-        ).trim();
-
-    const password =
-        String(
-            passwordInput?.value ||
-            ""
-        );
-
-    if (!username) {
-        showMessage(
-            "نام کاربری را وارد کن.",
-            "error"
-        );
-
-        return;
-    }
-
-    if (!password) {
-        showMessage(
-            "رمز عبور را وارد کن.",
-            "error"
-        );
-
-        return;
-    }
-
-    setLoading(true);
-
-    showMessage(
-        "در حال ورود..."
-    );
-
-    try {
-        /*
-         * Login
-         */
-
-        const result =
-            await loginUser(
-                username,
-                password
-            );
-
-        /*
-         * ذخیره کاربر
-         */
-
-        localStorage.setItem(
-            "gapino_user",
-            JSON.stringify(
-                result.user
-            )
-        );
-
-        /*
-         * بررسی واقعی Session
-         */
-
-        showMessage(
-            "ورود موفق بود؛ در حال بررسی نشست...",
-            "success"
-        );
-
-        const sessionUser =
-            await verifySession();
-
-        if (!sessionUser) {
-            console.error(
-                "GAPINO LOGIN OK BUT SESSION NOT FOUND"
-            );
-
-            /*
-             * اطلاعات قدیمی را پاک می‌کنیم
-             * تا chat.html دوباره کاربر قبلی
-             * را به اشتباه استفاده نکند.
-             */
-
-            localStorage.removeItem(
-                "gapino_user"
-            );
-
-            throw new Error(
-                "ورود انجام شد اما نشست کاربری ایجاد نشد."
-            );
-        }
-
-        /*
-         * ذخیره اطلاعات به‌روز
-         */
-
-        localStorage.setItem(
-            "gapino_user",
-            JSON.stringify(
-                sessionUser
-            )
-        );
-
-        showMessage(
-            "ورود موفق بود. در حال ورود به گپینو...",
-            "success"
-        );
-
-        /*
-         * ورود به صفحه چت
-         */
-
-        window.location.replace(
-            "/chat.html"
-        );
-
-    } catch (error) {
-        console.error(
-            "GAPINO LOGIN ERROR:",
-            error
-        );
-
-        showMessage(
-            error.message ||
-            "ورود انجام نشد.",
-            "error"
-        );
-
-        setLoading(false);
-    }
-}
-
-/* =========================================================
-   PASSWORD VISIBILITY
-   ========================================================= */
-
-if (
-    togglePasswordButton
-) {
-    togglePasswordButton.addEventListener(
-        "click",
-        () => {
-            if (!passwordInput) {
+            if (!loginMessage) {
                 return;
             }
 
-            const showing =
-                passwordInput.type ===
-                "text";
+            loginMessage.textContent =
+                String(text || "");
 
-            passwordInput.type =
-                showing
-                    ? "password"
-                    : "text";
+            loginMessage.className =
+                "message";
 
-            togglePasswordButton.textContent =
-                showing
-                    ? "👁️"
-                    : "🙈";
+            if (type) {
+                loginMessage.classList.add(
+                    type
+                );
+            }
         }
-    );
-}
 
-/* =========================================================
-   REGISTER
-   ========================================================= */
 
-if (
-    registerButton
-) {
-    registerButton.addEventListener(
-        "click",
-        () => {
-            window.location.assign(
-                "/register.html"
+        function setLoading(
+            loading
+        ) {
+            if (!loginButton) {
+                return;
+            }
+
+            loginButton.disabled =
+                Boolean(loading);
+
+            loginButton.innerHTML =
+                loading
+                    ? 'در حال ورود <span class="loading-dot">...</span>'
+                    : "ورود";
+        }
+
+
+        async function readJson(
+            response
+        ) {
+
+            const text =
+                await response.text();
+
+            if (!text) {
+                return null;
+            }
+
+            try {
+                return JSON.parse(text);
+            } catch (_) {
+                return null;
+            }
+        }
+
+
+        async function loginUser(
+            username,
+            password
+        ) {
+
+            /*
+             * FastAPI Form(...)
+             */
+            const formData =
+                new URLSearchParams();
+
+            formData.set(
+                "username",
+                username
+            );
+
+            formData.set(
+                "password",
+                password
+            );
+
+
+            let response;
+
+            try {
+
+                response =
+                    await fetch(
+                        API +
+                            "/api/login",
+                        {
+                            method: "POST",
+
+                            headers: {
+                                "Content-Type":
+                                    "application/x-www-form-urlencoded"
+                            },
+
+                            body:
+                                formData.toString(),
+
+                            credentials:
+                                "include",
+
+                            cache:
+                                "no-store"
+                        }
+                    );
+
+            } catch (error) {
+
+                console.error(
+                    "LOGIN FETCH ERROR:",
+                    error
+                );
+
+                throw new Error(
+                    "ارتباط با سرور برقرار نشد."
+                );
+            }
+
+
+            const data =
+                await readJson(
+                    response
+                );
+
+
+            if (!response.ok) {
+
+                throw new Error(
+                    data?.detail ||
+                    data?.message ||
+                    `خطای ورود (${response.status})`
+                );
+            }
+
+
+            if (
+                !data ||
+                data.success !== true ||
+                !data.user ||
+                !data.user.id
+            ) {
+
+                console.error(
+                    "Unexpected login response:",
+                    data
+                );
+
+                throw new Error(
+                    "پاسخ نامعتبر از سرور دریافت شد."
+                );
+            }
+
+
+            return data;
+        }
+
+
+        async function verifySession() {
+
+            try {
+
+                const response =
+                    await fetch(
+                        API +
+                            "/api/me",
+                        {
+                            method:
+                                "GET",
+
+                            credentials:
+                                "include",
+
+                            cache:
+                                "no-store"
+                        }
+                    );
+
+
+                if (!response.ok) {
+                    return null;
+                }
+
+
+                const data =
+                    await response.json();
+
+
+                /*
+                 * نسخه فعلی main.py
+                 * مستقیم user را برمی‌گرداند.
+                 */
+                if (
+                    data &&
+                    data.id
+                ) {
+                    return data;
+                }
+
+
+                /*
+                 * برای سازگاری با نسخه‌های قبلی
+                 */
+                if (
+                    data?.authenticated ===
+                        true &&
+                    data?.user?.id
+                ) {
+                    return data.user;
+                }
+
+
+                if (
+                    data?.user?.id
+                ) {
+                    return data.user;
+                }
+
+
+                return null;
+
+            } catch (error) {
+
+                console.error(
+                    "ME ERROR:",
+                    error
+                );
+
+                return null;
+            }
+        }
+
+
+        async function handleLogin(
+            event
+        ) {
+
+            event.preventDefault();
+
+
+            const username =
+                String(
+                    usernameInput?.value ||
+                    ""
+                )
+                .trim()
+                .toLowerCase();
+
+
+            const password =
+                String(
+                    passwordInput?.value ||
+                    ""
+                );
+
+
+            if (!username) {
+
+                showMessage(
+                    "نام کاربری را وارد کن.",
+                    "error"
+                );
+
+                usernameInput?.focus();
+
+                return;
+            }
+
+
+            if (!password) {
+
+                showMessage(
+                    "رمز عبور را وارد کن.",
+                    "error"
+                );
+
+                passwordInput?.focus();
+
+                return;
+            }
+
+
+            setLoading(
+                true
+            );
+
+            showMessage(
+                "در حال ورود..."
+            );
+
+
+            try {
+
+                const result =
+                    await loginUser(
+                        username,
+                        password
+                    );
+
+
+                localStorage.setItem(
+                    "gapino_user",
+                    JSON.stringify(
+                        result.user
+                    )
+                );
+
+
+                showMessage(
+                    "ورود موفق بود...",
+                    "success"
+                );
+
+
+                /*
+                 * Session را بررسی می‌کنیم
+                 */
+                const sessionUser =
+                    await verifySession();
+
+
+                if (
+                    !sessionUser
+                ) {
+
+                    throw new Error(
+                        "ورود انجام شد اما نشست کاربری ایجاد نشد."
+                    );
+                }
+
+
+                localStorage.setItem(
+                    "gapino_user",
+                    JSON.stringify(
+                        sessionUser
+                    )
+                );
+
+
+                window.location.replace(
+                    "/chat.html"
+                );
+
+            } catch (error) {
+
+                console.error(
+                    "GAPINO LOGIN ERROR:",
+                    error
+                );
+
+                showMessage(
+                    error.message ||
+                    "ورود انجام نشد.",
+                    "error"
+                );
+
+                setLoading(
+                    false
+                );
+            }
+        }
+
+
+        if (
+            togglePasswordButton
+        ) {
+
+            togglePasswordButton.addEventListener(
+                "click",
+                () => {
+
+                    if (
+                        !passwordInput
+                    ) {
+                        return;
+                    }
+
+                    const showing =
+                        passwordInput.type ===
+                        "text";
+
+                    passwordInput.type =
+                        showing
+                            ? "password"
+                            : "text";
+
+                    togglePasswordButton.textContent =
+                        showing
+                            ? "👁️"
+                            : "🙈";
+                }
             );
         }
-    );
-}
 
-/* =========================================================
-   BACK
-   ========================================================= */
 
-if (
-    backButton
-) {
-    backButton.addEventListener(
-        "click",
-        () => {
-            window.location.assign(
-                "/"
+        if (
+            registerButton
+        ) {
+
+            registerButton.addEventListener(
+                "click",
+                () => {
+
+                    window.location.href =
+                        "/register.html";
+                }
             );
         }
-    );
-}
 
-/* =========================================================
-   ALREADY LOGGED IN
-   ========================================================= */
 
-async function checkAlreadyLoggedIn() {
-    const user =
-        await verifySession();
+        if (
+            backButton
+        ) {
 
-    if (!user) {
-        return;
-    }
+            backButton.addEventListener(
+                "click",
+                () => {
 
-    localStorage.setItem(
-        "gapino_user",
-        JSON.stringify(
-            user
-        )
-    );
+                    window.location.href =
+                        "/";
+                }
+            );
+        }
 
-    window.location.replace(
-        "/chat.html"
-    );
-}
 
-/* =========================================================
-   START
-   ========================================================= */
+        if (
+            loginForm
+        ) {
 
-if (
-    loginForm
-) {
-    loginForm.addEventListener(
-        "submit",
-        handleLogin
-    );
-}
+            loginForm.addEventListener(
+                "submit",
+                handleLogin
+            );
+        }
 
-/*
- * فقط وقتی صفحه login باز شد،
- * Session قبلی را بررسی می‌کنیم.
- *
- * بعد از logout چون API session را پاک می‌کند،
- * اینجا دیگر مستقیماً وارد chat نمی‌شود.
- */
 
-checkAlreadyLoggedIn();
+        /*
+         * اگر کاربر قبلاً وارد شده باشد
+         */
+        async function checkAlreadyLoggedIn() {
 
-</script>
+            const current =
+                await verifySession();
+
+            if (!current) {
+                return;
+            }
+
+            try {
+
+                localStorage.setItem(
+                    "gapino_user",
+                    JSON.stringify(
+                        current
+                    )
+                );
+
+            } catch (_) {}
+
+
+            window.location.replace(
+                "/chat.html"
+            );
+        }
+
+
+        /*
+         * فقط وقتی صفحه کاملاً آماده شد
+         */
+        window.addEventListener(
+            "DOMContentLoaded",
+            () => {
+
+                usernameInput?.focus();
+
+                checkAlreadyLoggedIn();
+
+            },
+            {
+                once: true
+            }
+        );
+
+    </script>
+
+</body>
+</html>
