@@ -206,6 +206,11 @@ def now_iso() -> str:
 # =========================================================
 
 def hash_password(password: str) -> str:
+    """
+    فرمت جدید رمزهای GAPINO:
+    $pbkdf2$<salt hex>$<digest hex>
+    """
+
     salt = secrets.token_bytes(16)
 
     digest = hashlib.pbkdf2_hmac(
@@ -227,16 +232,19 @@ def verify_pbkdf2_password(
     password: str,
     stored_password: str,
 ) -> bool:
+
     try:
         parts = stored_password.split("$")
 
         if len(parts) != 4:
             return False
 
-        if parts[1] != "pbkdf2":
+        if parts[1].lower() != "pbkdf2":
             return False
 
         salt = bytes.fromhex(parts[2])
+
+        expected_digest = parts[3].strip().lower()
 
         calculated = hashlib.pbkdf2_hmac(
             "sha256",
@@ -246,18 +254,76 @@ def verify_pbkdf2_password(
         )
 
         return hmac.compare_digest(
-            calculated.hex(),
-            parts[3],
+            calculated.hex().lower(),
+            expected_digest,
         )
 
     except Exception:
         return False
 
 
+def verify_pbkdf2_legacy_password(
+    password: str,
+    stored_password: str,
+) -> bool:
+
+    """
+    پشتیبانی از چند فرمت احتمالی PBKDF2 قدیمی.
+
+    مثال‌های پشتیبانی‌شده:
+    $pbkdf2$...
+    pbkdf2$...
+    """
+
+    try:
+        value = stored_password.strip()
+
+        if value.startswith("$pbkdf2$"):
+            return verify_pbkdf2_password(
+                password,
+                value,
+            )
+
+        if value.startswith("pbkdf2$"):
+            parts = value.split("$")
+
+            if len(parts) != 3:
+                return False
+
+            salt_hex = parts[1]
+            digest_hex = parts[2]
+
+            salt = bytes.fromhex(
+                salt_hex
+            )
+
+            calculated = hashlib.pbkdf2_hmac(
+                "sha256",
+                password.encode("utf-8"),
+                salt,
+                PBKDF2_ITERATIONS,
+            )
+
+            return hmac.compare_digest(
+                calculated.hex().lower(),
+                digest_hex.lower(),
+            )
+
+    except Exception:
+        return False
+
+    return False
+
+
 def verify_argon2_password(
     password: str,
     stored_password: str,
 ) -> bool:
+
+    # -----------------------------------------------------
+    # pwdlib
+    # -----------------------------------------------------
+
     try:
         from pwdlib import PasswordHash
 
@@ -272,6 +338,10 @@ def verify_argon2_password(
 
     except Exception:
         pass
+
+    # -----------------------------------------------------
+    # argon2-cffi
+    # -----------------------------------------------------
 
     try:
         from argon2 import PasswordHasher
@@ -293,6 +363,7 @@ def verify_bcrypt_password(
     password: str,
     stored_password: str,
 ) -> bool:
+
     try:
         import bcrypt
 
@@ -307,10 +378,161 @@ def verify_bcrypt_password(
         return False
 
 
+def is_hex_string(
+    value: str,
+) -> bool:
+
+    if not value:
+        return False
+
+    try:
+        int(value, 16)
+        return True
+
+    except Exception:
+        return False
+
+
+def verify_sha256_password(
+    password: str,
+    stored_password: str,
+) -> bool:
+
+    value = stored_password.strip()
+
+    # -----------------------------------------------------
+    # sha256:<hash>
+    # -----------------------------------------------------
+
+    if value.lower().startswith(
+        "sha256:"
+    ):
+
+        digest = value.split(
+            ":",
+            1,
+        )[1].strip().lower()
+
+        if len(digest) != 64:
+            return False
+
+        if not is_hex_string(digest):
+            return False
+
+        calculated = hashlib.sha256(
+            password.encode("utf-8")
+        ).hexdigest().lower()
+
+        return hmac.compare_digest(
+            calculated,
+            digest,
+        )
+
+    # -----------------------------------------------------
+    # sha256$<hash>
+    # -----------------------------------------------------
+
+    if value.lower().startswith(
+        "sha256$"
+    ):
+
+        digest = value.split(
+            "$",
+            1,
+        )[1].strip().lower()
+
+        if len(digest) != 64:
+            return False
+
+        if not is_hex_string(digest):
+            return False
+
+        calculated = hashlib.sha256(
+            password.encode("utf-8")
+        ).hexdigest().lower()
+
+        return hmac.compare_digest(
+            calculated,
+            digest,
+        )
+
+    # -----------------------------------------------------
+    # hash خام 64 کاراکتری
+    # -----------------------------------------------------
+
+    if (
+        len(value) == 64
+        and is_hex_string(value)
+    ):
+
+        calculated = hashlib.sha256(
+            password.encode("utf-8")
+        ).hexdigest().lower()
+
+        return hmac.compare_digest(
+            calculated,
+            value.lower(),
+        )
+
+    return False
+
+
+def looks_like_hash(
+    value: str,
+) -> bool:
+
+    value = value.strip().lower()
+
+    known_prefixes = (
+        "$pbkdf2$",
+        "pbkdf2$",
+        "$argon2",
+        "$2a$",
+        "$2b$",
+        "$2y$",
+        "$2$",
+        "sha256:",
+        "sha256$",
+    )
+
+    if value.startswith(
+        known_prefixes
+    ):
+        return True
+
+    if (
+        len(value) == 32
+        and is_hex_string(value)
+    ):
+        return True
+
+    if (
+        len(value) == 40
+        and is_hex_string(value)
+    ):
+        return True
+
+    if (
+        len(value) == 64
+        and is_hex_string(value)
+    ):
+        return True
+
+    return False
+
+
 def verify_password(
     password: str,
     stored_password: str,
 ) -> bool:
+
+    if stored_password is None:
+        return False
+
+    stored_password = str(
+        stored_password
+    )
+
     if not stored_password:
         return False
 
@@ -318,8 +540,22 @@ def verify_password(
     # GAPINO PBKDF2
     # -----------------------------------------------------
 
-    if stored_password.startswith("$pbkdf2$"):
+    if stored_password.startswith(
+        "$pbkdf2$"
+    ):
         return verify_pbkdf2_password(
+            password,
+            stored_password,
+        )
+
+    # -----------------------------------------------------
+    # PBKDF2 قدیمی
+    # -----------------------------------------------------
+
+    if stored_password.startswith(
+        "pbkdf2$"
+    ):
+        return verify_pbkdf2_legacy_password(
             password,
             stored_password,
         )
@@ -353,7 +589,7 @@ def verify_password(
         )
 
     # -----------------------------------------------------
-    # بعضی نسخه‌های bcrypt قدیمی
+    # bcrypt قدیمی
     # -----------------------------------------------------
 
     if stored_password.startswith(
@@ -364,17 +600,133 @@ def verify_password(
             stored_password,
         )
 
+    # -----------------------------------------------------
+    # SHA-256
+    # -----------------------------------------------------
+
+    if verify_sha256_password(
+        password,
+        stored_password,
+    ):
+        return True
+
+    # -----------------------------------------------------
+    # حالت قدیمی: رمز به صورت ساده ذخیره شده
+    #
+    # فقط برای مهاجرت حساب‌های قدیمی.
+    # بعد از ورود، رمز فوراً هش می‌شود.
+    # -----------------------------------------------------
+
+    if not looks_like_hash(
+        stored_password
+    ):
+
+        return hmac.compare_digest(
+            password,
+            stored_password,
+        )
+
     return False
 
 
 def password_needs_upgrade(
     stored_password: str,
 ) -> bool:
+
     if not stored_password:
         return False
 
     return not stored_password.startswith(
         "$pbkdf2$"
+    )
+
+
+# =========================================================
+# CREDENTIAL HELPERS
+# =========================================================
+
+async def read_request_data(
+    request: Request,
+) -> dict:
+
+    """
+    دریافت داده هم از JSON و هم از Form.
+
+    این کار مشکل رایج Frontendهایی که به جای Form
+    از fetch + JSON استفاده می‌کنند را حل می‌کند.
+    """
+
+    content_type = (
+        request.headers.get(
+            "content-type",
+            "",
+        )
+        .lower()
+    )
+
+    # -----------------------------------------------------
+    # JSON
+    # -----------------------------------------------------
+
+    if (
+        "application/json"
+        in content_type
+    ):
+
+        try:
+            data = await request.json()
+
+        except Exception:
+            raise HTTPException(
+                status_code=400,
+                detail="داده ارسالی نامعتبر است.",
+            )
+
+        if not isinstance(
+            data,
+            dict,
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="داده ارسالی نامعتبر است.",
+            )
+
+        return data
+
+    # -----------------------------------------------------
+    # FORM
+    # -----------------------------------------------------
+
+    try:
+        form = await request.form()
+
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="فرم ارسالی نامعتبر است.",
+        )
+
+    return dict(form)
+
+
+def clean_username(
+    value: object,
+) -> str:
+
+    return str(
+        value or ""
+    ).strip().lower()
+
+
+def clean_password(
+    value: object,
+) -> str:
+
+    # مهم:
+    # عمداً strip() نمی‌کنیم تا فاصله‌های معتبر
+    # اول یا آخر رمز خراب نشود.
+    return str(
+        value or ""
     )
 
 
@@ -392,7 +744,10 @@ PUBLIC_FIELDS = (
 )
 
 
-def public_user(user: dict) -> dict:
+def public_user(
+    user: dict,
+) -> dict:
+
     return {
         key: user.get(key)
         for key in PUBLIC_FIELDS
@@ -434,7 +789,9 @@ def get_current_user(
         FROM users
         WHERE id = ?
         """,
-        (user_id,),
+        (
+            user_id,
+        ),
     ).fetchone()
 
     connection.close()
@@ -512,10 +869,12 @@ def remove_user_tickets(
     for ticket, owner_id in list(
         websocket_tickets.items()
     ):
+
         try:
             if int(owner_id) == int(
                 user_id
             ):
+
                 websocket_tickets.pop(
                     ticket,
                     None,
@@ -525,6 +884,7 @@ def remove_user_tickets(
             TypeError,
             ValueError,
         ):
+
             websocket_tickets.pop(
                 ticket,
                 None,
@@ -532,7 +892,11 @@ def remove_user_tickets(
 
 
 def cleanup_tickets() -> None:
-    if len(websocket_tickets) > 10000:
+
+    if len(
+        websocket_tickets
+    ) > 10000:
+
         websocket_tickets.clear()
 
 
@@ -605,6 +969,7 @@ def live_public_list() -> list[dict]:
     result = []
 
     for room_id, room in live_rooms.items():
+
         viewers = room.get(
             "viewers",
             set(),
@@ -655,6 +1020,7 @@ async def send_to_user(
     for websocket in list(
         sockets
     ):
+
         try:
             await websocket.send_text(
                 message
@@ -681,6 +1047,7 @@ async def broadcast_live_list() -> None:
     for user_id in list(
         active_connections.keys()
     ):
+
         await send_to_user(
             int(user_id),
             payload,
@@ -721,6 +1088,7 @@ async def end_live_room(
     }
 
     for user_id in recipients:
+
         await send_to_user(
             int(user_id),
             payload,
@@ -751,7 +1119,9 @@ async def broadcast_profile_update(
         FROM users
         WHERE id = ?
         """,
-        (int(user_id),),
+        (
+            int(user_id),
+        ),
     ).fetchone()
 
     connection.close()
@@ -767,6 +1137,7 @@ async def broadcast_profile_update(
     for target_id in list(
         active_connections.keys()
     ):
+
         await send_to_user(
             int(target_id),
             payload,
@@ -790,12 +1161,14 @@ def root(
     )
 
     if user:
+
         chat = (
             FRONTEND_DIR /
             "chat.html"
         )
 
         if chat.exists():
+
             return FileResponse(
                 chat,
                 media_type="text/html",
@@ -807,6 +1180,7 @@ def root(
     )
 
     if index.exists():
+
         return FileResponse(
             index,
             media_type="text/html",
@@ -818,6 +1192,7 @@ def root(
     )
 
     if login.exists():
+
         return FileResponse(
             login,
             media_type="text/html",
@@ -853,6 +1228,7 @@ def index_page():
     )
 
     if not path.exists():
+
         raise HTTPException(
             status_code=404,
             detail="index.html پیدا نشد.",
@@ -876,6 +1252,7 @@ def login_page():
     )
 
     if not path.exists():
+
         raise HTTPException(
             status_code=404,
             detail="login.html پیدا نشد.",
@@ -905,6 +1282,7 @@ def chat_page(
     )
 
     if not path.exists():
+
         raise HTTPException(
             status_code=404,
             detail="chat.html پیدا نشد.",
@@ -934,6 +1312,7 @@ def profile_page(
     )
 
     if not path.exists():
+
         raise HTTPException(
             status_code=404,
             detail="profile.html پیدا نشد.",
@@ -963,6 +1342,7 @@ def live_page(
     )
 
     if not path.exists():
+
         raise HTTPException(
             status_code=404,
             detail="live.html پیدا نشد.",
@@ -989,6 +1369,7 @@ def robots_txt():
     )
 
     if not path.exists():
+
         raise HTTPException(
             status_code=404,
             detail="robots.txt پیدا نشد.",
@@ -1011,6 +1392,7 @@ def sitemap_xml():
     )
 
     if not path.exists():
+
         raise HTTPException(
             status_code=404,
             detail="sitemap.xml پیدا نشد.",
@@ -1042,12 +1424,14 @@ def favicon():
     )
 
     if ico.exists():
+
         return FileResponse(
             ico,
             media_type="image/x-icon",
         )
 
     if png.exists():
+
         return FileResponse(
             png,
             media_type="image/png",
@@ -1091,46 +1475,80 @@ def health():
 @app.post(
     "/register"
 )
-def register(
+async def register(
     request: Request,
-    username: str = Form(...),
-    password: str = Form(...),
-    display_name: str = Form(""),
 ):
 
-    username = (
-        username
-        .strip()
-        .lower()
+    data = await read_request_data(
+        request
     )
 
-    password = password.strip()
-
-    display_name = (
-        display_name
-        .strip()
-        or username
+    username = clean_username(
+        data.get(
+            "username",
+            data.get(
+                "user",
+                "",
+            ),
+        )
     )
+
+    password = clean_password(
+        data.get(
+            "password",
+            data.get(
+                "pass",
+                "",
+            ),
+        )
+    )
+
+    display_name = str(
+        data.get(
+            "display_name",
+            data.get(
+                "name",
+                "",
+            ),
+        )
+        or ""
+    ).strip()
 
     if len(username) < 3:
+
         raise HTTPException(
             status_code=400,
             detail="نام کاربری باید حداقل ۳ کاراکتر باشد.",
         )
 
     if len(username) > 32:
+
         raise HTTPException(
             status_code=400,
             detail="نام کاربری بیش از حد طولانی است.",
         )
 
     if len(password) < 6:
+
         raise HTTPException(
             status_code=400,
             detail="رمز عبور باید حداقل ۶ کاراکتر باشد.",
         )
 
+    if len(password) > 200:
+
+        raise HTTPException(
+            status_code=400,
+            detail="رمز عبور بیش از حد طولانی است.",
+        )
+
+    display_name = (
+        display_name
+        or username
+    )
+
     if len(display_name) > 60:
+
         raise HTTPException(
             status_code=400,
             detail="نام نمایشی بیش از حد طولانی است.",
@@ -1138,7 +1556,33 @@ def register(
 
     connection = get_db()
 
+    # -----------------------------------------------------
+    # بررسی نام کاربری قبلی
+    # -----------------------------------------------------
+
+    existing = connection.execute(
+        """
+        SELECT id
+        FROM users
+        WHERE LOWER(username) = LOWER(?)
+        LIMIT 1
+        """,
+        (
+            username,
+        ),
+    ).fetchone()
+
+    if existing is not None:
+
+        connection.close()
+
+        raise HTTPException(
+            status_code=409,
+            detail="این نام کاربری قبلاً ثبت شده است.",
+        )
+
     try:
+
         cursor = connection.execute(
             """
             INSERT INTO users (
@@ -1151,7 +1595,9 @@ def register(
             """,
             (
                 username,
-                hash_password(password),
+                hash_password(
+                    password
+                ),
                 display_name,
                 now_iso(),
             ),
@@ -1167,13 +1613,20 @@ def register(
 
         connection.rollback()
 
+        connection.close()
+
         raise HTTPException(
             status_code=409,
             detail="این نام کاربری قبلاً ثبت شده است.",
         )
 
     finally:
-        connection.close()
+
+        try:
+            connection.close()
+
+        except Exception:
+            pass
 
     request.session["uid"] = user_id
 
@@ -1226,25 +1679,60 @@ def register(
 @app.post(
     "/login"
 )
-def login(
+async def login(
     request: Request,
-    username: str = Form(...),
-    password: str = Form(...),
 ):
 
-    username = (
-        username
-        .strip()
-        .lower()
+    data = await read_request_data(
+        request
     )
 
+    username = clean_username(
+        data.get(
+            "username",
+            data.get(
+                "user",
+                "",
+            ),
+        )
+    )
+
+    password = clean_password(
+        data.get(
+            "password",
+            data.get(
+                "pass",
+                "",
+            ),
+        )
+    )
+
+    if not username:
+
+        raise HTTPException(
+            status_code=400,
+            detail="نام کاربری را وارد کنید.",
+        )
+
+    if not password:
+
+        raise HTTPException(
+            status_code=400,
+            detail="رمز عبور را وارد کنید.",
+        )
+
     connection = get_db()
+
+    # -----------------------------------------------------
+    # پیدا کردن کاربر بدون حساسیت به حروف بزرگ و کوچک
+    # -----------------------------------------------------
 
     row = connection.execute(
         """
         SELECT *
         FROM users
-        WHERE username = ?
+        WHERE LOWER(username) = LOWER(?)
+        LIMIT 1
         """,
         (
             username,
@@ -1252,6 +1740,7 @@ def login(
     ).fetchone()
 
     if row is None:
+
         connection.close()
 
         raise HTTPException(
@@ -1261,9 +1750,11 @@ def login(
 
     user = dict(row)
 
-    stored_password = user.get(
-        "password",
-        "",
+    stored_password = str(
+        user.get(
+            "password",
+            "",
+        )
     )
 
     valid_password = verify_password(
@@ -1272,6 +1763,7 @@ def login(
     )
 
     if not valid_password:
+
         connection.close()
 
         raise HTTPException(
@@ -1280,12 +1772,13 @@ def login(
         )
 
     # -----------------------------------------------------
-    # ارتقای خودکار رمزهای قدیمی
+    # ارتقای خودکار رمز قدیمی
     # -----------------------------------------------------
 
     if password_needs_upgrade(
         stored_password
     ):
+
         new_password = hash_password(
             password
         )
@@ -1363,6 +1856,7 @@ async def logout(
     )
 
     try:
+
         user_id = (
             int(raw_user_id)
             if raw_user_id is not None
@@ -1373,6 +1867,7 @@ async def logout(
         TypeError,
         ValueError,
     ):
+
         user_id = None
 
     request.session.clear()
@@ -1386,6 +1881,7 @@ async def logout(
         for room_id, room in list(
             live_rooms.items()
         ):
+
             if int(
                 room.get(
                     "host_id",
@@ -1405,6 +1901,7 @@ async def logout(
         for websocket in list(
             sockets
         ):
+
             try:
                 await websocket.close()
 
@@ -1414,6 +1911,7 @@ async def logout(
         for other_id in list(
             active_connections.keys()
         ):
+
             await send_to_user(
                 int(other_id),
                 {
@@ -1471,9 +1969,11 @@ def me(
     if current_ticket_user == int(
         user["id"]
     ):
+
         ticket = current_ticket
 
     else:
+
         remove_user_tickets(
             int(user["id"])
         )
@@ -1517,9 +2017,11 @@ async def update_profile(
     )
 
     try:
+
         data = await request.json()
 
     except Exception:
+
         raise HTTPException(
             status_code=400,
             detail="داده پروفایل نامعتبر است.",
@@ -1529,6 +2031,7 @@ async def update_profile(
         data,
         dict,
     ):
+
         raise HTTPException(
             status_code=400,
             detail="داده پروفایل نامعتبر است.",
@@ -1556,24 +2059,28 @@ async def update_profile(
     ).strip()
 
     if not display_name:
+
         raise HTTPException(
             status_code=400,
             detail="نام نمایشی نمی‌تواند خالی باشد.",
         )
 
     if len(display_name) > 60:
+
         raise HTTPException(
             status_code=400,
             detail="نام نمایشی بیش از حد طولانی است.",
         )
 
     if len(bio) > 300:
+
         raise HTTPException(
             status_code=400,
             detail="متن درباره من بیش از حد طولانی است.",
         )
 
     if len(status) > 100:
+
         raise HTTPException(
             status_code=400,
             detail="وضعیت بیش از حد طولانی است.",
@@ -1620,6 +2127,7 @@ async def update_profile(
     connection.close()
 
     if row is None:
+
         raise HTTPException(
             status_code=404,
             detail="کاربر پیدا نشد.",
@@ -1660,6 +2168,7 @@ async def upload_avatar(
     ).suffix.lower()
 
     if extension not in IMAGE_EXTENSIONS:
+
         raise HTTPException(
             status_code=400,
             detail="فرمت تصویر مجاز نیست.",
@@ -1668,6 +2177,7 @@ async def upload_avatar(
     content = await file.read()
 
     if len(content) > MAX_AVATAR_SIZE:
+
         raise HTTPException(
             status_code=413,
             detail="حداکثر اندازه تصویر ۵ مگابایت است.",
@@ -1876,9 +2386,11 @@ async def send_message(
     )
 
     try:
+
         data = await request.json()
 
     except Exception:
+
         raise HTTPException(
             status_code=400,
             detail="داده پیام نامعتبر است.",
@@ -1888,12 +2400,14 @@ async def send_message(
         data,
         dict,
     ):
+
         raise HTTPException(
             status_code=400,
             detail="داده پیام نامعتبر است.",
         )
 
     try:
+
         receiver_id = int(
             data.get(
                 "receiver_id"
@@ -1904,6 +2418,7 @@ async def send_message(
         TypeError,
         ValueError,
     ):
+
         raise HTTPException(
             status_code=400,
             detail="گیرنده پیام نامعتبر است.",
@@ -1919,18 +2434,21 @@ async def send_message(
     if receiver_id == int(
         current["id"]
     ):
+
         raise HTTPException(
             status_code=400,
             detail="نمی‌توانی به خودت پیام بفرستی.",
         )
 
     if not text:
+
         raise HTTPException(
             status_code=400,
             detail="پیام خالی است.",
         )
 
     if len(text) > 5000:
+
         raise HTTPException(
             status_code=400,
             detail="پیام بیش از حد طولانی است.",
@@ -1992,6 +2510,7 @@ async def send_message(
     connection.close()
 
     if row is None:
+
         raise HTTPException(
             status_code=500,
             detail="پیام ذخیره نشد.",
@@ -2027,9 +2546,21 @@ async def edit_message(
     )
 
     try:
+
         data = await request.json()
 
     except Exception:
+
+        raise HTTPException(
+            status_code=400,
+            detail="داده ویرایش نامعتبر است.",
+        )
+
+    if not isinstance(
+        data,
+        dict,
+    ):
+
         raise HTTPException(
             status_code=400,
             detail="داده ویرایش نامعتبر است.",
@@ -2043,12 +2574,14 @@ async def edit_message(
     ).strip()
 
     if not text:
+
         raise HTTPException(
             status_code=400,
             detail="پیام نمی‌تواند خالی باشد.",
         )
 
     if len(text) > 5000:
+
         raise HTTPException(
             status_code=400,
             detail="پیام بیش از حد طولانی است.",
@@ -2119,6 +2652,7 @@ async def edit_message(
     connection.close()
 
     if updated is None:
+
         raise HTTPException(
             status_code=500,
             detail="پیام ویرایش نشد.",
@@ -2224,6 +2758,7 @@ async def delete_message(
     connection.close()
 
     if updated is None:
+
         raise HTTPException(
             status_code=500,
             detail="حذف پیام انجام نشد.",
@@ -2270,6 +2805,7 @@ async def upload_file(
     if not allowed_upload(
         filename
     ):
+
         raise HTTPException(
             status_code=400,
             detail="فرمت فایل مجاز نیست.",
@@ -2278,6 +2814,7 @@ async def upload_file(
     content = await file.read()
 
     if len(content) > MAX_UPLOAD_SIZE:
+
         raise HTTPException(
             status_code=413,
             detail="حداکثر اندازه فایل ۱۰ مگابایت است.",
@@ -2371,6 +2908,7 @@ async def upload_file(
     connection.close()
 
     if row is None:
+
         raise HTTPException(
             status_code=500,
             detail="فایل ذخیره نشد.",
@@ -2405,9 +2943,21 @@ async def create_group(
     )
 
     try:
+
         data = await request.json()
 
     except Exception:
+
+        raise HTTPException(
+            status_code=400,
+            detail="داده گروه نامعتبر است.",
+        )
+
+    if not isinstance(
+        data,
+        dict,
+    ):
+
         raise HTTPException(
             status_code=400,
             detail="داده گروه نامعتبر است.",
@@ -2426,12 +2976,14 @@ async def create_group(
     )
 
     if not name:
+
         raise HTTPException(
             status_code=400,
             detail="نام گروه الزامی است.",
         )
 
     if len(name) > 100:
+
         raise HTTPException(
             status_code=400,
             detail="نام گروه بیش از حد طولانی است.",
@@ -2441,6 +2993,7 @@ async def create_group(
         members,
         list,
     ):
+
         members = []
 
     db = get_db()
@@ -2472,6 +3025,7 @@ async def create_group(
     for item in members:
 
         try:
+
             member_ids.add(
                 int(item)
             )
@@ -2634,7 +3188,9 @@ async def websocket_endpoint(
 
         return
 
-    user_id = int(user_id)
+    user_id = int(
+        user_id
+    )
 
     active_connections.setdefault(
         user_id,
@@ -2664,7 +3220,10 @@ async def websocket_endpoint(
                 active_connections.keys()
             ):
 
-                if int(other_id) == user_id:
+                if int(
+                    other_id
+                ) == user_id:
+
                     continue
 
                 await send_to_user(
@@ -2685,8 +3244,7 @@ async def websocket_endpoint(
                     "type": "ready",
                     "online": [
                         int(item)
-                        for item in
-                        active_connections.keys()
+                        for item in active_connections.keys()
                     ],
                     "live_streams":
                         live_public_list(),
@@ -2706,17 +3264,20 @@ async def websocket_endpoint(
             )
 
             try:
+
                 data = json.loads(
                     raw_data
                 )
 
             except Exception:
+
                 data = {}
 
             if not isinstance(
                 data,
                 dict,
             ):
+
                 data = {}
 
             event_type = data.get(
@@ -2745,14 +3306,18 @@ async def websocket_endpoint(
             elif event_type == "typing":
 
                 try:
+
                     target_id = int(
-                        data.get("to")
+                        data.get(
+                            "to"
+                        )
                     )
 
                 except (
                     TypeError,
                     ValueError,
                 ):
+
                     continue
 
                 await send_to_user(
@@ -2783,12 +3348,15 @@ async def websocket_endpoint(
                 ).strip()
 
                 if not title:
-                    title = "پخش زنده GAPINO"
+
+                    title = (
+                        "پخش زنده GAPINO"
+                    )
 
                 if len(title) > 100:
+
                     title = title[:100]
 
-                # بستن Live قبلی همین کاربر
                 for old_room_id, old_room in list(
                     live_rooms.items()
                 ):
@@ -2811,10 +3379,14 @@ async def websocket_endpoint(
                 live_rooms[
                     room_id
                 ] = {
-                    "room_id": room_id,
-                    "title": title,
-                    "host_id": user_id,
-                    "viewers": set(),
+                    "room_id":
+                        room_id,
+                    "title":
+                        title,
+                    "host_id":
+                        user_id,
+                    "viewers":
+                        set(),
                 }
 
                 await websocket.send_text(
@@ -3033,6 +3605,7 @@ async def websocket_endpoint(
             ):
 
                 try:
+
                     target_id = int(
                         data.get(
                             "target_id"
@@ -3043,6 +3616,7 @@ async def websocket_endpoint(
                     TypeError,
                     ValueError,
                 ):
+
                     continue
 
                 outgoing = dict(
@@ -3065,6 +3639,7 @@ async def websocket_endpoint(
             elif event_type == "live_answer":
 
                 try:
+
                     target_id = int(
                         data.get(
                             "target_id"
@@ -3075,6 +3650,7 @@ async def websocket_endpoint(
                     TypeError,
                     ValueError,
                 ):
+
                     continue
 
                 outgoing = dict(
@@ -3097,6 +3673,7 @@ async def websocket_endpoint(
             elif event_type == "live_ice":
 
                 try:
+
                     target_id = int(
                         data.get(
                             "target_id"
@@ -3107,6 +3684,7 @@ async def websocket_endpoint(
                     TypeError,
                     ValueError,
                 ):
+
                     continue
 
                 outgoing = dict(
@@ -3129,6 +3707,7 @@ async def websocket_endpoint(
             elif event_type == "message":
 
                 try:
+
                     target_id = int(
                         data.get(
                             "to"
@@ -3139,6 +3718,7 @@ async def websocket_endpoint(
                     TypeError,
                     ValueError,
                 ):
+
                     continue
 
                 text = str(
