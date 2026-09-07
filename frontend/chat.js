@@ -1,21 +1,25 @@
 (() => {
     "use strict";
 
-    const API =
-        window.GAPINO_API_BASE ||
-        window.location.origin;
+    /* =========================================================
+       GAPINO SERVER
+       مهم:
+       در APK نباید از location.origin استفاده کنیم،
+       چون origin مربوط به WebView/Capacitor است.
+       ========================================================= */
 
-    const WS_PROTOCOL =
-        location.protocol === "https:"
-            ? "wss:"
-            : "ws:";
+    const API = "https://mygapino.shop";
 
-    const WS_URL =
-        `${WS_PROTOCOL}//${location.host}/ws`;
+    const WS_URL = "wss://mygapino.shop/ws";
+
+    /* =========================================================
+       STATE
+       ========================================================= */
 
     let currentUser = null;
     let currentChatUser = null;
     let users = [];
+
     let socket = null;
 
     let reconnectTimer = null;
@@ -190,6 +194,7 @@
 
     async function api(path, options = {}) {
         const headers = {
+            "Accept": "application/json",
             ...(options.headers || {})
         };
 
@@ -470,6 +475,7 @@
         if (!response.ok) {
             throw new Error(
                 data?.detail ||
+                data?.message ||
                 "آپلود عکس پروفایل ناموفق بود"
             );
         }
@@ -513,6 +519,10 @@
             $("usersList");
 
         if (!list) {
+            console.error(
+                "GAPINO: usersList not found"
+            );
+
             return;
         }
 
@@ -528,10 +538,20 @@
         `;
 
         try {
+            console.log(
+                "GAPINO loading users from:",
+                API + "/api/users"
+            );
+
             const data =
                 await api(
                     "/api/users"
                 );
+
+            console.log(
+                "GAPINO users response:",
+                data
+            );
 
             if (Array.isArray(data)) {
                 users = data;
@@ -560,7 +580,13 @@
             window.GAPINO_USERS =
                 users;
 
+            console.log(
+                "GAPINO users count:",
+                users.length
+            );
+
             renderUsers(users);
+
         } catch (error) {
             console.error(
                 "GAPINO loadUsers:",
@@ -578,13 +604,15 @@
                     <br>
                     <small>
                         ${escapeHTML(
-                            error.message
+                            error?.message ||
+                            "خطای نامشخص"
                         )}
                     </small>
                 </div>
             `;
 
             showToast(
+                error?.message ||
                 "دریافت کاربران ناموفق بود"
             );
         }
@@ -600,7 +628,9 @@
 
         list.innerHTML = "";
 
-        if (!items.length) {
+        if (!Array.isArray(items) ||
+            items.length === 0) {
+
             list.innerHTML = `
                 <div style="
                     padding:25px;
@@ -621,6 +651,11 @@
                     getUserId(user);
 
                 if (id === null) {
+                    console.warn(
+                        "GAPINO invalid user:",
+                        user
+                    );
+
                     return;
                 }
 
@@ -632,6 +667,9 @@
                 item.type = "button";
                 item.className =
                     "user-item";
+
+                item.dataset.userId =
+                    String(id);
 
                 if (
                     currentChatUser &&
@@ -766,7 +804,14 @@
 
                 item.addEventListener(
                     "click",
-                    () => {
+                    event => {
+                        event.preventDefault();
+
+                        console.log(
+                            "GAPINO selected user:",
+                            user
+                        );
+
                         openChat(user);
                     }
                 );
@@ -845,6 +890,17 @@
             return;
         }
 
+        const userId =
+            getUserId(user);
+
+        if (userId === null) {
+            showToast(
+                "شناسه کاربر نامعتبر است"
+            );
+
+            return;
+        }
+
         currentChatUser =
             user;
 
@@ -869,7 +925,7 @@
         renderUsers(users);
 
         await loadMessages(
-            getUserId(user)
+            userId
         );
     }
 
@@ -1049,6 +1105,7 @@
             renderMessages(
                 messagesCache
             );
+
         } catch (error) {
             console.error(
                 "GAPINO loadMessages:",
@@ -1067,7 +1124,8 @@
                         <br>
                         <small>
                             ${escapeHTML(
-                                error.message
+                                error?.message ||
+                                "خطای نامشخص"
                             )}
                         </small>
                     </div>
@@ -1187,6 +1245,7 @@
                     bubble.appendChild(
                         image
                     );
+
                 } else if (
                     type === "audio" &&
                     message.file_url
@@ -1207,6 +1266,7 @@
                     bubble.appendChild(
                         audio
                     );
+
                 } else if (
                     type === "video" &&
                     message.file_url
@@ -1236,6 +1296,7 @@
                     bubble.appendChild(
                         video
                     );
+
                 } else if (
                     message.file_url
                 ) {
@@ -1282,6 +1343,7 @@
                             caption
                         );
                     }
+
                 } else {
                     bubble.textContent =
                         String(text);
@@ -1394,6 +1456,8 @@
             console.log(
                 "GAPINO sending message:",
                 {
+                    api:
+                        API + "/api/messages",
                     receiver_id:
                         receiverId,
                     text:
@@ -1449,13 +1513,10 @@
             );
 
             if (!response.ok) {
-                const errorMessage =
+                throw new Error(
                     data?.detail ||
                     data?.message ||
-                    `خطای سرور: ${response.status}`;
-
-                throw new Error(
-                    errorMessage
+                    `خطای سرور: ${response.status}`
                 );
             }
 
@@ -1478,7 +1539,7 @@
                     message.id ??
                     message.message_id;
 
-                const alreadyExists =
+                const exists =
                     messageId !==
                         undefined &&
                     messageId !==
@@ -1495,7 +1556,7 @@
                             )
                     );
 
-                if (!alreadyExists) {
+                if (!exists) {
                     messagesCache.push(
                         message
                     );
@@ -1504,6 +1565,7 @@
                 renderMessages(
                     messagesCache
                 );
+
             } else {
                 await loadMessages(
                     receiverId
@@ -1520,6 +1582,7 @@
                 error?.message ||
                 "ارسال پیام انجام نشد"
             );
+
         } finally {
             if (button) {
                 button.disabled =
@@ -1597,7 +1660,9 @@
             );
 
         const myId =
-            getUserId(currentUser);
+            getUserId(
+                currentUser
+            );
 
         if (
             !senderId ||
@@ -1650,6 +1715,11 @@
         ) {
             return;
         }
+
+        console.log(
+            "GAPINO connecting WebSocket:",
+            WS_URL
+        );
 
         try {
             socket =
@@ -1705,9 +1775,11 @@
 
         socket.addEventListener(
             "close",
-            () => {
+            event => {
                 console.warn(
-                    "GAPINO WebSocket disconnected"
+                    "GAPINO WebSocket disconnected:",
+                    event.code,
+                    event.reason
                 );
 
                 window.GAPINO_WS_CONNECTED =
@@ -1819,6 +1891,7 @@
             case "call_reject":
             case "call_busy":
             case "call_end":
+
                 document.dispatchEvent(
                     new CustomEvent(
                         "gapino-call-event",
@@ -1828,9 +1901,15 @@
                         }
                     )
                 );
+
                 break;
 
             default:
+                console.log(
+                    "GAPINO WS event:",
+                    data
+                );
+
                 break;
         }
     }
@@ -1966,7 +2045,8 @@
         if (
             messageId !==
                 undefined &&
-            messageId !== null &&
+            messageId !==
+                null &&
             messagesCache.some(
                 item =>
                     String(
@@ -2086,6 +2166,7 @@
                 "click",
                 event => {
                     event.preventDefault();
+
                     sendMessage();
                 }
             );
@@ -2104,6 +2185,7 @@
                     !event.shiftKey
                 ) {
                     event.preventDefault();
+
                     sendMessage();
                 }
             }
@@ -2157,6 +2239,7 @@
                 "click",
                 event => {
                     event.preventDefault();
+
                     input.click();
                 }
             );
@@ -2242,8 +2325,17 @@
             async event => {
                 event.preventDefault();
 
+                if (!currentChatUser) {
+                    showToast(
+                        "ابتدا یک کاربر را انتخاب کنید"
+                    );
+
+                    return;
+                }
+
                 if (isRecording) {
                     stopRecording();
+
                     return;
                 }
 
@@ -2260,14 +2352,6 @@
         ) {
             showToast(
                 "ضبط صدا در این دستگاه در دسترس نیست"
-            );
-
-            return;
-        }
-
-        if (!currentChatUser) {
-            showToast(
-                "ابتدا یک کاربر را انتخاب کنید"
             );
 
             return;
@@ -2389,6 +2473,7 @@
                         await sendAudioBlob(
                             blob
                         );
+
                     } catch (error) {
                         console.error(
                             "GAPINO voice:",
@@ -2526,15 +2611,6 @@
                 "آدرس فایل دریافت نشد"
             );
         }
-
-        /*
-         * توجه:
-         * در بک‌اند فعلی ممکن است آپلود فایل
-         * خودش پیام را ایجاد کند.
-         * بنابراین فقط وقتی response
-         * شامل message نبود، پیام صوتی
-         * را جداگانه ارسال می‌کنیم.
-         */
 
         if (!data?.message) {
             await api(
@@ -3178,6 +3254,20 @@
        ========================================================= */
 
     async function boot() {
+        console.log(
+            "GAPINO boot started"
+        );
+
+        console.log(
+            "GAPINO API:",
+            API
+        );
+
+        console.log(
+            "GAPINO WS:",
+            WS_URL
+        );
+
         try {
             await loadCurrentUser();
 
@@ -3207,12 +3297,6 @@
             const sendButton =
                 $("sendButton");
 
-            const voiceButton =
-                $("voiceButton");
-
-            const attachButton =
-                $("attachButton");
-
             if (input) {
                 input.disabled =
                     true;
@@ -3221,16 +3305,6 @@
             if (sendButton) {
                 sendButton.disabled =
                     true;
-            }
-
-            if (voiceButton) {
-                voiceButton.disabled =
-                    false;
-            }
-
-            if (attachButton) {
-                attachButton.disabled =
-                    false;
             }
 
             console.log(
