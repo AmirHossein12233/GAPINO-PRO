@@ -136,25 +136,20 @@ const toast = $("toast");
    ========================================================= */
 
 function showToast(text, timeout = 2600) {
-
     if (!toast) {
         console.log("GAPINO:", text);
         return;
     }
 
     toast.textContent = safeText(text);
-
     toast.style.display = "block";
-
     toast.classList.add("show");
 
     clearTimeout(showToast.timer);
 
     showToast.timer = setTimeout(() => {
-
         toast.classList.remove("show");
         toast.style.display = "none";
-
     }, timeout);
 }
 
@@ -164,7 +159,6 @@ function showToast(text, timeout = 2600) {
    ========================================================= */
 
 async function apiFetch(path, options = {}) {
-
     const response = await fetch(
         API + path,
         {
@@ -183,13 +177,11 @@ async function apiFetch(path, options = {}) {
     }
 
     if (!response.ok) {
-
         throw new Error(
-            data?.message ||
             data?.detail ||
+            data?.message ||
             `HTTP ${response.status}`
         );
-
     }
 
     return data;
@@ -201,7 +193,6 @@ async function apiFetch(path, options = {}) {
    ========================================================= */
 
 function getAvatarLetter(user) {
-
     return (
         getUserName(user)
             .trim()
@@ -210,21 +201,43 @@ function getAvatarLetter(user) {
     );
 }
 
-function renderAvatar(element, user) {
 
+function getAbsoluteUrl(url) {
+    const value = safeText(url).trim();
+
+    if (!value) {
+        return "";
+    }
+
+    if (
+        value.startsWith("http://") ||
+        value.startsWith("https://")
+    ) {
+        return value;
+    }
+
+    if (value.startsWith("/")) {
+        return value;
+    }
+
+    return "/" + value;
+}
+
+
+function renderAvatar(element, user) {
     if (!element) {
         return;
     }
 
     element.innerHTML = "";
 
-    const avatar = safeText(
+    const avatar = getAbsoluteUrl(
         user?.avatar ||
-        user?.profile?.avatar
-    ).trim();
+        user?.profile?.avatar ||
+        ""
+    );
 
     if (!avatar) {
-
         element.textContent =
             getAvatarLetter(user);
 
@@ -239,12 +252,9 @@ function renderAvatar(element, user) {
     img.loading = "lazy";
 
     img.onerror = () => {
-
         element.innerHTML = "";
-
         element.textContent =
             getAvatarLetter(user);
-
     };
 
     element.appendChild(img);
@@ -256,20 +266,16 @@ function renderAvatar(element, user) {
    ========================================================= */
 
 function updateCurrentUserUI() {
-
     if (!currentUser) {
         return;
     }
 
     if (currentDisplayName) {
-
         currentDisplayName.textContent =
             getUserName(currentUser);
-
     }
 
     if (currentUsername) {
-
         const username =
             safeText(currentUser.username);
 
@@ -277,7 +283,6 @@ function updateCurrentUserUI() {
             username
                 ? `@${username}`
                 : "کاربر";
-
     }
 
     renderAvatar(
@@ -292,7 +297,6 @@ function updateCurrentUserUI() {
    ========================================================= */
 
 function updateChatHeader(user) {
-
     if (!user) {
         return;
     }
@@ -303,12 +307,10 @@ function updateChatHeader(user) {
     }
 
     if (chatStatus) {
-
         chatStatus.textContent =
             isOnline(user)
                 ? "آنلاین"
                 : "آفلاین";
-
     }
 
     renderAvatar(
@@ -325,7 +327,6 @@ function updateChatHeader(user) {
     }
 
     if (callButton) {
-
         callButton.disabled =
             !isOnline(user);
 
@@ -333,7 +334,6 @@ function updateChatHeader(user) {
             isOnline(user)
                 ? "تماس صوتی"
                 : "کاربر آفلاین است";
-
     }
 }
 
@@ -343,12 +343,10 @@ function updateChatHeader(user) {
    ========================================================= */
 
 function setChatInputEnabled(enabled) {
-
     const state =
         Boolean(enabled);
 
     if (messageInput) {
-
         messageInput.disabled =
             !state;
 
@@ -356,28 +354,28 @@ function setChatInputEnabled(enabled) {
             state
                 ? "پیامت را بنویس..."
                 : "یک کاربر را انتخاب کنید...";
-
     }
 
     if (sendButton) {
-        sendButton.disabled = !state;
+        sendButton.disabled =
+            !state;
     }
 
     if (attachButton) {
-        attachButton.disabled = !state;
+        attachButton.disabled =
+            !state;
     }
 
     if (voiceButton) {
-        voiceButton.disabled = !state;
+        voiceButton.disabled =
+            !state;
     }
 
     if (callButton) {
-
         callButton.disabled =
             !state ||
             !currentChatUser ||
             !isOnline(currentChatUser);
-
     }
 }
 
@@ -387,17 +385,39 @@ function setChatInputEnabled(enabled) {
    ========================================================= */
 
 async function loadCurrentUser() {
-
     try {
+        /*
+         * مهم:
+         * مسیر صحیح بک‌اند /api/me است.
+         */
 
         const data =
-            await apiFetch("/me");
+            await apiFetch("/api/me");
 
+        /*
+         * /api/me مستقیماً خود user را برمی‌گرداند.
+         */
+
+        if (data?.id) {
+            currentUser = data;
+
+            localStorage.setItem(
+                "gapino_user",
+                JSON.stringify(currentUser)
+            );
+
+            updateCurrentUserUI();
+
+            return currentUser;
+        }
+
+        /*
+         * برای سازگاری احتمالی با پاسخ‌های قدیمی
+         */
         if (
             data?.authenticated &&
             data?.user
         ) {
-
             currentUser =
                 data.user;
 
@@ -412,12 +432,10 @@ async function loadCurrentUser() {
         }
 
     } catch (error) {
-
         console.warn(
             "Session error:",
             error
         );
-
     }
 
     localStorage.removeItem(
@@ -437,26 +455,18 @@ async function loadCurrentUser() {
    ========================================================= */
 
 async function loadUsers() {
-
     try {
-
         const data =
-            await apiFetch("/users");
+            await apiFetch("/api/users");
 
         if (Array.isArray(data)) {
-
             allUsers = data;
-
         } else if (
             Array.isArray(data?.users)
         ) {
-
             allUsers = data.users;
-
         } else {
-
             allUsers = [];
-
         }
 
         renderUsers();
@@ -465,18 +475,14 @@ async function loadUsers() {
             allUsers;
 
     } catch (error) {
-
         console.error(
             "Users error:",
             error
         );
 
         if (userList) {
-
             userList.innerHTML = `
-
                 <div class="empty-users">
-
                     <div class="empty-icon">
                         ⚠️
                     </div>
@@ -488,7 +494,6 @@ async function loadUsers() {
                     <span>
                         اتصال سرور را بررسی کن.
                     </span>
-
                 </div>
             `;
         }
@@ -497,7 +502,6 @@ async function loadUsers() {
 
 
 function renderUsers() {
-
     if (!userList) {
         return;
     }
@@ -511,7 +515,6 @@ function renderUsers() {
 
     const filtered =
         allUsers.filter(user => {
-
             if (!user) {
                 return false;
             }
@@ -520,7 +523,6 @@ function renderUsers() {
                 getUserId(user) ===
                 getCurrentUserId()
             ) {
-
                 return false;
             }
 
@@ -545,20 +547,15 @@ function renderUsers() {
     userList.innerHTML = "";
 
     if (userCount) {
-
         userCount.textContent =
             filtered.length.toLocaleString(
                 "fa-IR"
             );
-
     }
 
     if (!filtered.length) {
-
         userList.innerHTML = `
-
             <div class="empty-users">
-
                 <div class="empty-icon">
                     🔎
                 </div>
@@ -570,7 +567,6 @@ function renderUsers() {
                 <span>
                     جستجوی دیگری انجام بده.
                 </span>
-
             </div>
         `;
 
@@ -578,27 +574,28 @@ function renderUsers() {
     }
 
     filtered.forEach(user => {
-
         const item =
             document.createElement("button");
 
         item.type = "button";
-        item.className = "user-item";
+        item.className =
+            "user-item";
 
         if (
             currentChatUser &&
             getUserId(currentChatUser) ===
             getUserId(user)
         ) {
-
-            item.classList.add("active");
-
+            item.classList.add(
+                "active"
+            );
         }
 
         const avatar =
             document.createElement("div");
 
-        avatar.className = "avatar";
+        avatar.className =
+            "avatar";
 
         renderAvatar(
             avatar,
@@ -618,7 +615,9 @@ function renderUsers() {
             "username-row";
 
         const name =
-            document.createElement("strong");
+            document.createElement(
+                "strong"
+            );
 
         name.className =
             "username";
@@ -627,7 +626,9 @@ function renderUsers() {
             getUserName(user);
 
         const dot =
-            document.createElement("span");
+            document.createElement(
+                "span"
+            );
 
         dot.className =
             isOnline(user)
@@ -638,7 +639,9 @@ function renderUsers() {
         row.appendChild(dot);
 
         const status =
-            document.createElement("span");
+            document.createElement(
+                "span"
+            );
 
         status.className =
             "status-text";
@@ -668,7 +671,6 @@ function renderUsers() {
         );
 
         userList.appendChild(item);
-
     });
 }
 
@@ -678,7 +680,6 @@ function renderUsers() {
    ========================================================= */
 
 async function openChat(user) {
-
     if (!user) {
         return;
     }
@@ -686,9 +687,7 @@ async function openChat(user) {
     currentChatUser =
         user;
 
-    updateChatHeader(
-        user
-    );
+    updateChatHeader(user);
 
     renderUsers();
 
@@ -719,20 +718,21 @@ async function openChat(user) {
     );
 
     if (messageInput) {
-
         setTimeout(
             () => messageInput.focus(),
             80
         );
-
     }
 }
 
 
+/* =========================================================
+   CONVERSATION
+   ========================================================= */
+
 async function loadConversation(
     otherUserId
 ) {
-
     if (
         !getCurrentUserId() ||
         !otherUserId
@@ -741,12 +741,14 @@ async function loadConversation(
     }
 
     try {
+        /*
+         * بک‌اند فعلی:
+         * /api/messages/{other_id}
+         */
 
         const data =
             await apiFetch(
-                `/messages/${encodeURIComponent(
-                    getCurrentUserId()
-                )}/${encodeURIComponent(
+                `/api/messages/${encodeURIComponent(
                     otherUserId
                 )}`
             );
@@ -767,7 +769,6 @@ async function loadConversation(
         );
 
     } catch (error) {
-
         console.error(
             "Conversation error:",
             error
@@ -781,15 +782,12 @@ async function loadConversation(
 
 
 function clearMessages() {
-
     if (!messagesBox) {
         return;
     }
 
     messagesBox.innerHTML = `
-
         <div class="empty-chat">
-
             <div class="empty-chat-icon">
                 💬
             </div>
@@ -801,27 +799,23 @@ function clearMessages() {
             <p>
                 پیام‌ها اینجا نمایش داده می‌شوند.
             </p>
-
         </div>
     `;
 }
 
 
 function removeEmptyMessage() {
-
     messagesBox
         ?.querySelector(
             ".empty-chat"
         )
         ?.remove();
-
 }
 
 
 function renderMessages(
     messages
 ) {
-
     if (!messagesBox) {
         return;
     }
@@ -832,9 +826,7 @@ function renderMessages(
         !Array.isArray(messages) ||
         !messages.length
     ) {
-
         clearMessages();
-
         return;
     }
 
@@ -854,7 +846,6 @@ function appendMessage(
     message,
     shouldScroll = true
 ) {
-
     if (
         !messagesBox ||
         !message
@@ -876,7 +867,9 @@ function appendMessage(
         getCurrentUserId();
 
     const row =
-        document.createElement("div");
+        document.createElement(
+            "div"
+        );
 
     row.className =
         mine
@@ -884,7 +877,9 @@ function appendMessage(
             : "message-row theirs";
 
     const bubble =
-        document.createElement("div");
+        document.createElement(
+            "div"
+        );
 
     bubble.className =
         "message-bubble";
@@ -895,7 +890,9 @@ function appendMessage(
     );
 
     const time =
-        document.createElement("span");
+        document.createElement(
+            "span"
+        );
 
     time.className =
         "message-time";
@@ -922,11 +919,7 @@ function renderMessageContent(
     container,
     message
 ) {
-
-    if (
-        message.file
-    ) {
-
+    if (message.file) {
         renderFileObject(
             container,
             message.file
@@ -939,7 +932,6 @@ function renderMessageContent(
         message.file_url ||
         message.file_name
     ) {
-
         renderFileObject(
             container,
             message
@@ -949,7 +941,9 @@ function renderMessageContent(
     }
 
     const text =
-        document.createElement("div");
+        document.createElement(
+            "div"
+        );
 
     text.className =
         "message-text";
@@ -964,16 +958,15 @@ function renderMessageContent(
 
 
 /* =========================================================
-   FILE
+   FILE RENDER
    ========================================================= */
 
 function renderFileObject(
     container,
     file
 ) {
-
     const url =
-        safeText(
+        getAbsoluteUrl(
             file?.url ||
             file?.file_url ||
             ""
@@ -996,20 +989,28 @@ function renderFileObject(
     const type =
         safeText(
             file?.type ||
+            file?.mime_type ||
             file?.file_type ||
             ""
         );
 
     const isAudio =
-        type.startsWith("audio/") ||
-        /\.(webm|ogg|mp3|wav|m4a)$/i.test(url);
+        type.startsWith(
+            "audio/"
+        ) ||
+        /\.(webm|ogg|mp3|wav|m4a)$/i.test(
+            url
+        );
 
     const isImage =
-        type.startsWith("image/") ||
-        /\.(jpg|jpeg|png|gif|webp)$/i.test(url);
+        type.startsWith(
+            "image/"
+        ) ||
+        /\.(jpg|jpeg|png|gif|webp)$/i.test(
+            url
+        );
 
     if (!url) {
-
         container.textContent =
             name;
 
@@ -1017,22 +1018,28 @@ function renderFileObject(
     }
 
     if (isAudio) {
-
         const wrapper =
-            document.createElement("div");
+            document.createElement(
+                "div"
+            );
 
         wrapper.className =
             "message-audio";
 
         const audio =
-            document.createElement("audio");
+            document.createElement(
+                "audio"
+            );
 
         audio.controls = true;
-        audio.preload = "metadata";
+        audio.preload =
+            "metadata";
         audio.src = url;
 
         const label =
-            document.createElement("div");
+            document.createElement(
+                "div"
+            );
 
         label.className =
             "voice-name";
@@ -1040,8 +1047,13 @@ function renderFileObject(
         label.textContent =
             `🎙️ ${name}`;
 
-        wrapper.appendChild(audio);
-        wrapper.appendChild(label);
+        wrapper.appendChild(
+            audio
+        );
+
+        wrapper.appendChild(
+            label
+        );
 
         container.appendChild(
             wrapper
@@ -1051,21 +1063,17 @@ function renderFileObject(
     }
 
     if (isImage) {
-
         const image =
-            document.createElement("img");
+            document.createElement(
+                "img"
+            );
 
         image.className =
             "message-image";
 
-        image.src =
-            url;
-
-        image.alt =
-            name;
-
-        image.loading =
-            "lazy";
+        image.src = url;
+        image.alt = name;
+        image.loading = "lazy";
 
         image.addEventListener(
             "click",
@@ -1086,25 +1094,24 @@ function renderFileObject(
     }
 
     const link =
-        document.createElement("a");
+        document.createElement(
+            "a"
+        );
 
     link.className =
         "message-file";
 
-    link.href =
-        url;
-
-    link.target =
-        "_blank";
-
+    link.href = url;
+    link.target = "_blank";
     link.rel =
         "noopener noreferrer";
 
-    link.innerHTML =
-        "📎 ";
+    link.innerHTML = "📎 ";
 
     const strong =
-        document.createElement("strong");
+        document.createElement(
+            "strong"
+        );
 
     strong.textContent =
         name;
@@ -1114,9 +1121,10 @@ function renderFileObject(
     );
 
     if (size > 0) {
-
         const small =
-            document.createElement("small");
+            document.createElement(
+                "small"
+            );
 
         small.textContent =
             ` • ${formatFileSize(size)}`;
@@ -1133,7 +1141,6 @@ function renderFileObject(
 
 
 function formatFileSize(bytes) {
-
     const size =
         Number(bytes || 0);
 
@@ -1145,9 +1152,10 @@ function formatFileSize(bytes) {
     }
 
     if (size < 1024) {
-
         return (
-            `${size.toLocaleString("fa-IR")} بایت`
+            `${size.toLocaleString(
+                "fa-IR"
+            )} بایت`
         );
     }
 
@@ -1155,7 +1163,6 @@ function formatFileSize(bytes) {
         size <
         1024 * 1024
     ) {
-
         return (
             `${(
                 size / 1024
@@ -1165,7 +1172,9 @@ function formatFileSize(bytes) {
 
     return (
         `${(
-            size / 1024 / 1024
+            size /
+            1024 /
+            1024
         ).toFixed(1)} MB`
     );
 }
@@ -1176,7 +1185,6 @@ function formatFileSize(bytes) {
    ========================================================= */
 
 function formatTime(value) {
-
     if (!value) {
         return "";
     }
@@ -1198,9 +1206,11 @@ function formatTime(value) {
             date.getTime()
         )
     ) {
-
         return text.length >= 16
-            ? text.substring(11,16)
+            ? text.substring(
+                11,
+                16
+            )
             : text;
     }
 
@@ -1215,30 +1225,23 @@ function formatTime(value) {
 
 
 function scrollToBottom() {
-
     requestAnimationFrame(
         () => {
-
             if (messagesBox) {
-
                 messagesBox.scrollTop =
                     messagesBox.scrollHeight;
-
             }
-
         }
     );
 }
 
 
 /* =========================================================
-   MESSAGE SEND
+   SEND MESSAGE
    ========================================================= */
 
 function sendTextMessage() {
-
     if (!currentChatUser) {
-
         showToast(
             "ابتدا یک کاربر را انتخاب کن."
         );
@@ -1255,10 +1258,7 @@ function sendTextMessage() {
         return;
     }
 
-    if (
-        text.length > 5000
-    ) {
-
+    if (text.length > 5000) {
         showToast(
             "پیام نباید بیشتر از ۵۰۰۰ کاراکتر باشد."
         );
@@ -1266,23 +1266,25 @@ function sendTextMessage() {
         return;
     }
 
+    const receiverId =
+        Number(
+            getUserId(
+                currentChatUser
+            )
+        );
+
+    /*
+     * بک‌اند فعلی WebSocket نوع message را می‌پذیرد.
+     */
+
     const sent =
         sendSocket({
-
-            type:
-                "message",
-
-            receiver_id:
-                getUserId(
-                    currentChatUser
-                ),
-
+            type: "message",
+            receiver_id: receiverId,
             text
-
         });
 
     if (!sent) {
-
         showToast(
             "اتصال گپینو برقرار نیست."
         );
@@ -1291,12 +1293,8 @@ function sendTextMessage() {
     }
 
     if (messageInput) {
-
-        messageInput.value =
-            "";
-
+        messageInput.value = "";
         resizeMessageInput();
-
     }
 
     stopTyping();
@@ -1308,21 +1306,19 @@ function sendTextMessage() {
    ========================================================= */
 
 function sendTyping() {
-
     if (!currentChatUser) {
         return;
     }
 
     sendSocket({
-
-        type:
-            "typing",
-
+        type: "typing",
         receiver_id:
-            getUserId(
-                currentChatUser
-            )
-
+            Number(
+                getUserId(
+                    currentChatUser
+                )
+            ),
+        value: true
     });
 
     clearTimeout(
@@ -1338,7 +1334,6 @@ function sendTyping() {
 
 
 function stopTyping() {
-
     clearTimeout(
         typingTimer
     );
@@ -1348,31 +1343,30 @@ function stopTyping() {
     }
 
     sendSocket({
-
-        type:
-            "stop_typing",
-
+        type: "typing",
         receiver_id:
-            getUserId(
-                currentChatUser
-            )
-
+            Number(
+                getUserId(
+                    currentChatUser
+                )
+            ),
+        value: false
     });
 }
 
 
 function showTyping() {
-
     if (typingArea) {
-        typingArea.hidden = false;
+        typingArea.hidden =
+            false;
     }
 }
 
 
 function hideTyping() {
-
     if (typingArea) {
-        typingArea.hidden = true;
+        typingArea.hidden =
+            true;
     }
 }
 
@@ -1384,36 +1378,20 @@ function hideTyping() {
 async function markConversationRead(
     otherUserId
 ) {
-
     if (!otherUserId) {
         return;
     }
 
+    /*
+     * بک‌اند فعلی endpoint خواندن پیام‌ها ندارد.
+     * بنابراین فقط سیگنال WebSocket را ارسال می‌کنیم.
+     */
+
     sendSocket({
-
-        type:
-            "read",
-
+        type: "read",
         other_user_id:
             String(otherUserId)
-
     });
-
-    try {
-
-        await apiFetch(
-            "/unread/read",
-            {
-                method: "POST",
-                body:
-                    new URLSearchParams({
-                        other_user_id:
-                            String(otherUserId)
-                    })
-            }
-        );
-
-    } catch (_) {}
 }
 
 
@@ -1422,27 +1400,26 @@ async function markConversationRead(
    ========================================================= */
 
 async function uploadFile(
-    file,
-    purpose = ""
+    file
 ) {
-
     if (!file) {
         return null;
     }
 
     const limit =
-        purpose === "avatar"
-            ? 5 * 1024 * 1024
-            : 10 * 1024 * 1024;
+        10 * 1024 * 1024;
 
-    if (
-        file.size > limit
-    ) {
-
+    if (file.size > limit) {
         showToast(
-            purpose === "avatar"
-                ? "حجم آواتار نباید بیشتر از ۵ مگابایت باشد."
-                : "حجم فایل نباید بیشتر از ۱۰ مگابایت باشد."
+            "حجم فایل نباید بیشتر از ۱۰ مگابایت باشد."
+        );
+
+        return null;
+    }
+
+    if (!currentChatUser) {
+        showToast(
+            "ابتدا یک کاربر را انتخاب کن."
         );
 
         return null;
@@ -1452,49 +1429,32 @@ async function uploadFile(
         new FormData();
 
     form.append(
+        "receiver_id",
+        getUserId(
+            currentChatUser
+        )
+    );
+
+    form.append(
         "file",
         file
     );
 
-    let endpoint =
-        "/upload";
-
-    if (purpose) {
-
-        endpoint +=
-            `?purpose=${encodeURIComponent(
-                purpose
-            )}`;
-
-    }
-
     try {
+        /*
+         * مسیر صحیح:
+         * /api/upload
+         */
 
-        const data =
-            await apiFetch(
-                endpoint,
-                {
-                    method: "POST",
-                    body: form
-                }
-            );
-
-        if (
-            !data?.success ||
-            !data?.file
-        ) {
-
-            throw new Error(
-                data?.message ||
-                "آپلود انجام نشد."
-            );
-
-        }
-
-        return data.file;
+        return await apiFetch(
+            "/api/upload",
+            {
+                method: "POST",
+                body: form
+            }
+        );
 
     } catch (error) {
-
         console.error(
             "Upload error:",
             error
@@ -1511,7 +1471,6 @@ async function uploadFile(
 
 
 async function sendFile(file) {
-
     if (
         !file ||
         !currentChatUser
@@ -1526,51 +1485,48 @@ async function sendFile(file) {
         return;
     }
 
-    const sent =
-        sendSocket({
-
-            type:
-                "file",
-
-            receiver_id:
-                getUserId(
-                    currentChatUser
-                ),
-
-            file:
-                uploaded
-
-        });
-
-    if (!sent) {
-
-        showToast(
-            "اتصال چت برقرار نیست."
-        );
-
-        return;
-    }
+    /*
+     * /api/upload خودش پیام فایل را
+     * داخل دیتابیس ثبت و برای گیرنده broadcast می‌کند.
+     *
+     * بنابراین دیگر لازم نیست یک پیام file
+     * جداگانه از WebSocket بفرستیم.
+     */
 
     if (
-        file.type.startsWith("audio/")
+        file.type.startsWith(
+            "audio/"
+        )
     ) {
-
         showToast(
             "🎙️ پیام صوتی ارسال شد."
         );
 
     } else if (
-        file.type.startsWith("image/")
+        file.type.startsWith(
+            "image/"
+        )
     ) {
-
         showToast(
             "🖼️ عکس ارسال شد."
         );
 
     } else {
-
         showToast(
             "📎 فایل ارسال شد."
+        );
+    }
+
+    /*
+     * چون خود سرور فایل را برای ما ذخیره کرده،
+     * پیام را هم برای فرستنده محلی اضافه می‌کنیم.
+     */
+
+    if (
+        uploaded?.id
+    ) {
+        receiveMessage(
+            uploaded
         );
     }
 }
@@ -1581,7 +1537,6 @@ async function sendFile(file) {
    ========================================================= */
 
 function getSupportedAudioType() {
-
     if (!window.MediaRecorder) {
         return "";
     }
@@ -1596,19 +1551,14 @@ function getSupportedAudioType() {
     for (
         const type of types
     ) {
-
         try {
-
             if (
                 MediaRecorder.isTypeSupported(
                     type
                 )
             ) {
-
                 return type;
-
             }
-
         } catch (_) {}
     }
 
@@ -1617,16 +1567,12 @@ function getSupportedAudioType() {
 
 
 async function toggleVoiceRecording() {
-
     if (isRecording) {
-
         stopVoiceRecording();
-
         return;
     }
 
     if (!currentChatUser) {
-
         showToast(
             "ابتدا یک کاربر را انتخاب کن."
         );
@@ -1638,7 +1584,6 @@ async function toggleVoiceRecording() {
         !navigator.mediaDevices?.getUserMedia ||
         !window.MediaRecorder
     ) {
-
         showToast(
             "مرورگر از ضبط صدا پشتیبانی نمی‌کند."
         );
@@ -1647,7 +1592,6 @@ async function toggleVoiceRecording() {
     }
 
     try {
-
         mediaStream =
             await navigator.mediaDevices.getUserMedia(
                 {
@@ -1668,7 +1612,9 @@ async function toggleVoiceRecording() {
             mimeType
                 ? new MediaRecorder(
                     mediaStream,
-                    { mimeType }
+                    {
+                        mimeType
+                    }
                 )
                 : new MediaRecorder(
                     mediaStream
@@ -1676,25 +1622,19 @@ async function toggleVoiceRecording() {
 
         mediaRecorder.ondataavailable =
             event => {
-
                 if (
                     event.data &&
                     event.data.size > 0
                 ) {
-
                     audioChunks.push(
                         event.data
                     );
-
                 }
-
             };
 
         mediaRecorder.onstop =
             async () => {
-
                 try {
-
                     const recorderMime =
                         mediaRecorder?.mimeType ||
                         mimeType ||
@@ -1712,7 +1652,6 @@ async function toggleVoiceRecording() {
                     cleanupVoice();
 
                     if (!blob.size) {
-
                         showToast(
                             "صدای ضبط‌شده خالی است."
                         );
@@ -1737,10 +1676,11 @@ async function toggleVoiceRecording() {
                             }
                         );
 
-                    await sendFile(file);
+                    await sendFile(
+                        file
+                    );
 
                 } catch (error) {
-
                     console.error(
                         "Voice error:",
                         error
@@ -1765,7 +1705,6 @@ async function toggleVoiceRecording() {
         );
 
     } catch (error) {
-
         console.error(
             "Microphone error:",
             error
@@ -1781,37 +1720,29 @@ async function toggleVoiceRecording() {
 
 
 function stopVoiceRecording() {
-
     if (
         mediaRecorder &&
         mediaRecorder.state !==
             "inactive"
     ) {
-
         mediaRecorder.stop();
-
     } else {
-
         cleanupVoice();
-
     }
 }
 
 
 function cleanupVoice() {
-
     if (mediaStream) {
-
         mediaStream
             .getTracks()
-            .forEach(track => {
-
-                try {
-                    track.stop();
-                } catch (_) {}
-
-            });
-
+            .forEach(
+                track => {
+                    try {
+                        track.stop();
+                    } catch (_) {}
+                }
+            );
     }
 
     mediaStream = null;
@@ -1824,7 +1755,6 @@ function cleanupVoice() {
 
 
 function updateVoiceUI() {
-
     if (!voiceButton) {
         return;
     }
@@ -1851,22 +1781,26 @@ function updateVoiceUI() {
    ========================================================= */
 
 function getWebSocketUrl() {
-
     const protocol =
         location.protocol === "https:"
             ? "wss:"
             : "ws:";
 
+    /*
+     * مهم:
+     * بک‌اند فعلی /ws دارد، نه /ws/{user_id}
+     *
+     * احراز هویت از طریق cookie
+     * gapino_ws_ticket انجام می‌شود.
+     */
+
     return (
-        `${protocol}//${location.host}/ws/${encodeURIComponent(
-            getCurrentUserId()
-        )}`
+        `${protocol}//${location.host}/ws`
     );
 }
 
 
 function connectWebSocket() {
-
     if (!getCurrentUserId()) {
         return;
     }
@@ -1896,12 +1830,10 @@ function connectWebSocket() {
     );
 
     try {
-
         socket =
             new WebSocket(url);
 
     } catch (error) {
-
         console.error(
             "WebSocket create error:",
             error
@@ -1914,65 +1846,62 @@ function connectWebSocket() {
 
     socket.onopen =
         () => {
-
             reconnectAttempts =
                 0;
 
             startPing();
 
             if (currentChatUser) {
-
                 setChatInputEnabled(
                     true
                 );
-
             }
 
+            console.log(
+                "GAPINO WebSocket connected"
+            );
         };
 
     socket.onmessage =
         event => {
-
             handleSocketMessage(
                 event.data
             );
-
         };
 
     socket.onerror =
         error => {
-
             console.error(
                 "WebSocket error:",
                 error
             );
-
         };
 
     socket.onclose =
-        () => {
+        event => {
+            console.warn(
+                "GAPINO WebSocket closed:",
+                event.code,
+                event.reason
+            );
 
             stopPing();
 
             scheduleReconnect();
-
         };
 }
 
 
 function sendSocket(data) {
-
     if (
         !socket ||
         socket.readyState !==
             WebSocket.OPEN
     ) {
-
         return false;
     }
 
     try {
-
         socket.send(
             JSON.stringify(data)
         );
@@ -1980,7 +1909,6 @@ function sendSocket(data) {
         return true;
 
     } catch (error) {
-
         console.error(
             "Socket send error:",
             error
@@ -1992,7 +1920,6 @@ function sendSocket(data) {
 
 
 function scheduleReconnect() {
-
     clearTimeout(
         reconnectTimer
     );
@@ -2022,17 +1949,14 @@ function scheduleReconnect() {
 
 
 function startPing() {
-
     stopPing();
 
     pingTimer =
         setInterval(
             () => {
-
                 sendSocket({
                     type: "ping"
                 });
-
             },
             25000
         );
@@ -2040,9 +1964,7 @@ function startPing() {
 
 
 function stopPing() {
-
     if (pingTimer) {
-
         clearInterval(
             pingTimer
         );
@@ -2059,18 +1981,15 @@ function stopPing() {
 function handleSocketMessage(
     raw
 ) {
-
     let data;
 
     try {
-
         data =
             typeof raw === "string"
                 ? JSON.parse(raw)
                 : raw;
 
     } catch (error) {
-
         console.error(
             "Invalid socket JSON:",
             raw
@@ -2089,10 +2008,12 @@ function handleSocketMessage(
        ----------------------------------------------------- */
 
     if (
-        typeof data.type === "string" &&
-        data.type.startsWith("call_")
+        typeof data.type ===
+            "string" &&
+        data.type.startsWith(
+            "call_"
+        )
     ) {
-
         window.dispatchEvent(
             new CustomEvent(
                 "gapino:call",
@@ -2102,6 +2023,31 @@ function handleSocketMessage(
                 }
             )
         );
+
+        return;
+    }
+
+
+    /* -----------------------------------------------------
+       READY
+       ----------------------------------------------------- */
+
+    if (
+        data.type ===
+        "ready"
+    ) {
+        if (
+            Array.isArray(
+                data.online
+            )
+        ) {
+            updatePresence(
+                {
+                    users:
+                        data.online
+                }
+            );
+        }
 
         return;
     }
@@ -2120,26 +2066,15 @@ function handleSocketMessage(
 
 
     /* -----------------------------------------------------
-       ONLINE USERS
+       ONLINE
        ----------------------------------------------------- */
 
     if (
         data.type ===
-        "online_users"
+            "user_online" ||
+        data.type ===
+            "online"
     ) {
-
-        updatePresence(
-            data
-        );
-
-        return;
-    }
-
-
-    if (
-        data.type === "online"
-    ) {
-
         updateSingleUserPresence(
             data.user_id,
             true
@@ -2149,13 +2084,35 @@ function handleSocketMessage(
     }
 
 
-    if (
-        data.type === "offline"
-    ) {
+    /* -----------------------------------------------------
+       OFFLINE
+       ----------------------------------------------------- */
 
+    if (
+        data.type ===
+            "user_offline" ||
+        data.type ===
+            "offline"
+    ) {
         updateSingleUserPresence(
             data.user_id,
             false
+        );
+
+        return;
+    }
+
+
+    /* -----------------------------------------------------
+       ONLINE USERS
+       ----------------------------------------------------- */
+
+    if (
+        data.type ===
+        "online_users"
+    ) {
+        updatePresence(
+            data
         );
 
         return;
@@ -2167,33 +2124,60 @@ function handleSocketMessage(
        ----------------------------------------------------- */
 
     if (
-        data.type === "typing"
+        data.type ===
+        "typing"
     ) {
+        const senderId =
+            String(
+                data.from ??
+                data.sender_id ??
+                ""
+            );
 
         if (
             currentChatUser &&
             getUserId(
                 currentChatUser
-            ) ===
-            String(
-                data.sender_id
-            )
+            ) === senderId
         ) {
-
-            showTyping();
-
+            if (
+                data.value ===
+                false
+            ) {
+                hideTyping();
+            } else {
+                showTyping();
+            }
         }
 
         return;
     }
 
 
+    /* -----------------------------------------------------
+       MESSAGE UPDATE
+       ----------------------------------------------------- */
+
     if (
         data.type ===
-        "stop_typing"
+        "message:update"
     ) {
+        const message =
+            data.message;
 
-        hideTyping();
+        if (!message) {
+            return;
+        }
+
+        if (
+            currentChatUser
+        ) {
+            loadConversation(
+                getUserId(
+                    currentChatUser
+                )
+            );
+        }
 
         return;
     }
@@ -2205,13 +2189,8 @@ function handleSocketMessage(
 
     if (
         data.type ===
-            "message" ||
-        data.type ===
-            "message_sent" ||
-        data.type ===
-            "file"
+        "message"
     ) {
-
         receiveMessage(
             data.message
         );
@@ -2228,7 +2207,6 @@ function handleSocketMessage(
         data.type ===
         "profile_updated"
     ) {
-
         handleProfileUpdated(
             data.user
         );
@@ -2245,7 +2223,6 @@ function handleSocketMessage(
         data.type ===
         "error"
     ) {
-
         showToast(
             data.message ||
             "خطایی رخ داد."
@@ -2261,7 +2238,6 @@ function handleSocketMessage(
 function receiveMessage(
     message
 ) {
-
     if (!message) {
         return;
     }
@@ -2301,23 +2277,37 @@ function receiveMessage(
         );
 
     if (belongs) {
-
         appendMessage(
             message,
             true
         );
 
-        markConversationRead(
-            selected
-        );
+        return;
+    }
 
-    } else if (
+    if (
         sender !== me
     ) {
-
         showToast(
             "💬 پیام جدید"
         );
+
+        /*
+         * اگر پیام از کاربر انتخاب‌شده آمده،
+         * گفت‌وگو را تازه می‌کنیم.
+         */
+
+        if (
+            currentChatUser &&
+            sender ===
+                getUserId(
+                    currentChatUser
+                )
+        ) {
+            loadConversation(
+                sender
+            );
+        }
     }
 }
 
@@ -2329,18 +2319,18 @@ function receiveMessage(
 function updatePresence(
     data
 ) {
-
     const onlineIds =
         Array.isArray(
             data?.users
         )
-            ? data.users.map(String)
+            ? data.users.map(
+                String
+            )
             : [];
 
     allUsers =
         allUsers.map(
             user => {
-
                 const id =
                     getUserId(user);
 
@@ -2366,7 +2356,6 @@ function updatePresence(
     renderUsers();
 
     if (currentChatUser) {
-
         const updated =
             allUsers.find(
                 item =>
@@ -2379,7 +2368,6 @@ function updatePresence(
             );
 
         if (updated) {
-
             currentChatUser =
                 updated;
 
@@ -2395,9 +2383,10 @@ function updateSingleUserPresence(
     userId,
     online
 ) {
-
     const target =
-        String(userId || "");
+        String(
+            userId || ""
+        );
 
     if (!target) {
         return;
@@ -2406,19 +2395,19 @@ function updateSingleUserPresence(
     allUsers =
         allUsers.map(
             user => {
-
                 if (
                     getUserId(user) !==
                     target
                 ) {
-
                     return user;
                 }
 
                 return {
                     ...user,
                     online:
-                        Boolean(online),
+                        Boolean(
+                            online
+                        ),
                     status:
                         online
                             ? "آنلاین"
@@ -2438,11 +2427,12 @@ function updateSingleUserPresence(
             currentChatUser
         ) === target
     ) {
-
         currentChatUser = {
             ...currentChatUser,
             online:
-                Boolean(online),
+                Boolean(
+                    online
+                ),
             status:
                 online
                     ? "آنلاین"
@@ -2461,22 +2451,18 @@ function updateSingleUserPresence(
    ========================================================= */
 
 function openMyProfile() {
-
     if (!profilePanel) {
         return;
     }
 
     if (profileName) {
-
         profileName.textContent =
             getUserName(
                 currentUser
             );
-
     }
 
     if (profileUsername) {
-
         const username =
             safeText(
                 currentUser?.username
@@ -2486,7 +2472,6 @@ function openMyProfile() {
             username
                 ? `@${username}`
                 : "کاربر";
-
     }
 
     renderAvatar(
@@ -2495,25 +2480,19 @@ function openMyProfile() {
     );
 
     if (editDisplayName) {
-
         editDisplayName.value =
             currentUser?.display_name ||
-            currentUser?.full_name ||
-            currentUser?.name ||
             currentUser?.username ||
             "";
     }
 
     if (editBio) {
-
         editBio.value =
             currentUser?.bio ||
-            currentUser?.profile?.bio ||
             "";
     }
 
     if (editStatus) {
-
         editStatus.value =
             currentUser?.status ||
             "در دسترس";
@@ -2521,7 +2500,6 @@ function openMyProfile() {
 
     selectedAvatarUrl =
         currentUser?.avatar ||
-        currentUser?.profile?.avatar ||
         "";
 
     profilePanel.hidden =
@@ -2534,7 +2512,6 @@ function openMyProfile() {
 
 
 function closeMyProfile() {
-
     if (!profilePanel) {
         return;
     }
@@ -2549,7 +2526,6 @@ function closeMyProfile() {
 
 
 async function saveMyProfile() {
-
     if (isSavingProfile) {
         return;
     }
@@ -2570,7 +2546,6 @@ async function saveMyProfile() {
         ).trim();
 
     if (!displayName) {
-
         showToast(
             "نام نمایشی را وارد کن."
         );
@@ -2582,58 +2557,45 @@ async function saveMyProfile() {
         true;
 
     if (saveProfile) {
-
         saveProfile.disabled =
             true;
 
         saveProfile.textContent =
             "در حال ذخیره...";
-
     }
 
     try {
-
-        const form =
-            new FormData();
-
-        form.append(
-            "user_id",
-            getCurrentUserId()
-        );
-
-        form.append(
-            "display_name",
-            displayName
-        );
-
-        form.append(
-            "bio",
-            bio
-        );
-
-        form.append(
-            "status",
-            status
-        );
-
-        form.append(
-            "avatar",
-            selectedAvatarUrl
-        );
+        /*
+         * بک‌اند فعلی:
+         * PUT /api/profile
+         */
 
         const data =
             await apiFetch(
-                "/profile/update",
+                "/api/profile",
                 {
-                    method:
-                        "POST",
+                    method: "PUT",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
                     body:
-                        form
+                        JSON.stringify({
+                            display_name:
+                                displayName,
+
+                            bio:
+                                bio,
+
+                            status:
+                                status
+                        })
                 }
             );
 
         if (data?.user) {
-
             currentUser =
                 data.user;
 
@@ -2646,6 +2608,8 @@ async function saveMyProfile() {
 
             updateCurrentUserUI();
 
+            openMyProfile();
+
             await loadUsers();
 
             showToast(
@@ -2655,16 +2619,13 @@ async function saveMyProfile() {
             closeMyProfile();
 
         } else {
-
             throw new Error(
                 data?.message ||
                 "ذخیره پروفایل انجام نشد."
             );
-
         }
 
     } catch (error) {
-
         console.error(
             "Profile error:",
             error
@@ -2676,12 +2637,10 @@ async function saveMyProfile() {
         );
 
     } finally {
-
         isSavingProfile =
             false;
 
         if (saveProfile) {
-
             saveProfile.disabled =
                 false;
 
@@ -2692,12 +2651,39 @@ async function saveMyProfile() {
 }
 
 
+function handleProfileUpdated(
+    user
+) {
+    if (!user) {
+        return;
+    }
+
+    if (
+        String(user.id) ===
+        getCurrentUserId()
+    ) {
+        currentUser =
+            user;
+
+        localStorage.setItem(
+            "gapino_user",
+            JSON.stringify(
+                currentUser
+            )
+        );
+
+        updateCurrentUserUI();
+    }
+
+    loadUsers();
+}
+
+
 /* =========================================================
    THEME
    ========================================================= */
 
 function loadTheme() {
-
     const theme =
         localStorage.getItem(
             "gapino_theme"
@@ -2718,7 +2704,6 @@ function loadTheme() {
 function updateThemeButton(
     theme
 ) {
-
     if (!themeButton) {
         return;
     }
@@ -2731,7 +2716,6 @@ function updateThemeButton(
 
 
 function toggleTheme() {
-
     const current =
         document.documentElement
             .getAttribute(
@@ -2765,25 +2749,25 @@ function toggleTheme() {
    ========================================================= */
 
 function openSidebar() {
-
     appShell?.classList.add(
         "sidebar-open"
     );
 
     if (appOverlay) {
-        appOverlay.hidden = false;
+        appOverlay.hidden =
+            false;
     }
 }
 
 
 function closeSidebar() {
-
     appShell?.classList.remove(
         "sidebar-open"
     );
 
     if (appOverlay) {
-        appOverlay.hidden = true;
+        appOverlay.hidden =
+            true;
     }
 }
 
@@ -2793,17 +2777,14 @@ function closeSidebar() {
    ========================================================= */
 
 async function logout() {
-
     try {
-
         await apiFetch(
-            "/logout",
+            "/api/logout",
             {
                 method:
                     "POST"
             }
         );
-
     } catch (_) {}
 
     cleanupVoice();
@@ -2819,11 +2800,9 @@ async function logout() {
     );
 
     if (socket) {
-
         try {
             socket.close();
         } catch (_) {}
-
     }
 
     localStorage.removeItem(
@@ -2888,11 +2867,9 @@ appOverlay?.addEventListener(
 refreshButton?.addEventListener(
     "click",
     async () => {
-
         await loadUsers();
 
         if (currentChatUser) {
-
             await loadConversation(
                 getUserId(
                     currentChatUser
@@ -2909,14 +2886,11 @@ refreshButton?.addEventListener(
 userSearch?.addEventListener(
     "input",
     () => {
-
         renderUsers();
 
         if (clearSearch) {
-
             clearSearch.hidden =
                 !userSearch.value.trim();
-
         }
     }
 );
@@ -2924,44 +2898,36 @@ userSearch?.addEventListener(
 clearSearch?.addEventListener(
     "click",
     () => {
-
         if (userSearch) {
             userSearch.value = "";
         }
 
         if (clearSearch) {
-            clearSearch.hidden = true;
+            clearSearch.hidden =
+                true;
         }
 
         renderUsers();
-
     }
 );
 
 messageInput?.addEventListener(
     "input",
     () => {
-
         resizeMessageInput();
-
         sendTyping();
-
     }
 );
 
 messageInput?.addEventListener(
     "keydown",
     event => {
-
         if (
             event.key === "Enter" &&
             !event.shiftKey
         ) {
-
             event.preventDefault();
-
             sendTextMessage();
-
         }
     }
 );
@@ -2979,7 +2945,6 @@ attachButton?.addEventListener(
 fileInput?.addEventListener(
     "change",
     async () => {
-
         const file =
             fileInput.files?.[0];
 
@@ -2987,10 +2952,11 @@ fileInput?.addEventListener(
             return;
         }
 
-        await sendFile(file);
+        await sendFile(
+            file
+        );
 
         fileInput.value = "";
-
     }
 );
 
@@ -3002,22 +2968,17 @@ voiceButton?.addEventListener(
 callButton?.addEventListener(
     "click",
     () => {
-
         if (
             window.GAPINO_CALL &&
             typeof
                 window.GAPINO_CALL.start ===
                 "function"
         ) {
-
             window.GAPINO_CALL.start();
-
         } else {
-
             showToast(
                 "سیستم تماس هنوز آماده نشده است."
             );
-
         }
     }
 );
@@ -3025,14 +2986,12 @@ callButton?.addEventListener(
 document.addEventListener(
     "keydown",
     event => {
-
         if (
-            event.key === "Escape"
+            event.key ===
+            "Escape"
         ) {
-
             closeMyProfile();
             closeSidebar();
-
         }
     }
 );
@@ -3040,13 +2999,11 @@ document.addEventListener(
 document.addEventListener(
     "visibilitychange",
     () => {
-
         if (
             document.visibilityState !==
                 "visible" ||
             !currentUser
         ) {
-
             return;
         }
 
@@ -3057,15 +3014,11 @@ document.addEventListener(
             socket.readyState !==
                 WebSocket.OPEN
         ) {
-
             connectWebSocket();
-
         } else {
-
             sendSocket({
                 type: "ping"
             });
-
         }
     }
 );
@@ -3073,7 +3026,6 @@ document.addEventListener(
 window.addEventListener(
     "beforeunload",
     () => {
-
         clearTimeout(
             reconnectTimer
         );
@@ -3089,7 +3041,6 @@ window.addEventListener(
         stopPing();
 
         cleanupVoice();
-
     }
 );
 
@@ -3099,7 +3050,6 @@ window.addEventListener(
    ========================================================= */
 
 function resizeMessageInput() {
-
     if (!messageInput) {
         return;
     }
@@ -3120,7 +3070,6 @@ function resizeMessageInput() {
    ========================================================= */
 
 async function initGapino() {
-
     loadTheme();
 
     setChatInputEnabled(
@@ -3147,11 +3096,9 @@ async function initGapino() {
     usersRefreshTimer =
         setInterval(
             () => {
-
                 if (currentUser) {
                     loadUsers();
                 }
-
             },
             15000
         );
@@ -3162,7 +3109,6 @@ if (
     document.readyState ===
     "loading"
 ) {
-
     document.addEventListener(
         "DOMContentLoaded",
         initGapino,
@@ -3170,11 +3116,8 @@ if (
             once: true
         }
     );
-
 } else {
-
     initGapino();
-
 }
 
 
@@ -3183,7 +3126,6 @@ if (
    ========================================================= */
 
 window.GAPINO = {
-
     get currentUser() {
         return currentUser;
     },
