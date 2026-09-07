@@ -1,1959 +1,840 @@
+```html
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
-
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0, viewport-fit=cover"
-    >
-
-    <meta
-        name="theme-color"
-        content="#0f172a"
-    >
-
-    <title>گپینو | چت</title>
-
-    <link
-        rel="stylesheet"
-        href="/static/style.css?v=310"
-    >
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#111827">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>گپینو</title>
 
     <style>
-        /* =====================================================
-           BASE
-           ===================================================== */
-
-        *,
-        *::before,
-        *::after {
+        * {
             box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
         }
 
         html,
         body {
             width: 100%;
             height: 100%;
+            min-height: 100%;
             margin: 0;
             padding: 0;
-        }
-
-        html {
-            overflow: hidden;
+            background: #0b1020;
+            color: #ffffff;
+            font-family: Tahoma, Arial, sans-serif;
         }
 
         body {
             overflow: hidden;
-            font-family: inherit;
         }
 
         button,
         input,
         textarea {
-            font: inherit;
+            font-family: inherit;
         }
 
         button {
-            -webkit-tap-highlight-color: transparent;
+            border: 0;
+            cursor: pointer;
         }
 
-        /* =====================================================
-           APP
-           ===================================================== */
+        img {
+            max-width: 100%;
+        }
+
+        /* ================= APP ================= */
 
         .app-shell {
+            position: relative;
             width: 100%;
             height: 100dvh;
             min-height: 100vh;
-
             display: flex;
-            flex-direction: row;
-
-            overflow: hidden;
+            background: #0b1020;
         }
 
-        /* =====================================================
-           SIDEBAR
-           ===================================================== */
+        /* ================= SIDEBAR ================= */
 
         .sidebar {
+            position: relative;
+            z-index: 10;
             width: 340px;
             min-width: 340px;
             height: 100%;
-
+            min-height: 0;
             display: flex;
             flex-direction: column;
-
-            overflow: hidden;
-        }
-
-        .sidebar-header {
-            flex: 0 0 auto;
-
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-
-            gap: 12px;
-
-            padding: 14px;
+            background: #111827;
+            border-left: 1px solid rgba(255,255,255,.08);
         }
 
         .brand {
-            min-width: 0;
-
-            display: flex;
-            align-items: center;
-
-            gap: 10px;
-        }
-
-        .brand-logo {
             flex: 0 0 auto;
+            padding: 18px 16px 12px;
+        }
 
-            width: 44px;
-            height: 44px;
-
-            display: flex;
-            align-items: center;
-            justify-content: center;
-
-            border-radius: 14px;
-
-            font-size: 20px;
+        .brand-title {
+            color: #ffffff;
+            font-size: 25px;
             font-weight: 900;
+            line-height: 1.3;
         }
 
-        .brand-text {
-            min-width: 0;
-
-            display: flex;
-            flex-direction: column;
-
-            gap: 2px;
-        }
-
-        .brand-text strong {
-            font-size: 18px;
-            font-weight: 900;
-        }
-
-        .brand-text span {
+        .brand-subtitle {
+            margin-top: 4px;
+            color: #94a3b8;
             font-size: 12px;
-            opacity: 0.65;
         }
 
         .search-box {
             flex: 0 0 auto;
-
-            padding:
-                0 14px 12px;
+            padding: 0 14px 12px;
         }
 
-        .search-box input {
+        #userSearch {
             display: block;
-
             width: 100%;
-            height: 44px;
-
-            padding:
-                0 14px;
-
-            border-radius: 14px;
-
-            border: 0;
+            height: 46px;
+            padding: 0 14px;
+            border: 1px solid rgba(255,255,255,.08);
+            border-radius: 13px;
             outline: none;
+            background: #1f2937;
+            color: #ffffff;
+            font-size: 14px;
         }
 
-        /* =====================================================
-           ACTIVE LIVES
-           ===================================================== */
+        #userSearch::placeholder {
+            color: #94a3b8;
+        }
 
-        .active-lives-section {
+        /* ================= LIVE ================= */
+
+        .live-section {
             flex: 0 0 auto;
-
-            margin:
-                0 10px 8px;
-
-            padding: 10px;
-
-            border-radius: 18px;
-
-            background:
-                linear-gradient(
-                    135deg,
-                    rgba(239, 68, 68, 0.11),
-                    rgba(220, 38, 38, 0.035)
-                );
-
-            border:
-                1px solid
-                rgba(239, 68, 68, 0.14);
-
-            box-shadow:
-                0 8px 24px
-                rgba(0, 0, 0, 0.04);
+            padding: 0 12px 8px;
         }
 
-        .active-lives-section[hidden] {
-            display: none !important;
-        }
-
-        .active-lives-header {
+        .live-header {
             display: flex;
-
             align-items: center;
             justify-content: space-between;
-
-            gap: 8px;
-
-            margin-bottom: 9px;
+            padding: 5px 4px 8px;
         }
 
-        .active-lives-title {
-            min-width: 0;
-
-            display: flex;
-
-            align-items: center;
-
-            gap: 7px;
-
+        .live-title {
+            color: #fca5a5;
             font-size: 13px;
-
             font-weight: 900;
-
-            color: #dc2626;
-        }
-
-        .active-lives-title .live-dot {
-            width: 9px;
-            height: 9px;
-
-            flex: 0 0 auto;
-
-            border-radius: 50%;
-
-            background: #ef4444;
-
-            box-shadow:
-                0 0 0 4px
-                rgba(239, 68, 68, 0.11);
-
-            animation:
-                gapinoLivePulse
-                1.5s infinite;
-        }
-
-        @keyframes gapinoLivePulse {
-
-            0% {
-                opacity: 1;
-
-                transform:
-                    scale(1);
-            }
-
-            50% {
-                opacity: 0.55;
-
-                transform:
-                    scale(0.82);
-            }
-
-            100% {
-                opacity: 1;
-
-                transform:
-                    scale(1);
-            }
         }
 
         #refreshLivesButton {
-            width: 30px;
-            height: 30px;
-
-            flex: 0 0 auto;
-
-            border: 0;
-
+            width: 34px;
+            height: 34px;
             border-radius: 10px;
-
-            cursor: pointer;
-
-            display: flex;
-
-            align-items: center;
-            justify-content: center;
-
-            font-size: 17px;
-
-            transition:
-                transform 0.15s ease;
+            background: #1f2937;
+            color: #ffffff;
+            font-size: 18px;
         }
 
-        #refreshLivesButton:active {
-            transform:
-                rotate(180deg)
-                scale(0.96);
-        }
-
-        .active-lives-list {
+        #activeLivesList {
             display: flex;
-
             flex-direction: column;
-
             gap: 7px;
-
-            max-height: 205px;
-
+            max-height: 150px;
             overflow-y: auto;
-
             overflow-x: hidden;
         }
 
-        .active-live-item {
+        .live-card {
             width: 100%;
-
             min-height: 58px;
-
-            border: 0;
-
-            border-radius: 15px;
-
-            padding:
-                7px 8px;
-
             display: flex;
-
             align-items: center;
-
             gap: 9px;
-
+            padding: 9px;
+            border-radius: 13px;
+            background: #1a1f2c;
+            border: 1px solid rgba(239,68,68,.18);
             cursor: pointer;
-
-            text-align: right;
-
-            background:
-                rgba(
-                    255,
-                    255,
-                    255,
-                    0.6
-                );
-
-            transition:
-                transform 0.15s ease,
-                box-shadow 0.15s ease;
         }
 
-        .active-live-item:hover {
-            transform:
-                translateY(-1px);
-
-            box-shadow:
-                0 7px 18px
-                rgba(0, 0, 0, 0.08);
+        .live-card:active {
+            transform: scale(.99);
         }
 
-        .active-live-item:active {
-            transform:
-                scale(0.985);
-        }
-
-        .active-live-avatar {
-            width: 43px;
-            height: 43px;
-
-            flex: 0 0 auto;
-
-            overflow: hidden;
-
-            display: flex;
-
-            align-items: center;
-            justify-content: center;
-
+        .live-avatar {
+            width: 40px;
+            height: 40px;
+            flex: 0 0 40px;
             border-radius: 50%;
-
-            background:
-                linear-gradient(
-                    135deg,
-                    #ef4444,
-                    #f97316
-                );
-
-            color: #ffffff;
-
-            font-size: 16px;
-
-            font-weight: 900;
-
-            box-shadow:
-                0 4px 13px
-                rgba(239, 68, 68, 0.22);
-        }
-
-        .active-live-avatar img {
-            width: 100%;
-            height: 100%;
-
             object-fit: cover;
+            background: #374151;
         }
 
-        .active-live-info {
-            flex: 1 1 auto;
-
+        .live-info {
+            flex: 1;
             min-width: 0;
-
-            display: flex;
-
-            flex-direction: column;
-
-            gap: 3px;
         }
 
-        .active-live-name {
+        .live-name {
             overflow: hidden;
-
             text-overflow: ellipsis;
-
             white-space: nowrap;
-
-            font-size: 13px;
-
-            font-weight: 900;
-        }
-
-        .active-live-meta {
-            overflow: hidden;
-
-            text-overflow: ellipsis;
-
-            white-space: nowrap;
-
-            font-size: 11px;
-
-            opacity: 0.67;
-        }
-
-        .active-live-badge {
-            flex: 0 0 auto;
-
-            padding:
-                4px 7px;
-
-            border-radius: 8px;
-
-            background: #ef4444;
-
             color: #ffffff;
-
-            font-size: 9px;
-
+            font-size: 12px;
             font-weight: 900;
-
-            letter-spacing:
-                0.2px;
-
-            box-shadow:
-                0 4px 10px
-                rgba(239, 68, 68, 0.2);
         }
 
-        .active-lives-empty {
-            padding:
-                6px 3px;
-
-            text-align: center;
-
-            font-size: 11px;
-
-            opacity: 0.62;
+        .live-viewers {
+            margin-top: 3px;
+            color: #94a3b8;
+            font-size: 10px;
         }
 
-        /* =====================================================
-           USERS
-           ===================================================== */
+        .live-badge {
+            flex: 0 0 auto;
+            padding: 5px 7px;
+            border-radius: 7px;
+            background: #ef4444;
+            color: #ffffff;
+            font-size: 9px;
+            font-weight: 900;
+        }
 
-        .users-list {
+        /* ================= USERS ================= */
+
+        .users-title {
+            flex: 0 0 auto;
+            padding: 5px 18px 8px;
+            color: #94a3b8;
+            font-size: 12px;
+            font-weight: 900;
+        }
+
+        #usersList {
             flex: 1 1 auto;
-
             min-height: 0;
-
-            overflow-y: auto;
             overflow-x: hidden;
-
-            padding:
-                6px 8px 10px;
+            overflow-y: auto;
+            padding: 0 8px 8px;
         }
 
         .user-item {
             width: 100%;
-
-            border: 0;
-            outline: none;
-
-            background: transparent;
-
+            min-height: 68px;
             display: flex;
             align-items: center;
-
             gap: 10px;
-
+            margin-bottom: 4px;
             padding: 10px;
-
-            border-radius: 16px;
-
+            border-radius: 13px;
+            background: transparent;
+            color: #ffffff;
             text-align: right;
-
-            cursor: pointer;
         }
 
-        .user-item-avatar {
+        .user-item:hover,
+        .user-item.active {
+            background: #1f2937;
+        }
+
+        .user-item:active {
+            transform: scale(.99);
+        }
+
+        .user-avatar-wrap {
+            position: relative;
             flex: 0 0 auto;
+        }
 
-            width: 48px;
-            height: 48px;
-
+        .user-avatar {
+            width: 47px;
+            height: 47px;
             border-radius: 50%;
-
-            overflow: hidden;
-
-            display: flex;
-
-            align-items: center;
-            justify-content: center;
-        }
-
-        .user-item-avatar img {
-            width: 100%;
-            height: 100%;
-
             object-fit: cover;
+            background: #374151;
         }
 
-        .user-item-info {
-            flex: 1 1 auto;
+        .online-dot {
+            position: absolute;
+            left: 1px;
+            bottom: 1px;
+            width: 10px;
+            height: 10px;
+            border: 2px solid #111827;
+            border-radius: 50%;
+            background: #64748b;
+        }
 
+        .online-dot.online {
+            background: #22c55e;
+        }
+
+        .user-info {
+            flex: 1;
             min-width: 0;
-
-            display: flex;
-
-            flex-direction: column;
-
-            gap: 3px;
         }
 
-        .user-item-info strong {
+        .user-name {
             overflow: hidden;
-
             text-overflow: ellipsis;
-
             white-space: nowrap;
+            color: #ffffff;
+            font-size: 14px;
+            font-weight: 900;
         }
 
-        .user-item-info span {
-            font-size: 12px;
-
-            opacity: 0.65;
-
+        .user-status {
+            margin-top: 4px;
             overflow: hidden;
-
             text-overflow: ellipsis;
-
             white-space: nowrap;
+            color: #94a3b8;
+            font-size: 11px;
         }
 
-        /* =====================================================
-           SIDEBAR FOOTER
-           ===================================================== */
+        /* ================= FOOTER ================= */
 
         .sidebar-footer {
             flex: 0 0 auto;
-
             display: grid;
-
-            grid-template-columns:
-                1fr
-                1fr
-                1fr;
-
-            gap: 8px;
-
-            padding:
-                10px 12px 14px;
+            grid-template-columns: 1fr 1fr;
+            gap: 7px;
+            padding: 9px;
+            border-top: 1px solid rgba(255,255,255,.08);
+            background: #111827;
         }
 
-        .sidebar-action {
-            min-height: 42px;
-
-            border: 0;
-
-            border-radius: 14px;
-
-            cursor: pointer;
-
-            display: flex;
-
-            align-items: center;
-            justify-content: center;
-
-            gap: 5px;
-
-            white-space: nowrap;
-        }
-
-        /* =====================================================
-           START LIVE BUTTON
-           ===================================================== */
-
-        #liveButton {
-            font-weight: 900;
-
+        .footer-button {
+            min-height: 48px;
+            border-radius: 12px;
+            background: #1f2937;
             color: #ffffff;
-
-            background:
-                linear-gradient(
-                    135deg,
-                    #ef4444,
-                    #dc2626
-                );
-
-            box-shadow:
-                0 7px 20px
-                rgba(220, 38, 38, 0.24);
-
-            transition:
-                transform 0.15s ease,
-                box-shadow 0.15s ease;
+            font-size: 13px;
+            font-weight: 900;
         }
 
-        #liveButton:hover {
-            transform:
-                translateY(-1px);
-
-            box-shadow:
-                0 10px 26px
-                rgba(220, 38, 38, 0.31);
+        .footer-button:active {
+            transform: scale(.98);
         }
 
-        #liveButton:active {
-            transform:
-                scale(0.98);
+        .footer-button.live {
+            background: #991b1b;
         }
 
-        /* =====================================================
-           CHAT
-           ===================================================== */
+        .footer-button.logout {
+            grid-column: 1 / -1;
+            background: #3f1d1d;
+        }
+
+        /* ================= CHAT ================= */
 
         .chat-area {
             flex: 1 1 auto;
-
             min-width: 0;
             min-height: 0;
-
+            height: 100%;
             display: flex;
-
             flex-direction: column;
-
-            overflow: hidden;
+            background: #0f172a;
         }
-
-        /* =====================================================
-           HEADER
-           ===================================================== */
 
         .chat-header {
             flex: 0 0 auto;
-
-            width: 100%;
-
             min-height: 72px;
-
             display: flex;
-
             align-items: center;
-
-            gap: 10px;
-
-            padding:
-                10px 14px;
-
-            overflow: hidden;
+            gap: 9px;
+            padding: 9px 12px;
+            background: #111827;
+            border-bottom: 1px solid rgba(255,255,255,.08);
         }
 
-        .chat-contact {
-            flex: 1 1 auto;
-
-            min-width: 0;
-
-            display: flex;
-
-            align-items: center;
-
-            gap: 10px;
+        #mobileBackButton {
+            display: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: #1f2937;
+            color: #ffffff;
+            font-size: 22px;
         }
 
-        .chat-avatar {
-            flex: 0 0 auto;
-
-            width: 48px;
-            height: 48px;
-
+        #chatAvatar {
+            width: 45px;
+            height: 45px;
+            flex: 0 0 45px;
             border-radius: 50%;
-
-            overflow: hidden;
-
-            display: flex;
-
-            align-items: center;
-            justify-content: center;
-        }
-
-        .chat-avatar img {
-            width: 100%;
-            height: 100%;
-
             object-fit: cover;
+            background: #374151;
         }
 
-        .chat-contact-info {
+        .chat-header-info {
+            flex: 1;
             min-width: 0;
-
-            display: flex;
-
-            flex-direction: column;
-
-            gap: 3px;
         }
 
-        .chat-contact-info strong,
-        .chat-contact-info span {
-            display: block;
-
+        #chatUserName {
             overflow: hidden;
-
             text-overflow: ellipsis;
-
             white-space: nowrap;
+            color: #ffffff;
+            font-size: 15px;
+            font-weight: 900;
         }
 
-        .chat-contact-info span {
-            font-size: 12px;
-
-            opacity: 0.65;
+        #chatUserStatus {
+            margin-top: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: #94a3b8;
+            font-size: 11px;
         }
 
-        .chat-header-actions {
+        .header-actions {
             flex: 0 0 auto;
-
             display: flex;
-
-            align-items: center;
-
             gap: 5px;
-
-            margin-inline-start: auto;
         }
 
-        .chat-header-actions .icon-button {
-            flex: 0 0 auto;
-
-            width: 42px !important;
-            min-width: 42px !important;
-            max-width: 42px !important;
-
-            height: 42px !important;
-            min-height: 42px !important;
-            max-height: 42px !important;
-
-            padding: 0 !important;
-
-            display: flex !important;
-
-            align-items: center !important;
-            justify-content: center !important;
-
-            visibility: visible !important;
+        .header-button {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: #1f2937;
+            color: #ffffff;
+            font-size: 17px;
         }
 
-        /* =====================================================
-           HEADER LIVE BUTTON
-           ===================================================== */
-
-        #headerLiveButton {
-            display: flex !important;
-
-            align-items: center !important;
-            justify-content: center !important;
-
-            flex: 0 0 auto;
-
-            width: 42px !important;
-            min-width: 42px !important;
-            max-width: 42px !important;
-
-            height: 42px !important;
-            min-height: 42px !important;
-            max-height: 42px !important;
-
-            padding: 0 !important;
-
-            border: 0 !important;
-
-            border-radius: 12px !important;
-
-            background:
-                linear-gradient(
-                    135deg,
-                    #ef4444,
-                    #dc2626
-                ) !important;
-
-            color: #ffffff !important;
-
-            box-shadow:
-                0 5px 16px
-                rgba(220, 38, 38, 0.23);
-
-            cursor: pointer;
-
-            font-size: 18px !important;
-
-            transition:
-                transform 0.15s ease,
-                box-shadow 0.15s ease;
+        .header-button:active {
+            transform: scale(.96);
         }
 
-        #headerLiveButton:hover {
-            transform:
-                translateY(-1px);
+        /* ================= MESSAGES ================= */
 
-            box-shadow:
-                0 8px 21px
-                rgba(220, 38, 38, 0.29);
-        }
-
-        #headerLiveButton:active {
-            transform:
-                scale(0.96);
-        }
-
-        #callButton {
-            display: flex !important;
-
-            visibility: visible !important;
-
-            opacity: 1 !important;
-
-            pointer-events: auto !important;
-
-            font-size: 19px !important;
-
-            cursor: pointer;
-        }
-
-        #callButton:disabled {
-            opacity: 0.45 !important;
-        }
-
-        /* =====================================================
-           MESSAGE AREA
-           ===================================================== */
-
-        .messages-container {
-            position: relative;
-
+        #messagesContainer {
             flex: 1 1 auto;
-
             min-height: 0;
-
-            overflow-y: auto;
             overflow-x: hidden;
-
-            padding:
-                18px 16px 12px;
-
-            scroll-behavior:
-                smooth;
+            overflow-y: auto;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
         }
 
-        /* =====================================================
-           MESSAGE BUBBLES
-           ===================================================== */
+        #emptyChat {
+            width: min(420px, 92%);
+            margin: auto;
+            padding: 25px 20px;
+            border-radius: 20px;
+            background: #111827;
+            text-align: center;
+        }
 
-        .messages-list {
-            width: 100%;
+        .empty-icon {
+            font-size: 43px;
+            line-height: 1;
+        }
 
+        .empty-title {
+            margin-top: 9px;
+            color: #ffffff;
+            font-size: 18px;
+            font-weight: 900;
+        }
+
+        .empty-text {
+            margin-top: 7px;
+            color: #94a3b8;
+            font-size: 12px;
+            line-height: 1.8;
+        }
+
+        #messagesList {
             display: flex;
-
             flex-direction: column;
-
-            gap: 5px;
+            gap: 7px;
+            width: 100%;
         }
 
         .message-row {
-            width: 100%;
-
             display: flex;
-
-            margin:
-                1px 0;
+            width: 100%;
         }
 
         .message-row.mine {
             justify-content: flex-start;
-
-            padding-left: 8px;
         }
 
-        .message-row.theirs {
+        .message-row.other {
             justify-content: flex-end;
-
-            padding-right: 8px;
         }
 
         .message-bubble {
-            position: relative;
-
-            width: fit-content;
-
-            max-width:
-                min(72%, 620px);
-
-            padding:
-                8px 12px;
-
-            border-radius: 18px;
-
-            font-size: 15px;
-
-            line-height: 1.55;
-
-            font-weight: 400;
-
-            word-wrap: break-word;
-
-            overflow-wrap: anywhere;
-
-            white-space: pre-wrap;
-
-            box-shadow:
-                0 1px 2px
-                rgba(0, 0, 0, 0.08);
-
-            transition:
-                transform 0.12s ease,
-                box-shadow 0.12s ease;
-        }
-
-        .message-row.mine
-            .message-bubble {
-
-            background: #229ed9;
-
-            color: #ffffff;
-
-            border-bottom-right-radius:
-                5px;
-        }
-
-        .message-row.theirs
-            .message-bubble {
-
-            background: #ffffff;
-
-            color: #222222;
-
-            border:
-                1px solid
-                rgba(0, 0, 0, 0.045);
-
-            border-bottom-left-radius:
-                5px;
-        }
-
-        .message-bubble p {
-            margin: 0;
-        }
-
-        .message-bubble a {
-            color: inherit;
-
-            text-decoration:
-                underline;
-        }
-
-        .message-file-link {
-            display: inline-flex;
-
-            align-items: center;
-
-            gap: 7px;
-
-            padding:
-                2px 0;
-
+            max-width: 78%;
+            padding: 9px 12px;
+            border-radius: 15px;
+            word-break: break-word;
+            line-height: 1.7;
             font-size: 14px;
-
-            font-weight: 600;
-
-            text-decoration:
-                none !important;
         }
 
-        .message-bubble audio {
+        .message-row.mine .message-bubble {
+            background: #2563eb;
+            border-bottom-right-radius: 5px;
+        }
+
+        .message-row.other .message-bubble {
+            background: #1f2937;
+            border-bottom-left-radius: 5px;
+        }
+
+        .message-time {
+            margin-top: 2px;
+            opacity: .65;
+            font-size: 9px;
+        }
+
+        #typingIndicator {
+            flex: 0 0 auto;
+            min-height: 22px;
+            padding: 0 13px;
+            color: #94a3b8;
+            font-size: 10px;
+        }
+
+        /* ================= COMPOSER ================= */
+
+        #attachmentPreview {
+            display: none;
+            flex: 0 0 auto;
+            padding: 7px 10px;
+            background: #111827;
+        }
+
+        #attachmentPreview.show {
             display: block;
-
-            width:
-                min(280px, 70vw);
-
-            max-width: 100%;
-
-            border-radius: 12px;
         }
 
-        @media (hover: hover) {
-
-            .message-bubble:hover {
-                transform:
-                    translateY(-1px);
-
-                box-shadow:
-                    0 3px 10px
-                    rgba(0, 0, 0, 0.10);
-            }
-        }
-
-        /* =====================================================
-           EMPTY CHAT
-           ===================================================== */
-
-        .empty-chat {
-            min-height: 100%;
-
+        .attachment-inner {
             display: flex;
-
-            flex-direction: column;
-
             align-items: center;
-
-            justify-content: center;
-
-            text-align: center;
-
-            padding: 30px;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 8px 10px;
+            border-radius: 11px;
+            background: #1f2937;
         }
 
-        .empty-chat-icon {
-            font-size: 48px;
-
-            margin-bottom: 12px;
-        }
-
-        .empty-chat h2 {
-            margin:
-                0 0 8px;
-        }
-
-        .empty-chat p {
-            margin: 0;
-
-            opacity: 0.65;
-        }
-
-        .typing-indicator {
-            position: sticky;
-
-            bottom: 8px;
-
-            width: max-content;
-
-            margin-top: 5px;
-
-            padding:
-                6px 11px;
-
-            border-radius: 12px;
-
-            font-size: 12px;
-        }
-
-        /* =====================================================
-           COMPOSER
-           ===================================================== */
-
-        .chat-composer {
+        .composer {
             flex: 0 0 auto;
-
-            display: flex;
-
-            align-items: flex-end;
-
-            gap: 8px;
-
-            padding:
-                10px 12px
-                max(
-                    10px,
-                    env(safe-area-inset-bottom)
-                );
+            padding: 8px;
+            padding-bottom: max(8px, env(safe-area-inset-bottom));
+            background: #111827;
+            border-top: 1px solid rgba(255,255,255,.08);
         }
 
-        .chat-composer textarea {
-            flex: 1 1 auto;
+        .composer-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
 
+        .composer-button {
+            width: 43px;
+            min-width: 43px;
+            height: 43px;
+            border-radius: 11px;
+            background: #1f2937;
+            color: #ffffff;
+            font-size: 18px;
+        }
+
+        .composer-button:active {
+            transform: scale(.96);
+        }
+
+        #messageInput {
+            flex: 1;
             min-width: 0;
-
-            max-height: 150px;
-
-            resize: none;
-
-            padding:
-                11px 14px;
-
-            border-radius: 18px;
-
+            height: 43px;
+            padding: 0 12px;
+            border: 0;
+            border-radius: 11px;
             outline: none;
+            background: #1f2937;
+            color: #ffffff;
+            font-size: 14px;
         }
 
-        .composer-button,
-        .send-button {
-            flex: 0 0 auto;
-
-            width: 44px;
-            height: 44px;
-
-            min-width: 44px;
-            min-height: 44px;
-
-            border: 0;
-
-            border-radius: 14px;
-
-            display: flex;
-
-            align-items: center;
-            justify-content: center;
-
-            cursor: pointer;
+        #messageInput::placeholder {
+            color: #94a3b8;
         }
 
-        /* =====================================================
-           MODALS
-           ===================================================== */
+        #messageInput:disabled {
+            opacity: .55;
+        }
 
-        .modal-overlay {
+        #sendButton {
+            background: #2563eb;
+        }
+
+        /* ================= MODALS ================= */
+
+        .modal {
+            display: none;
             position: fixed;
-
             inset: 0;
-
-            z-index: 100000;
-
-            display: flex;
-
+            z-index: 5000;
             align-items: center;
             justify-content: center;
+            padding: 15px;
+            background: rgba(0,0,0,.72);
+        }
 
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-box {
+            width: min(520px, 100%);
+            max-height: 90dvh;
+            overflow-y: auto;
             padding: 18px;
-
-            background:
-                rgba(
-                    2,
-                    6,
-                    23,
-                    0.74
-                );
-
-            backdrop-filter:
-                blur(8px);
-        }
-
-        .modal-overlay[hidden] {
-            display: none !important;
-        }
-
-        .modal-card {
-            width:
-                min(440px, 100%);
-
-            max-height:
-                calc(100dvh - 36px);
-
-            overflow: auto;
-
-            position: relative;
-
-            padding: 22px;
-
-            border-radius: 24px;
-        }
-
-        .modal-close {
-            position: absolute;
-
-            inset-inline-start:
-                14px;
-
-            top: 12px;
-
-            width: 36px;
-            height: 36px;
-
-            border: 0;
-
-            border-radius: 10px;
-
-            cursor: pointer;
+            border-radius: 20px;
+            background: #111827;
         }
 
         .modal-header {
-            margin-bottom: 18px;
-        }
-
-        .profile-form {
             display: flex;
-
-            flex-direction: column;
-
+            align-items: center;
+            justify-content: space-between;
             gap: 10px;
         }
 
-        .profile-avatar-preview {
+        .modal-title {
+            color: #ffffff;
+            font-size: 17px;
+            font-weight: 900;
+        }
+
+        .modal-close {
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            background: #1f2937;
+            color: #ffffff;
+            font-size: 18px;
+        }
+
+        #profileAvatarPreview {
+            display: block;
             width: 88px;
             height: 88px;
-
-            margin:
-                0 auto 10px;
-
+            margin: 18px auto;
             border-radius: 50%;
-
-            display: flex;
-
-            align-items: center;
-            justify-content: center;
-
-            overflow: hidden;
-
-            font-size: 28px;
-
-            font-weight: 800;
-        }
-
-        .profile-avatar-preview img {
-            width: 100%;
-            height: 100%;
-
             object-fit: cover;
+            background: #374151;
         }
 
-        .form-input {
+        .form-label {
+            display: block;
+            margin: 12px 0 6px;
+            color: #cbd5e1;
+            font-size: 12px;
+        }
+
+        .form-input,
+        .form-textarea {
             width: 100%;
-
-            border: 0;
-
+            padding: 10px;
+            border: 1px solid rgba(255,255,255,.08);
+            border-radius: 11px;
             outline: none;
-
-            padding:
-                11px 13px;
-
-            border-radius: 13px;
-        }
-
-        .primary-button {
-            min-height: 46px;
-
-            border: 0;
-
-            border-radius: 14px;
-
-            cursor: pointer;
-
-            font-weight: 800;
-        }
-
-        .message-search-results {
-            margin-top: 14px;
-
-            display: flex;
-
-            flex-direction: column;
-
-            gap: 8px;
-        }
-
-        .message-search-item {
-            padding:
-                10px 12px;
-
-            border-radius: 12px;
-        }
-
-        /* =====================================================
-           TOAST
-           ===================================================== */
-
-        .toast-container {
-            position: fixed;
-
-            z-index: 110000;
-
-            left: 50%;
-
-            bottom: 18px;
-
-            transform:
-                translateX(-50%);
-
-            width:
-                min(92vw, 420px);
-
-            pointer-events: none;
-        }
-
-        .gapino-toast {
-            padding:
-                11px 14px;
-
-            border-radius: 14px;
-
-            text-align: center;
-
-            margin-top: 8px;
-
-            box-shadow:
-                0 12px 30px
-                rgba(0, 0, 0, 0.18);
-        }
-
-        /* =====================================================
-           CALL OVERLAY
-           ===================================================== */
-
-        .gapino-call-overlay {
-            position: fixed;
-
-            inset: 0;
-
-            z-index: 120000;
-
-            display: flex;
-
-            align-items: center;
-            justify-content: center;
-
-            padding: 18px;
-
-            background:
-                rgba(
-                    2,
-                    6,
-                    23,
-                    0.80
-                );
-
-            backdrop-filter:
-                blur(13px);
-
-            opacity: 0;
-
-            visibility: hidden;
-
-            pointer-events: none;
-
-            transition:
-                opacity 0.2s ease,
-                visibility 0.2s ease;
-        }
-
-        .gapino-call-overlay.show {
-            opacity: 1;
-
-            visibility: visible;
-
-            pointer-events: auto;
-        }
-
-        .gapino-call-card {
-            width:
-                min(410px, 100%);
-
-            padding:
-                28px 22px;
-
-            border-radius: 28px;
-
-            background:
-                #0f172a;
-
+            background: #1f2937;
             color: #ffffff;
-
-            text-align: center;
-
-            box-shadow:
-                0 30px 90px
-                rgba(0, 0, 0, 0.45);
         }
 
-        .gapino-call-avatar {
-            width: 96px;
-            height: 96px;
-
-            margin:
-                0 auto 16px;
-
-            border-radius: 50%;
-
-            display: flex;
-
-            align-items: center;
-            justify-content: center;
-
-            overflow: hidden;
-
-            background:
-                linear-gradient(
-                    135deg,
-                    #2563eb,
-                    #7c3aed
-                );
-
-            font-size: 34px;
-
-            font-weight: 900;
+        .form-textarea {
+            min-height: 90px;
+            resize: vertical;
         }
 
-        .gapino-call-avatar img {
+        .modal-action {
             width: 100%;
-            height: 100%;
-
-            object-fit: cover;
-        }
-
-        .gapino-call-name {
-            font-size: 22px;
-
-            font-weight: 900;
-
-            margin-bottom: 7px;
-        }
-
-        .gapino-call-status {
-            font-size: 14px;
-
-            opacity: 0.72;
-
-            margin-bottom: 10px;
-        }
-
-        .gapino-call-timer {
-            font-size: 30px;
-
-            font-weight: 900;
-
-            margin-bottom: 22px;
-        }
-
-        .gapino-call-actions {
-            display: flex;
-
-            flex-wrap: wrap;
-
-            justify-content: center;
-
-            gap: 9px;
-        }
-
-        .gapino-call-button {
-            min-width: 120px;
-
-            padding:
-                12px 16px;
-
-            border: 0;
-
-            border-radius: 14px;
-
+            height: 44px;
+            margin-top: 14px;
+            border-radius: 11px;
+            background: #2563eb;
             color: #ffffff;
-
-            font-weight: 800;
-
-            cursor: pointer;
+            font-weight: 900;
         }
 
-        .gapino-call-button.accept {
-            background:
-                #16a34a;
+        /* ================= TOAST ================= */
+
+        #toastContainer {
+            position: fixed;
+            top: 12px;
+            left: 12px;
+            right: 12px;
+            z-index: 9999;
+            pointer-events: none;
         }
 
-        .gapino-call-button.reject {
-            background:
-                #dc2626;
+        .toast {
+            width: fit-content;
+            max-width: 90%;
+            margin-bottom: 7px;
+            padding: 11px 14px;
+            border-radius: 11px;
+            background: #1f2937;
+            color: #ffffff;
+            font-size: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,.3);
         }
 
-        /* =====================================================
-           MOBILE
-           ===================================================== */
+        /* ================= MOBILE ================= */
 
         @media (max-width: 800px) {
 
-            html,
-            body {
-                width: 100%;
-
-                height: 100dvh;
-            }
-
             .app-shell {
+                position: relative;
+                display: block;
                 width: 100%;
-
                 height: 100dvh;
-
-                min-height: 100dvh;
+                min-height: 100vh;
             }
+
+            /*
+             * مهم:
+             * در حالت عادی sidebar کاملاً نمایش داده می‌شود.
+             * بنابراین بعد از ورود صفحه سیاه و خالی نمی‌شود.
+             */
 
             .sidebar {
+                display: flex;
                 width: 100%;
-
                 min-width: 100%;
+                height: 100dvh;
+                min-height: 100vh;
+                border: 0;
             }
 
             .chat-area {
+                position: absolute;
+                inset: 0;
+                z-index: 100;
                 display: none;
-
                 width: 100%;
-
-                min-width: 100%;
+                height: 100dvh;
+                min-height: 100vh;
             }
 
-            .app-shell.chat-open
-                .sidebar {
+            .app-shell.chat-open .sidebar {
                 display: none;
             }
 
-            .app-shell.chat-open
-                .chat-area {
+            .app-shell.chat-open .chat-area {
                 display: flex;
             }
 
-            .active-lives-section {
-                margin:
-                    0 8px 7px;
+            #mobileBackButton {
+                display: block;
+                flex: 0 0 40px;
             }
 
-            .active-lives-list {
-                max-height:
-                    155px;
+            .brand {
+                padding-top: max(15px, env(safe-area-inset-top));
             }
 
-            .sidebar-footer {
-                grid-template-columns:
-                    1fr
-                    1fr
-                    1fr;
-
-                padding:
-                    9px 9px
-                    max(
-                        9px,
-                        env(
-                            safe-area-inset-bottom
-                        )
-                    );
-            }
-
-            .sidebar-action {
-                min-height: 40px;
-
-                font-size: 12px;
-
-                border-radius: 12px;
+            .header-button {
+                width: 38px;
+                height: 38px;
+                font-size: 15px;
             }
 
             .chat-header {
-                min-height: 64px;
-
-                padding:
-                    max(
-                        8px,
-                        env(
-                            safe-area-inset-top
-                        )
-                    )
-                    8px
-                    8px
-                    8px;
+                padding: 8px;
             }
 
-            .chat-contact {
-                gap: 7px;
-            }
-
-            .chat-header-actions {
-                gap: 3px;
-            }
-
-            .chat-header-actions
-                .icon-button {
-
-                width: 40px !important;
-
-                min-width: 40px !important;
-
-                max-width: 40px !important;
-
-                height: 40px !important;
-
-                min-height: 40px !important;
-
-                max-height: 40px !important;
-            }
-
-            #headerLiveButton {
-
-                width: 40px !important;
-
-                min-width: 40px !important;
-
-                max-width: 40px !important;
-
-                height: 40px !important;
-
-                min-height: 40px !important;
-
-                max-height: 40px !important;
-            }
-
-            #callButton {
-                display: flex !important;
-
-                visibility: visible !important;
-
-                opacity: 1 !important;
-
-                font-size: 18px !important;
-            }
-
-            .chat-avatar {
-                width: 42px;
-
-                height: 42px;
-            }
-
-            .messages-container {
-                padding:
-                    12px 10px 8px;
-            }
-
-            .messages-list {
-                gap: 4px;
-            }
-
-            .message-row.mine {
-                padding-left: 4px;
-            }
-
-            .message-row.theirs {
-                padding-right: 4px;
+            #messagesContainer {
+                padding: 9px;
             }
 
             .message-bubble {
                 max-width: 84%;
-
-                padding:
-                    8px 11px;
-
-                font-size: 14px;
-
-                line-height: 1.55;
-
-                border-radius: 16px;
             }
-
-            .message-row.mine
-                .message-bubble {
-
-                border-bottom-right-radius:
-                    5px;
-            }
-
-            .message-row.theirs
-                .message-bubble {
-
-                border-bottom-left-radius:
-                    5px;
-            }
-
-            .message-bubble audio {
-                width:
-                    min(
-                        250px,
-                        68vw
-                    );
-            }
-
-            .chat-composer {
-                padding:
-                    8px
-                    8px
-                    max(
-                        8px,
-                        env(
-                            safe-area-inset-bottom
-                        )
-                    );
-            }
-
-            .composer-button,
-            .send-button {
-
-                width: 42px;
-
-                height: 42px;
-
-                min-width: 42px;
-
-                min-height: 42px;
-            }
-
-            .gapino-call-card {
-
-                width:
-                    min(
-                        360px,
-                        100%
-                    );
-
-                padding:
-                    24px 16px;
-
-                border-radius: 24px;
-            }
-
-            .gapino-call-avatar {
-
-                width: 82px;
-
-                height: 82px;
-
-                font-size: 30px;
-            }
-
-            .gapino-call-name {
-                font-size: 20px;
-            }
-
-            .gapino-call-timer {
-                font-size: 27px;
-            }
-
-            .gapino-call-button {
-                width: 100%;
-            }
-        }
-
-        /* =====================================================
-           SMALL PHONES
-           ===================================================== */
-
-        @media (max-width: 420px) {
 
             .sidebar-footer {
-                gap: 5px;
+                padding-bottom: max(9px, env(safe-area-inset-bottom));
+            }
+        }
+
+        @media (max-width: 430px) {
+
+            .brand-title {
+                font-size: 22px;
             }
 
-            .sidebar-action {
-                padding:
-                    0 4px;
-
+            .brand-subtitle {
                 font-size: 11px;
             }
 
-            .active-live-name {
-                font-size: 12px;
+            #userSearch {
+                height: 44px;
             }
 
-            .active-live-meta {
-                font-size: 10px;
+            .user-item {
+                min-height: 64px;
+                padding: 9px;
             }
 
-            .active-live-avatar {
-                width: 40px;
-
-                height: 40px;
+            .user-avatar {
+                width: 44px;
+                height: 44px;
             }
 
-            .active-live-badge {
-                padding:
-                    4px 6px;
-
-                font-size: 8px;
+            #chatAvatar {
+                width: 41px;
+                height: 41px;
+                flex-basis: 41px;
             }
 
-            .chat-header-actions
-                .icon-button {
-
-                width: 38px !important;
-
-                min-width: 38px !important;
-
-                max-width: 38px !important;
-
-                height: 38px !important;
-
-                min-height: 38px !important;
-
-                max-height: 38px !important;
+            .header-actions {
+                gap: 3px;
             }
 
-            #headerLiveButton {
-
-                width: 38px !important;
-
-                min-width: 38px !important;
-
-                max-width: 38px !important;
-
-                height: 38px !important;
-
-                min-height: 38px !important;
-
-                max-height: 38px !important;
-
-                font-size: 17px !important;
-            }
-
-            #callButton {
-                font-size:
-                    17px !important;
-            }
-
-            .chat-contact-info strong {
+            .header-button {
+                width: 35px;
+                height: 35px;
                 font-size: 14px;
             }
 
-            .chat-contact-info span {
-                font-size: 11px;
+            #mobileBackButton {
+                width: 38px;
+                flex-basis: 38px;
+                height: 38px;
             }
 
-            .message-bubble {
-                max-width: 88%;
-
-                padding:
-                    7px 10px;
-
-                font-size: 13.5px;
-
-                border-radius: 15px;
+            .composer-button {
+                width: 41px;
+                min-width: 41px;
+                height: 41px;
             }
 
-            .message-row.mine {
-                padding-left: 2px;
+            #messageInput {
+                height: 41px;
             }
 
-            .message-row.theirs {
-                padding-right: 2px;
-            }
-        }
-
-        /* =====================================================
-           DARK MODE
-           ===================================================== */
-
-        @media (prefers-color-scheme: dark) {
-
-            .active-live-item {
-                background:
-                    rgba(
-                        31,
-                        41,
-                        55,
-                        0.82
-                    );
-            }
-
-            .message-row.theirs
-                .message-bubble {
-
-                background:
-                    #1f2937;
-
-                color:
-                    #f3f4f6;
-
-                border-color:
-                    rgba(
-                        255,
-                        255,
-                        255,
-                        0.05
-                    );
-            }
-
-            .message-row.mine
-                .message-bubble {
-
-                background:
-                    #229ed9;
-
-                color:
-                    #ffffff;
-            }
-        }
-
-        /* =====================================================
-           SAFE AREA
-           ===================================================== */
-
-        @supports (
-            padding:
-                env(
-                    safe-area-inset-bottom
-                )
-        ) {
-
-            .gapino-call-overlay {
-
-                padding-top:
-                    max(
-                        18px,
-                        env(
-                            safe-area-inset-top
-                        )
-                    );
-
-                padding-bottom:
-                    max(
-                        18px,
-                        env(
-                            safe-area-inset-bottom
-                        )
-                    );
-            }
-        }
-
-        /* =====================================================
-           REDUCE MOTION
-           ===================================================== */
-
-        @media (
-            prefers-reduced-motion: reduce
-        ) {
-
-            *,
-            *::before,
-            *::after {
-
-                scroll-behavior:
-                    auto !important;
-
-                transition:
-                    none !important;
-
-                animation:
-                    none !important;
+            .footer-button {
+                min-height: 45px;
+                font-size: 12px;
             }
         }
     </style>
@@ -1961,342 +842,252 @@
 
 <body>
 
-    <!-- =====================================================
-         GAPINO APP
-         ===================================================== -->
+<div id="appShell" class="app-shell">
 
-    <div
-        class="app-shell"
-        id="appShell"
-    >
+    <!-- ================= SIDEBAR ================= -->
 
-        <!-- =================================================
-             SIDEBAR
-             ================================================= -->
+    <aside id="sidebar" class="sidebar">
 
-        <aside
-            id="sidebar"
-            class="sidebar"
+        <div class="brand">
+            <div class="brand-title">
+                گپینو 💬
+            </div>
+
+            <div class="brand-subtitle">
+                پیام‌رسان شما
+            </div>
+        </div>
+
+        <div class="search-box">
+            <input
+                id="userSearch"
+                type="search"
+                autocomplete="off"
+                placeholder="🔎 جستجوی کاربران..."
+            >
+        </div>
+
+        <!-- LIVE -->
+
+        <section
+            id="activeLivesSection"
+            class="live-section"
         >
 
-            <!-- BRAND -->
+            <div class="live-header">
 
-            <div class="sidebar-header">
-
-                <div class="brand">
-
-                    <div class="brand-logo">
-                        G
-                    </div>
-
-                    <div class="brand-text">
-
-                        <strong>
-                            گپینو
-                        </strong>
-
-                        <span>
-                            پیام‌رسان
-                        </span>
-
-                    </div>
-
+                <div class="live-title">
+                    🔴 لایوهای فعال
                 </div>
 
                 <button
-                    id="newChatButton"
-                    class="icon-button"
+                    id="refreshLivesButton"
                     type="button"
-                    title="گفتگوی جدید"
-                    aria-label="گفتگوی جدید"
+                    aria-label="تازه کردن لایوها"
                 >
-                    ✏️
+                    ↻
                 </button>
 
             </div>
 
-            <!-- SEARCH -->
-
-            <div class="search-box">
-
-                <input
-                    id="userSearch"
-                    type="search"
-                    placeholder="جستجوی کاربران..."
-                    autocomplete="off"
-                    spellcheck="false"
-                >
-
-            </div>
-
-            <!-- =================================================
-                 ACTIVE LIVE ROOMS
-                 ================================================= -->
-
-            <section
-                id="activeLivesSection"
-                class="active-lives-section"
-                hidden
-            >
-
-                <div class="active-lives-header">
-
-                    <div
-                        class="active-lives-title"
-                    >
-
-                        <span
-                            class="live-dot"
-                            aria-hidden="true"
-                        ></span>
-
-                        <span>
-                            لایوهای فعال
-                        </span>
-
-                    </div>
-
-                    <button
-                        id="refreshLivesButton"
-                        type="button"
-                        title="به‌روزرسانی لایوها"
-                        aria-label="به‌روزرسانی لایوها"
-                    >
-                        ↻
-                    </button>
-
-                </div>
+            <div id="activeLivesList">
 
                 <div
-                    id="activeLivesList"
-                    class="active-lives-list"
+                    style="
+                        padding:8px;
+                        color:#64748b;
+                        font-size:11px;
+                    "
                 >
+                    در حال بررسی لایوها...
                 </div>
 
-            </section>
-
-            <!-- USERS -->
-
-            <div
-                id="usersList"
-                class="users-list"
-            >
             </div>
 
-            <!-- FOOTER -->
+        </section>
 
-            <div class="sidebar-footer">
+        <div class="users-title">
+            👥 کاربران
+        </div>
+
+        <div id="usersList">
+
+            <div
+                style="
+                    padding:25px;
+                    text-align:center;
+                    color:#94a3b8;
+                    font-size:12px;
+                "
+            >
+                در حال بارگذاری کاربران...
+            </div>
+
+        </div>
+
+        <!-- FOOTER -->
+
+        <div class="sidebar-footer">
+
+            <button
+                id="liveButton"
+                class="footer-button live"
+                type="button"
+            >
+                🔴 پخش زنده
+            </button>
+
+            <button
+                id="profileButton"
+                class="footer-button"
+                type="button"
+            >
+                👤 پروفایل
+            </button>
+
+            <button
+                id="logoutButton"
+                class="footer-button logout"
+                type="button"
+            >
+                🚪 خروج از حساب
+            </button>
+
+        </div>
+
+    </aside>
+
+    <!-- ================= CHAT ================= -->
+
+    <main id="chatArea" class="chat-area">
+
+        <header class="chat-header">
+
+            <button
+                id="mobileBackButton"
+                type="button"
+                aria-label="بازگشت"
+            >
+                →
+            </button>
+
+            <img
+                id="chatAvatar"
+                src=""
+                alt=""
+            >
+
+            <div class="chat-header-info">
+
+                <div id="chatUserName">
+                    گفتگو
+                </div>
+
+                <div id="chatUserStatus">
+                    یک کاربر را انتخاب کنید
+                </div>
+
+            </div>
+
+            <div class="header-actions">
 
                 <button
-                    id="liveButton"
-                    class="sidebar-action"
+                    id="headerLiveButton"
+                    class="header-button"
                     type="button"
-                    title="شروع پخش زنده"
-                    aria-label="شروع پخش زنده"
+                    aria-label="لایو"
                 >
                     🔴
-
-                    <span>
-                        پخش زنده
-                    </span>
                 </button>
 
                 <button
-                    id="profileButton"
-                    class="sidebar-action"
+                    id="callButton"
+                    class="header-button"
                     type="button"
-                    title="پروفایل"
-                    aria-label="پروفایل"
+                    aria-label="تماس"
                 >
-                    👤
-
-                    <span>
-                        پروفایل
-                    </span>
+                    📞
                 </button>
 
                 <button
-                    id="logoutButton"
-                    class="sidebar-action"
+                    id="chatSearchButton"
+                    class="header-button"
                     type="button"
-                    title="خروج"
-                    aria-label="خروج"
+                    aria-label="جستجوی پیام"
                 >
-                    🚪
+                    🔎
+                </button>
 
-                    <span>
-                        خروج
-                    </span>
+                <button
+                    id="chatMenuButton"
+                    class="header-button"
+                    type="button"
+                    aria-label="منو"
+                >
+                    ⋮
                 </button>
 
             </div>
 
-        </aside>
+        </header>
 
-        <!-- =================================================
-             CHAT AREA
-             ================================================= -->
+        <section id="messagesContainer">
 
-        <main
-            id="chatArea"
-            class="chat-area"
-        >
+            <div id="emptyChat">
 
-            <!-- HEADER -->
-
-            <header class="chat-header">
-
-                <div class="chat-contact">
-
-                    <div
-                        id="chatAvatar"
-                        class="chat-avatar"
-                    >
-                        G
-                    </div>
-
-                    <div
-                        class="chat-contact-info"
-                    >
-
-                        <strong
-                            id="chatUserName"
-                        >
-                            انتخاب گفتگو
-                        </strong>
-
-                        <span
-                            id="chatUserStatus"
-                        >
-                            یک کاربر را انتخاب کنید
-                        </span>
-
-                    </div>
-
+                <div class="empty-icon">
+                    💬
                 </div>
 
-                <div
-                    class="chat-header-actions"
-                >
-
-                    <!-- LIVE -->
-
-                    <button
-                        id="headerLiveButton"
-                        type="button"
-                        title="پخش زنده"
-                        aria-label="پخش زنده"
-                    >
-                        🔴
-                    </button>
-
-                    <!-- CALL -->
-
-                    <button
-                        id="callButton"
-                        class="icon-button"
-                        type="button"
-                        title="تماس صوتی"
-                        aria-label="تماس صوتی"
-                    >
-                        📞
-                    </button>
-
-                    <!-- MESSAGE SEARCH -->
-
-                    <button
-                        id="chatSearchButton"
-                        class="icon-button"
-                        type="button"
-                        title="جستجوی پیام"
-                        aria-label="جستجوی پیام"
-                    >
-                        🔎
-                    </button>
-
-                    <!-- MENU -->
-
-                    <button
-                        id="chatMenuButton"
-                        class="icon-button"
-                        type="button"
-                        title="منو"
-                        aria-label="منو"
-                    >
-                        ⋮
-                    </button>
-
+                <div class="empty-title">
+                    به گپینو خوش آمدید
                 </div>
 
-            </header>
-
-            <!-- =================================================
-                 MESSAGES
-                 ================================================= -->
-
-            <section
-                id="messagesContainer"
-                class="messages-container"
-            >
-
-                <div
-                    id="emptyChat"
-                    class="empty-chat"
-                >
-
-                    <div
-                        class="empty-chat-icon"
-                    >
-                        💬
-                    </div>
-
-                    <h2>
-                        به گپینو خوش آمدی
-                    </h2>
-
-                    <p>
-                        برای شروع، یک کاربر را از فهرست انتخاب کن.
-                    </p>
-
+                <div class="empty-text">
+                    یک کاربر را انتخاب کنید تا گفتگو شروع شود.
                 </div>
 
-                <div
-                    id="messagesList"
-                    class="messages-list"
-                >
-                </div>
-
-                <div
-                    id="typingIndicator"
-                    class="typing-indicator"
-                    hidden
-                >
-                    در حال نوشتن...
-                </div>
-
-            </section>
-
-            <!-- FILE PREVIEW -->
-
-            <div
-                id="attachmentPreview"
-                class="attachment-preview"
-                hidden
-            >
             </div>
 
-            <!-- =================================================
-                 COMPOSER
-                 ================================================= -->
+            <div id="messagesList"></div>
 
-            <div class="chat-composer">
+        </section>
+
+        <div id="typingIndicator"></div>
+
+        <div id="attachmentPreview">
+
+            <div class="attachment-inner">
+
+                <span id="attachmentName">
+                    فایل انتخاب شد
+                </span>
+
+                <button
+                    id="removeAttachmentButton"
+                    type="button"
+                    style="
+                        background:none;
+                        color:#fff;
+                        font-size:17px;
+                    "
+                >
+                    ✕
+                </button>
+
+            </div>
+
+        </div>
+
+        <div class="composer">
+
+            <div class="composer-row">
 
                 <button
                     id="attachButton"
                     class="composer-button"
                     type="button"
-                    title="پیوست فایل"
-                    aria-label="پیوست فایل"
+                    aria-label="فایل"
                 >
                     📎
                 </button>
@@ -2305,509 +1096,495 @@
                     id="fileInput"
                     type="file"
                     hidden
+                    accept="image/*,video/*,audio/*,.pdf,.txt,.zip,.rar"
                 >
 
-                <textarea
+                <input
                     id="messageInput"
-                    rows="1"
-                    placeholder="پیامت را بنویس..."
+                    type="text"
+                    maxlength="1000"
                     autocomplete="off"
-                    spellcheck="false"
-                ></textarea>
+                    placeholder="پیام خود را بنویسید..."
+                    disabled
+                >
 
                 <button
                     id="voiceButton"
                     class="composer-button"
                     type="button"
-                    title="ضبط صدا"
                     aria-label="ضبط صدا"
                 >
-                    🎙️
+                    🎤
                 </button>
 
                 <button
                     id="sendButton"
-                    class="send-button"
+                    class="composer-button"
                     type="button"
-                    title="ارسال"
-                    aria-label="ارسال"
+                    aria-label="ارسال پیام"
                 >
                     ➤
                 </button>
 
             </div>
 
-        </main>
+        </div>
 
-    </div>
+    </main>
 
-    <!-- =====================================================
-         PROFILE MODAL
-         ===================================================== -->
+</div>
 
-    <div
-        id="profileModal"
-        class="modal-overlay"
-        hidden
-    >
+<!-- ================= PROFILE MODAL ================= -->
 
-        <div class="modal-card">
+<div
+    id="profileModal"
+    class="modal"
+>
+
+    <div class="modal-box">
+
+        <div class="modal-header">
+
+            <div class="modal-title">
+                👤 پروفایل من
+            </div>
 
             <button
                 id="closeProfileModal"
                 class="modal-close"
                 type="button"
-                aria-label="بستن"
             >
-                ×
+                ✕
             </button>
-
-            <div class="modal-header">
-
-                <h2>
-                    پروفایل
-                </h2>
-
-            </div>
-
-            <div class="profile-form">
-
-                <div
-                    id="profileAvatarPreview"
-                    class="profile-avatar-preview"
-                >
-                    G
-                </div>
-
-                <label
-                    class="form-label"
-                    for="profileDisplayName"
-                >
-                    نام نمایشی
-                </label>
-
-                <input
-                    id="profileDisplayName"
-                    class="form-input"
-                    type="text"
-                    maxlength="60"
-                    autocomplete="off"
-                >
-
-                <label
-                    class="form-label"
-                    for="profileBio"
-                >
-                    درباره من
-                </label>
-
-                <textarea
-                    id="profileBio"
-                    class="form-input"
-                    rows="4"
-                    maxlength="250"
-                ></textarea>
-
-                <button
-                    id="saveProfileButton"
-                    class="primary-button"
-                    type="button"
-                >
-                    ذخیره تغییرات
-                </button>
-
-            </div>
 
         </div>
 
+        <img
+            id="profileAvatarPreview"
+            src=""
+            alt=""
+        >
+
+        <label
+            class="form-label"
+            for="profileDisplayName"
+        >
+            نام نمایشی
+        </label>
+
+        <input
+            id="profileDisplayName"
+            class="form-input"
+            type="text"
+            maxlength="50"
+        >
+
+        <label
+            class="form-label"
+            for="profileBio"
+        >
+            درباره من
+        </label>
+
+        <textarea
+            id="profileBio"
+            class="form-textarea"
+            maxlength="250"
+        ></textarea>
+
+        <button
+            id="saveProfileButton"
+            class="modal-action"
+            type="button"
+        >
+            💾 ذخیره
+        </button>
+
     </div>
 
-    <!-- =====================================================
-         MESSAGE SEARCH MODAL
-         ===================================================== -->
+</div>
 
-    <div
-        id="messageSearchModal"
-        class="modal-overlay"
-        hidden
-    >
+<!-- ================= MESSAGE SEARCH MODAL ================= -->
 
-        <div class="modal-card">
+<div
+    id="messageSearchModal"
+    class="modal"
+>
+
+    <div class="modal-box">
+
+        <div class="modal-header">
+
+            <div class="modal-title">
+                🔎 جستجوی پیام
+            </div>
 
             <button
                 id="closeMessageSearchModal"
                 class="modal-close"
                 type="button"
-                aria-label="بستن"
             >
-                ×
+                ✕
             </button>
-
-            <div class="modal-header">
-
-                <h2>
-                    جستجوی پیام
-                </h2>
-
-            </div>
-
-            <input
-                id="messageSearchInput"
-                class="form-input"
-                type="search"
-                placeholder="متن پیام..."
-                autocomplete="off"
-            >
-
-            <div
-                id="messageSearchResults"
-                class="message-search-results"
-            >
-            </div>
 
         </div>
 
+        <input
+            id="messageSearchInput"
+            class="form-input"
+            type="search"
+            autocomplete="off"
+            placeholder="متن پیام..."
+        >
+
+        <div
+            id="messageSearchResults"
+            style="margin-top:12px;"
+        ></div>
+
     </div>
 
-    <!-- =====================================================
-         TOAST
-         ===================================================== -->
+</div>
 
-    <div
-        id="toastContainer"
-        class="toast-container"
-        aria-live="polite"
-        aria-atomic="true"
-    ></div>
+<!-- ================= TOAST ================= -->
 
-    <!-- =====================================================
-         TURN SERVERS
-         ===================================================== -->
+<div id="toastContainer"></div>
 
-    <script>
-        /*
-         * فعلاً TURN اختصاصی نداریم.
-         * STUN در call.js و live.js استفاده می‌شود.
-         */
+<script>
+    /*
+     * تنظیمات عمومی گپینو
+     */
+    window.GAPINO_API_BASE =
+        window.location.origin;
 
-        window.GAPINO_TURN_SERVERS = [];
-    </script>
+    window.GAPINO_TURN_SERVERS = [];
 
-    <!-- =====================================================
-         LIVE NAVIGATION + ACTIVE LIVE ROOMS
-         ===================================================== -->
+    /*
+     * لایو
+     */
+    function openLivePage() {
+        window.location.href =
+            "/live.html";
+    }
 
-    <script>
-        (function () {
+    /*
+     * موبایل
+     */
+    function openChatOnMobile() {
 
-            "use strict";
+        var shell =
+            document.getElementById(
+                "appShell"
+            );
 
-            const API =
-                window.GAPINO_API_BASE ||
-                window.location.origin;
+        if (shell) {
+            shell.classList.add(
+                "chat-open"
+            );
+        }
+    }
 
-            const liveButton =
+    function closeChatOnMobile() {
+
+        var shell =
+            document.getElementById(
+                "appShell"
+            );
+
+        if (shell) {
+            shell.classList.remove(
+                "chat-open"
+            );
+        }
+    }
+
+    /*
+     * فرار از خطاهای مربوط به لایو
+     */
+    async function loadActiveLives() {
+
+        var list =
+            document.getElementById(
+                "activeLivesList"
+            );
+
+        if (!list) {
+            return;
+        }
+
+        try {
+
+            var response =
+                await fetch(
+                    "/api/live/active",
+                    {
+                        method: "GET",
+                        credentials: "include",
+                        cache: "no-store"
+                    }
+                );
+
+            if (!response.ok) {
+                throw new Error(
+                    "Live request failed"
+                );
+            }
+
+            var data =
+                await response.json();
+
+            var rooms = [];
+
+            if (
+                Array.isArray(data)
+            ) {
+
+                rooms = data;
+
+            } else if (
+                data &&
+                Array.isArray(
+                    data.live_rooms
+                )
+            ) {
+
+                rooms =
+                    data.live_rooms;
+            }
+
+            list.innerHTML = "";
+
+            if (
+                rooms.length === 0
+            ) {
+
+                list.innerHTML =
+                    '<div style="' +
+                    'padding:8px;' +
+                    'color:#64748b;' +
+                    'font-size:11px;' +
+                    '">' +
+                    'لایو فعالی وجود ندارد.' +
+                    '</div>';
+
+                return;
+            }
+
+            rooms.forEach(
+                function (room) {
+
+                    var host =
+                        room.host || {};
+
+                    var roomId =
+                        room.room_id ||
+                        room.id ||
+                        "";
+
+                    var name =
+                        host.display_name ||
+                        host.username ||
+                        "کاربر گپینو";
+
+                    var avatar =
+                        host.avatar ||
+                        host.avatar_url ||
+                        "";
+
+                    var viewers =
+                        Number(
+                            room.viewer_count || 0
+                        );
+
+                    var card =
+                        document.createElement(
+                            "div"
+                        );
+
+                    card.className =
+                        "live-card";
+
+                    var image =
+                        document.createElement(
+                            "img"
+                        );
+
+                    image.className =
+                        "live-avatar";
+
+                    image.alt = "";
+                    image.src =
+                        avatar;
+
+                    image.addEventListener(
+                        "error",
+                        function () {
+                            image.style.visibility =
+                                "hidden";
+                        }
+                    );
+
+                    var info =
+                        document.createElement(
+                            "div"
+                        );
+
+                    info.className =
+                        "live-info";
+
+                    var nameElement =
+                        document.createElement(
+                            "div"
+                        );
+
+                    nameElement.className =
+                        "live-name";
+
+                    nameElement.textContent =
+                        name;
+
+                    var viewersElement =
+                        document.createElement(
+                            "div"
+                        );
+
+                    viewersElement.className =
+                        "live-viewers";
+
+                    viewersElement.textContent =
+                        "👁 " +
+                        viewers +
+                        " بیننده";
+
+                    info.appendChild(
+                        nameElement
+                    );
+
+                    info.appendChild(
+                        viewersElement
+                    );
+
+                    var badge =
+                        document.createElement(
+                            "div"
+                        );
+
+                    badge.className =
+                        "live-badge";
+
+                    badge.textContent =
+                        "LIVE";
+
+                    card.appendChild(
+                        image
+                    );
+
+                    card.appendChild(
+                        info
+                    );
+
+                    card.appendChild(
+                        badge
+                    );
+
+                    if (roomId) {
+
+                        card.addEventListener(
+                            "click",
+                            function () {
+
+                                window.location.href =
+                                    "/live.html?room=" +
+                                    encodeURIComponent(
+                                        roomId
+                                    ) +
+                                    "&join=1";
+                            }
+                        );
+                    }
+
+                    list.appendChild(
+                        card
+                    );
+                }
+            );
+
+        } catch (error) {
+
+            console.error(
+                "loadActiveLives:",
+                error
+            );
+
+            /*
+             * حتی اگر API لایو خراب باشد،
+             * صفحه اصلی نباید خراب شود.
+             */
+            list.innerHTML =
+                '<div style="' +
+                'padding:8px;' +
+                'color:#64748b;' +
+                'font-size:11px;' +
+                '">' +
+                'لایوها فعلاً در دسترس نیستند.' +
+                '</div>';
+        }
+    }
+
+    /*
+     * رویدادها
+     */
+    document.addEventListener(
+        "DOMContentLoaded",
+        function () {
+
+            var backButton =
+                document.getElementById(
+                    "mobileBackButton"
+                );
+
+            var liveButton =
                 document.getElementById(
                     "liveButton"
                 );
 
-            const headerLiveButton =
+            var headerLiveButton =
                 document.getElementById(
                     "headerLiveButton"
                 );
 
-            const activeLivesSection =
-                document.getElementById(
-                    "activeLivesSection"
-                );
-
-            const activeLivesList =
-                document.getElementById(
-                    "activeLivesList"
-                );
-
-            const refreshLivesButton =
+            var refreshButton =
                 document.getElementById(
                     "refreshLivesButton"
                 );
 
-            function escapeHtml(value) {
+            /*
+             * بازگشت موبایل
+             */
+            if (backButton) {
 
-                return String(
-                    value ?? ""
-                )
-                .replaceAll(
-                    "&",
-                    "&amp;"
-                )
-                .replaceAll(
-                    "<",
-                    "&lt;"
-                )
-                .replaceAll(
-                    ">",
-                    "&gt;"
-                )
-                .replaceAll(
-                    '"',
-                    "&quot;"
-                )
-                .replaceAll(
-                    "'",
-                    "&#039;"
+                backButton.addEventListener(
+                    "click",
+                    function () {
+
+                        closeChatOnMobile();
+
+                    }
                 );
             }
 
-            function hostName(host) {
-
-                return (
-                    host?.display_name ||
-                    host?.username ||
-                    "کاربر"
-                );
-            }
-
-            function hostAvatar(host) {
-
-                const avatar =
-                    String(
-                        host?.avatar ||
-                        ""
-                    ).trim();
-
-                if (!avatar) {
-
-                    return escapeHtml(
-                        hostName(host)
-                            .charAt(0)
-                            .toUpperCase() ||
-                        "G"
-                    );
-                }
-
-                const avatarUrl =
-                    avatar.startsWith(
-                        "http"
-                    )
-                        ? avatar
-                        : API + avatar;
-
-                return (
-                    '<img src="' +
-                    escapeHtml(
-                        avatarUrl
-                    ) +
-                    '" alt="">'
-                );
-            }
-
-            function openLive() {
-
-                window.location.href =
-                    "/live.html";
-            }
-
-            function joinLive(roomId) {
-
-                const room =
-                    String(
-                        roomId || ""
-                    ).trim();
-
-                if (!room) {
-                    return;
-                }
-
-                window.location.href =
-                    "/live.html?room=" +
-                    encodeURIComponent(
-                        room
-                    ) +
-                    "&join=1";
-            }
-
-            async function loadActiveLives() {
-
-                if (
-                    !activeLivesSection ||
-                    !activeLivesList
-                ) {
-                    return;
-                }
-
-                try {
-
-                    const response =
-                        await fetch(
-                            API +
-                            "/api/live/active",
-                            {
-                                method: "GET",
-
-                                credentials:
-                                    "include",
-
-                                cache:
-                                    "no-store",
-
-                                headers: {
-                                    "Accept":
-                                        "application/json"
-                                }
-                            }
-                        );
-
-                    if (
-                        !response.ok
-                    ) {
-
-                        activeLivesSection.hidden =
-                            true;
-
-                        activeLivesList.innerHTML =
-                            "";
-
-                        return;
-                    }
-
-                    const data =
-                        await response.json();
-
-                    const rooms =
-                        Array.isArray(
-                            data.live_rooms
-                        )
-                            ? data.live_rooms
-                            : [];
-
-                    activeLivesList.innerHTML =
-                        "";
-
-                    if (!rooms.length) {
-
-                        activeLivesSection.hidden =
-                            true;
-
-                        return;
-                    }
-
-                    activeLivesSection.hidden =
-                        false;
-
-                    for (
-                        const room
-                        of rooms
-                    ) {
-
-                        const host =
-                            room.host ||
-                            {};
-
-                        const roomId =
-                            String(
-                                room.room_id ||
-                                ""
-                            ).trim();
-
-                        if (!roomId) {
-                            continue;
-                        }
-
-                        const name =
-                            hostName(
-                                host
-                            );
-
-                        const viewers =
-                            Math.max(
-                                0,
-                                Number(
-                                    room.viewer_count
-                                ) || 0
-                            );
-
-                        const button =
-                            document.createElement(
-                                "button"
-                            );
-
-                        button.type =
-                            "button";
-
-                        button.className =
-                            "active-live-item";
-
-                        button.dataset.room =
-                            roomId;
-
-                        button.title =
-                            "ورود به لایو " +
-                            name;
-
-                        button.innerHTML =
-                            '<div class="active-live-avatar">' +
-                                hostAvatar(host) +
-                            "</div>" +
-
-                            '<div class="active-live-info">' +
-
-                                '<div class="active-live-name">' +
-                                    escapeHtml(name) +
-                                "</div>" +
-
-                                '<div class="active-live-meta">' +
-                                    "👁️ " +
-                                    viewers +
-                                    " بیننده" +
-                                "</div>" +
-
-                            "</div>" +
-
-                            '<span class="active-live-badge">' +
-                                "LIVE" +
-                            "</span>";
-
-                        button.addEventListener(
-                            "click",
-                            function () {
-
-                                joinLive(
-                                    button.dataset.room
-                                );
-
-                            }
-                        );
-
-                        activeLivesList.appendChild(
-                            button
-                        );
-                    }
-
-                    if (
-                        !activeLivesList.children.length
-                    ) {
-
-                        activeLivesSection.hidden =
-                            true;
-                    }
-
-                } catch (error) {
-
-                    console.error(
-                        "GAPINO active live rooms error:",
-                        error
-                    );
-
-                    activeLivesSection.hidden =
-                        true;
-                }
-            }
-
+            /*
+             * لایو
+             */
             if (liveButton) {
 
                 liveButton.addEventListener(
                     "click",
-                    openLive
+                    function () {
+
+                        openLivePage();
+
+                    }
                 );
             }
 
@@ -2815,57 +1592,74 @@
 
                 headerLiveButton.addEventListener(
                     "click",
-                    openLive
+                    function () {
+
+                        openLivePage();
+
+                    }
                 );
             }
 
-            if (refreshLivesButton) {
+            /*
+             * بروزرسانی لایو
+             */
+            if (refreshButton) {
 
-                refreshLivesButton.addEventListener(
+                refreshButton.addEventListener(
                     "click",
-                    loadActiveLives
+                    function () {
+
+                        loadActiveLives();
+
+                    }
                 );
             }
 
-            document.addEventListener(
-                "DOMContentLoaded",
-                function () {
+            /*
+             * فرار اضطراری:
+             * اگر کاربر روی صفحه موبایل است،
+             * sidebar حتماً قابل نمایش باشد.
+             */
+            var shell =
+                document.getElementById(
+                    "appShell"
+                );
 
-                    loadActiveLives();
+            if (
+                shell &&
+                window.innerWidth <= 800 &&
+                !shell.classList.contains(
+                    "chat-open"
+                )
+            ) {
 
-                    /*
-                     * هر ۵ ثانیه فهرست Liveها
-                     * تازه می‌شود.
-                     */
+                shell.classList.remove(
+                    "chat-open"
+                );
+            }
+        }
+    );
 
-                    window.setInterval(
-                        loadActiveLives,
-                        5000
-                    );
+    /*
+     * لایوها
+     */
+    window.GAPINO_REFRESH_LIVES =
+        loadActiveLives;
 
-                }
-            );
+    loadActiveLives();
 
-        })();
-    </script>
+    setInterval(
+        loadActiveLives,
+        10000
+    );
+</script>
 
-    <!-- =====================================================
-         CHAT JAVASCRIPT
-         ===================================================== -->
+<!-- اسکریپت اصلی چت -->
+<script src="/frontend/chat.js?v=400"></script>
 
-    <script
-        src="/frontend/chat.js?v=309"
-        defer
-    ></script>
-
-    <!-- =====================================================
-         CALL JAVASCRIPT
-         ===================================================== -->
-
-    <script
-        src="/frontend/call.js?v=6"
-        defer
-    ></script>
+<!-- اسکریپت تماس -->
+<script src="/frontend/call.js?v=400"></script>
 
 </body>
 </html>
+```
