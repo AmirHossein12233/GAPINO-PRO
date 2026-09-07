@@ -3,18 +3,11 @@
 /* =========================================================
    GAPINO PRO
    APP.JS
-   عمومی و هماهنگ با chat.html + chat.js
-
-   امکانات:
-   - Session helper
-   - Theme
-   - Mobile sidebar
-   - Overlay
-   - Toast
-   - Global keyboard shortcuts
-   - API helper
-   - Browser notification
-   - Online status helpers
+   نسخه سازگار با:
+   - Web
+   - Capacitor APK
+   - mygapino.shop
+   - FastAPI /api/*
    ========================================================= */
 
 
@@ -22,11 +15,31 @@
    CONFIG
    ========================================================= */
 
+/*
+ * بسیار مهم:
+ * در APK نباید از window.location.origin استفاده کنیم.
+ *
+ * وب:
+ * https://mygapino.shop
+ *
+ * APK:
+ * capacitor://localhost
+ * یا http://localhost
+ *
+ * بنابراین API اصلی را ثابت قرار می‌دهیم.
+ */
+
 const GAPINO_API =
-    window.location.origin;
+    "https://mygapino.shop";
+
 
 const GAPINO_STORAGE_USER =
     "gapino_user";
+
+
+const GAPINO_STORAGE_TOKEN =
+    "gapino_token";
+
 
 const GAPINO_STORAGE_THEME =
     "gapino_theme";
@@ -43,6 +56,27 @@ function gapino$(id) {
 
 function gapinoSafeText(value) {
     return String(value ?? "");
+}
+
+
+function gapinoApiUrl(path) {
+
+    if (!path) {
+        return GAPINO_API;
+    }
+
+    if (
+        path.startsWith("http://") ||
+        path.startsWith("https://")
+    ) {
+        return path;
+    }
+
+    if (!path.startsWith("/")) {
+        path = "/" + path;
+    }
+
+    return GAPINO_API + path;
 }
 
 
@@ -97,9 +131,7 @@ function showGapinoToast(
 ) {
 
     const text =
-        gapinoSafeText(
-            message
-        );
+        gapinoSafeText(message);
 
 
     if (!toastElement) {
@@ -142,6 +174,89 @@ function showGapinoToast(
 
 
 /* =========================================================
+   TOKEN
+   ========================================================= */
+
+function getGapinoToken() {
+
+    try {
+
+        return (
+            localStorage.getItem(
+                GAPINO_STORAGE_TOKEN
+            ) ||
+            sessionStorage.getItem(
+                GAPINO_STORAGE_TOKEN
+            ) ||
+            localStorage.getItem(
+                "token"
+            ) ||
+            sessionStorage.getItem(
+                "token"
+            ) ||
+            ""
+        );
+
+    } catch (error) {
+
+        console.warn(
+            "Token read error:",
+            error
+        );
+
+        return "";
+    }
+}
+
+
+function saveGapinoToken(token) {
+
+    if (!token) {
+        return;
+    }
+
+    try {
+
+        localStorage.setItem(
+            GAPINO_STORAGE_TOKEN,
+            token
+        );
+
+    } catch (error) {
+
+        console.warn(
+            "Token save error:",
+            error
+        );
+    }
+}
+
+
+function clearGapinoToken() {
+
+    try {
+
+        localStorage.removeItem(
+            GAPINO_STORAGE_TOKEN
+        );
+
+        sessionStorage.removeItem(
+            GAPINO_STORAGE_TOKEN
+        );
+
+        localStorage.removeItem(
+            "token"
+        );
+
+        sessionStorage.removeItem(
+            "token"
+        );
+
+    } catch (_) {}
+}
+
+
+/* =========================================================
    API
    ========================================================= */
 
@@ -150,11 +265,29 @@ async function gapinoFetch(
     options = {}
 ) {
 
+    const headers = {
+        ...(options.headers || {})
+    };
+
+
+    const token =
+        getGapinoToken();
+
+
+    if (token) {
+
+        headers.Authorization =
+            `Bearer ${token}`;
+    }
+
+
     const response =
         await fetch(
-            GAPINO_API + path,
+            gapinoApiUrl(path),
             {
                 ...options,
+
+                headers,
 
                 credentials:
                     "include",
@@ -229,28 +362,51 @@ async function getGapinoSession() {
 
         const data =
             await gapinoFetch(
-                "/me"
+                "/api/me"
             );
 
 
+        /*
+         * main.py فعلی:
+         *
+         * {
+         *   ...user,
+         *   token: "..."
+         * }
+         *
+         * بنابراین authenticated و user
+         * الزاماً وجود ندارند.
+         */
+
+        if (data?.token) {
+
+            saveGapinoToken(
+                data.token
+            );
+        }
+
+
+        let user =
+            data?.user ||
+            data;
+
+
         if (
-            data?.authenticated &&
-            data?.user
+            user &&
+            (
+                user.id ||
+                user.user_id
+            )
         ) {
 
-            try {
+            saveGapinoUser(
+                user
+            );
 
-                localStorage.setItem(
-                    GAPINO_STORAGE_USER,
-                    JSON.stringify(
-                        data.user
-                    )
-                );
+            window.GAPINO_CURRENT_USER =
+                user;
 
-            } catch (_) {}
-
-
-            return data.user;
+            return user;
         }
 
     } catch (error) {
@@ -265,6 +421,10 @@ async function getGapinoSession() {
     return null;
 }
 
+
+/* =========================================================
+   STORED USER
+   ========================================================= */
 
 function getStoredGapinoUser() {
 
@@ -312,6 +472,54 @@ function getStoredGapinoUser() {
 
 
 /* =========================================================
+   SAVE USER
+   ========================================================= */
+
+function saveGapinoUser(
+    user
+) {
+
+    if (!user) {
+        return;
+    }
+
+
+    try {
+
+        localStorage.setItem(
+            GAPINO_STORAGE_USER,
+            JSON.stringify(
+                user
+            )
+        );
+
+    } catch (error) {
+
+        console.warn(
+            "Save user error:",
+            error
+        );
+    }
+}
+
+
+/* =========================================================
+   CLEAR USER
+   ========================================================= */
+
+function clearGapinoUser() {
+
+    try {
+
+        localStorage.removeItem(
+            GAPINO_STORAGE_USER
+        );
+
+    } catch (_) {}
+}
+
+
+/* =========================================================
    LOGOUT
    ========================================================= */
 
@@ -320,7 +528,7 @@ async function gapinoLogout() {
     try {
 
         await gapinoFetch(
-            "/logout",
+            "/api/logout",
             {
                 method:
                     "POST"
@@ -336,13 +544,9 @@ async function gapinoLogout() {
     }
 
 
-    try {
+    clearGapinoUser();
 
-        localStorage.removeItem(
-            GAPINO_STORAGE_USER
-        );
-
-    } catch (_) {}
+    clearGapinoToken();
 
 
     window.location.replace(
@@ -598,7 +802,7 @@ function closeGapinoProfile() {
 
 
 /* =========================================================
-   WINDOW RESPONSIVE
+   RESPONSIVE
    ========================================================= */
 
 function handleGapinoResize() {
@@ -619,7 +823,7 @@ function handleGapinoResize() {
 
 
 /* =========================================================
-   BROWSER NOTIFICATION
+   NOTIFICATION
    ========================================================= */
 
 function isNotificationSupported() {
@@ -706,7 +910,7 @@ function showGapinoNotification(
 
 
 /* =========================================================
-   ONLINE STATUS
+   ONLINE
    ========================================================= */
 
 function gapinoIsOnline(
@@ -734,51 +938,7 @@ function gapinoGetUserId(
 
 
 /* =========================================================
-   LOCAL USER HELPERS
-   ========================================================= */
-
-function saveGapinoUser(
-    user
-) {
-
-    if (!user) {
-        return;
-    }
-
-
-    try {
-
-        localStorage.setItem(
-            GAPINO_STORAGE_USER,
-            JSON.stringify(
-                user
-            )
-        );
-
-    } catch (error) {
-
-        console.warn(
-            "Save user error:",
-            error
-        );
-    }
-}
-
-
-function clearGapinoUser() {
-
-    try {
-
-        localStorage.removeItem(
-            GAPINO_STORAGE_USER
-        );
-
-    } catch (_) {}
-}
-
-
-/* =========================================================
-   DOCUMENT VISIBILITY
+   VISIBILITY
    ========================================================= */
 
 document.addEventListener(
@@ -789,11 +949,6 @@ document.addEventListener(
             document.visibilityState ===
             "visible"
         ) {
-
-            /*
-             * chat.js مسئول WebSocket است.
-             * اینجا فقط UI عمومی را به‌روز می‌کنیم.
-             */
 
             updateThemeButton();
         }
@@ -824,11 +979,6 @@ document.addEventListener(
         }
 
 
-        /*
-         * Ctrl + Shift + T
-         * تغییر تم
-         */
-
         if (
             event.ctrlKey &&
             event.shiftKey &&
@@ -841,11 +991,6 @@ document.addEventListener(
             toggleGapinoTheme();
         }
 
-
-        /*
-         * Ctrl + K
-         * تمرکز روی جستجوی کاربران
-         */
 
         if (
             event.ctrlKey &&
@@ -903,16 +1048,6 @@ document.addEventListener(
    EVENTS
    ========================================================= */
 
-
-/*
- * تم
- *
- * توجه:
- * chat.html خودش هم Theme System دارد.
- * بنابراین اگر listener قبلی وجود داشته باشد،
- * از ثبت دوباره جلوگیری می‌کنیم.
- */
-
 if (themeButton) {
 
     themeButton.addEventListener(
@@ -927,10 +1062,6 @@ if (themeButton) {
 }
 
 
-/*
- * منوی موبایل
- */
-
 mobileMenuButton?.addEventListener(
     "click",
     event => {
@@ -942,16 +1073,11 @@ mobileMenuButton?.addEventListener(
 );
 
 
-/*
- * دکمه منو
- */
-
 menuButton?.addEventListener(
     "click",
     event => {
 
         event.preventDefault();
-
 
         if (
             window.innerWidth <=
@@ -963,10 +1089,6 @@ menuButton?.addEventListener(
     }
 );
 
-
-/*
- * Overlay
- */
 
 appOverlay?.addEventListener(
     "click",
@@ -980,10 +1102,6 @@ appOverlay?.addEventListener(
     }
 );
 
-
-/*
- * پروفایل
- */
 
 profileButton?.addEventListener(
     "click",
@@ -1018,10 +1136,6 @@ closeProfile?.addEventListener(
 );
 
 
-/*
- * خروج
- */
-
 logoutButton?.addEventListener(
     "click",
     async event => {
@@ -1034,40 +1148,15 @@ logoutButton?.addEventListener(
 
 
 /* =========================================================
-   BEFORE UNLOAD
-   ========================================================= */
-
-window.addEventListener(
-    "beforeunload",
-    () => {
-
-        /*
-         * WebSocket و میکروفن
-         * توسط chat.js مدیریت می‌شوند.
-         */
-
-    }
-);
-
-
-/* =========================================================
    INIT
    ========================================================= */
 
 function initGapinoApp() {
 
-    /*
-     * تم اولیه
-     */
-
     applyGapinoTheme(
         getSavedTheme()
     );
 
-
-    /*
-     * overlay اولیه
-     */
 
     if (appOverlay) {
 
@@ -1078,11 +1167,6 @@ function initGapinoApp() {
             "none";
     }
 
-
-    /*
-     * در شروع،
-     * پروفایل بسته باشد.
-     */
 
     if (profilePanel) {
 
@@ -1095,25 +1179,6 @@ function initGapinoApp() {
     }
 
 
-    /*
-     * شروع درخواست Notification
-     * اختیاری و بدون توقف صفحه
-     */
-
-    setTimeout(
-        () => {
-
-            requestGapinoNotifications();
-
-        },
-        1200
-    );
-
-
-    /*
-     * ذخیره کاربر موجود
-     */
-
     const storedUser =
         getStoredGapinoUser();
 
@@ -1125,8 +1190,56 @@ function initGapinoApp() {
     }
 
 
+    /*
+     * Session را در پس‌زمینه بررسی کن.
+     * این قسمت برای APK بسیار مهم است.
+     */
+
+    getGapinoSession()
+        .then(
+            user => {
+
+                if (user) {
+
+                    window.GAPINO_CURRENT_USER =
+                        user;
+
+                    console.log(
+                        "✅ GAPINO user:",
+                        user.username
+                    );
+                }
+
+            }
+        )
+        .catch(
+            error => {
+
+                console.warn(
+                    "GAPINO session init:",
+                    error
+                );
+            }
+        );
+
+
+    setTimeout(
+        () => {
+
+            requestGapinoNotifications();
+
+        },
+        1200
+    );
+
+
     console.log(
         "✅ GAPINO app.js loaded"
+    );
+
+    console.log(
+        "🌐 GAPINO API:",
+        GAPINO_API
     );
 }
 
@@ -1139,6 +1252,9 @@ window.GAPINO = {
 
     api:
         GAPINO_API,
+
+    apiUrl:
+        gapinoApiUrl,
 
     fetch:
         gapinoFetch,
@@ -1171,7 +1287,10 @@ window.GAPINO = {
         getGapinoSession,
 
     getStoredUser:
-        getStoredGapinoUser
+        getStoredGapinoUser,
+
+    getToken:
+        getGapinoToken
 };
 
 
