@@ -3,8 +3,14 @@
 /* =========================================================
    GAPINO PRO
    app.js
-   نسخه هماهنگ با:
-   https://mygapino.shop
+   نسخه اصلاح‌شده برای:
+   - نمایش کاربران
+   - لمس کاربران در APK
+   - منوی سه‌خط
+   - Overlay
+   - WebSocket
+   - پروفایل
+   - پیام‌ها
    ========================================================= */
 
 
@@ -50,6 +56,8 @@ let audioChunks = [];
 
 let profileLoaded = false;
 let toastTimer = null;
+
+let sidebarOpen = false;
 
 
 /* =========================================================
@@ -190,8 +198,10 @@ function apiUrl(path) {
         return API_BASE;
     }
 
-    if (path.startsWith("http://") ||
-        path.startsWith("https://")) {
+    if (
+        path.startsWith("http://") ||
+        path.startsWith("https://")
+    ) {
         return path;
     }
 
@@ -268,7 +278,10 @@ function avatarUrl(value) {
         return "";
     }
 
-    return value.startsWith("http")
+    return (
+        value.startsWith("http://") ||
+        value.startsWith("https://")
+    )
         ? value
         : apiUrl(value);
 }
@@ -284,13 +297,12 @@ function avatarHtml(
 
     if (avatar) {
 
-        const src =
-            avatarUrl(avatar);
-
         return `
             <div class="avatar ${extraClass}">
                 <img
-                    src="${escapeHtml(src)}"
+                    src="${escapeHtml(
+                        avatarUrl(avatar)
+                    )}"
                     alt=""
                     class="avatar-image"
                     loading="lazy"
@@ -352,11 +364,8 @@ function showToast(
 async function readJson(response) {
 
     try {
-
         return await response.json();
-
     } catch {
-
         return null;
     }
 }
@@ -408,7 +417,6 @@ async function prepareWebSocketSession() {
             );
 
         if (!response.ok) {
-
             throw new Error(
                 "نشست WebSocket ایجاد نشد."
             );
@@ -418,8 +426,7 @@ async function prepareWebSocketSession() {
             await readJson(response);
 
         if (data) {
-            currentUser =
-                data;
+            currentUser = data;
         }
 
         return true;
@@ -432,6 +439,59 @@ async function prepareWebSocketSession() {
         );
 
         return false;
+    }
+}
+
+
+/* =========================================================
+   CURRENT USER
+   ========================================================= */
+
+function renderCurrentUser() {
+
+    if (!currentUser) {
+        return;
+    }
+
+    if (currentDisplayName) {
+
+        currentDisplayName.textContent =
+            currentUser.display_name ||
+            currentUser.username ||
+            "گپینو";
+    }
+
+    if (currentUsername) {
+
+        currentUsername.textContent =
+            currentUser.username
+                ? `@${currentUser.username}`
+                : "@user";
+    }
+
+    if (currentAvatar) {
+
+        if (currentUser.avatar) {
+
+            currentAvatar.innerHTML = `
+                <img
+                    src="${escapeHtml(
+                        avatarUrl(
+                            currentUser.avatar
+                        )
+                    )}"
+                    alt=""
+                    class="avatar-image"
+                >
+            `;
+
+        } else {
+
+            currentAvatar.textContent =
+                avatarLetter(
+                    currentUser
+                );
+        }
     }
 }
 
@@ -466,58 +526,6 @@ async function loadCurrentUser() {
 }
 
 
-function renderCurrentUser() {
-
-    if (!currentUser) {
-        return;
-    }
-
-    if (currentDisplayName) {
-
-        currentDisplayName.textContent =
-            currentUser.display_name ||
-            currentUser.username ||
-            "گپینو";
-    }
-
-
-    if (currentUsername) {
-
-        currentUsername.textContent =
-            currentUser.username
-                ? `@${currentUser.username}`
-                : "@user";
-    }
-
-
-    if (currentAvatar) {
-
-        if (currentUser.avatar) {
-
-            const src =
-                avatarUrl(
-                    currentUser.avatar
-                );
-
-            currentAvatar.innerHTML = `
-                <img
-                    src="${escapeHtml(src)}"
-                    alt=""
-                    class="avatar-image"
-                >
-            `;
-
-        } else {
-
-            currentAvatar.textContent =
-                avatarLetter(
-                    currentUser
-                );
-        }
-    }
-}
-
-
 /* =========================================================
    USERS
    ========================================================= */
@@ -541,7 +549,11 @@ async function loadUsers() {
                 {
                     method: "GET",
                     credentials: "include",
-                    cache: "no-store"
+                    cache: "no-store",
+                    headers: {
+                        "Accept":
+                            "application/json"
+                    }
                 }
             );
 
@@ -551,6 +563,20 @@ async function loadUsers() {
 
 
         if (!response.ok) {
+
+            if (
+                response.status === 401
+            ) {
+
+                localStorage.removeItem(
+                    "gapino_user"
+                );
+
+                window.location.href =
+                    "/login.html";
+
+                return;
+            }
 
             throw new Error(
                 data?.detail ||
@@ -564,6 +590,11 @@ async function loadUsers() {
                 ? data
                 : [];
 
+
+        /*
+         * کاربر انتخاب‌شده را در زمان جستجو
+         * از بین نبر.
+         */
 
         if (
             selectedUser &&
@@ -585,12 +616,16 @@ async function loadUsers() {
 
     } catch (error) {
 
-        console.error(error);
+        console.error(
+            "loadUsers error:",
+            error
+        );
 
         if (userList) {
 
             userList.innerHTML = `
                 <div class="empty-users">
+
                     <div class="empty-icon">
                         ⚠️
                     </div>
@@ -600,10 +635,41 @@ async function loadUsers() {
                     </strong>
 
                     <span>
-                        اتصال سرور را بررسی کنید.
+                        ${escapeHtml(
+                            error.message ||
+                            "اتصال سرور را بررسی کنید."
+                        )}
                     </span>
+
+                    <button
+                        type="button"
+                        class="secondary-button"
+                        id="retryUsersButton"
+                        style="margin-top:12px"
+                    >
+                        تلاش دوباره
+                    </button>
+
                 </div>
             `;
+
+
+            const retry =
+                document.getElementById(
+                    "retryUsersButton"
+                );
+
+
+            if (retry) {
+
+                retry.addEventListener(
+                    "click",
+                    () => {
+
+                        loadUsers();
+                    }
+                );
+            }
         }
     }
 }
@@ -619,7 +685,9 @@ function renderUsers() {
     if (userCount) {
 
         userCount.textContent =
-            String(users.length);
+            String(
+                users.length
+            );
     }
 
 
@@ -635,14 +703,18 @@ function renderUsers() {
             <div class="empty-users">
 
                 <div class="empty-icon">
-                    ${searching ? "🔎" : "💬"}
+                    ${
+                        searching
+                            ? "🔎"
+                            : "💬"
+                    }
                 </div>
 
                 <strong>
                     ${
                         searching
                             ? "کاربری پیدا نشد"
-                            : "هنوز کاربری وجود ندارد"
+                            : "هنوز کاربر دیگری وجود ندارد"
                     }
                 </strong>
 
@@ -661,6 +733,10 @@ function renderUsers() {
     }
 
 
+    /*
+     * ساخت لیست کاربران
+     */
+
     userList.innerHTML =
         users
             .map(
@@ -668,11 +744,18 @@ function renderUsers() {
 
                     const active =
                         selectedUser &&
-                        Number(selectedUser.id) ===
-                        Number(user.id);
+                        Number(
+                            selectedUser.id
+                        ) ===
+                        Number(
+                            user.id
+                        );
+
 
                     const online =
-                        Boolean(user.online);
+                        Boolean(
+                            user.online
+                        );
 
 
                     return `
@@ -683,7 +766,9 @@ function renderUsers() {
                                 ${active ? "active" : ""}
                                 ${online ? "online" : ""}
                             "
-                            data-user-id="${Number(user.id)}"
+                            data-user-id="${Number(
+                                user.id
+                            )}"
                         >
 
                             ${avatarHtml(user)}
@@ -722,33 +807,78 @@ function renderUsers() {
             .join("");
 
 
+    /*
+     * رویداد لمس/کلیک کاربر
+     */
+
     userList
-        .querySelectorAll(".user-item")
+        .querySelectorAll(
+            ".user-item"
+        )
         .forEach(
             button => {
 
+                /*
+                 * pointerdown برای Android/WebView
+                 */
+
+                button.addEventListener(
+                    "pointerdown",
+                    event => {
+
+                        if (
+                            event.pointerType ===
+                            "touch"
+                        ) {
+
+                            button.dataset.touchStarted =
+                                "true";
+                        }
+                    },
+                    {
+                        passive: true
+                    }
+                );
+
+
                 button.addEventListener(
                     "click",
-                    async () => {
+                    async event => {
+
+                        event.preventDefault();
+                        event.stopPropagation();
+
 
                         const id =
                             Number(
                                 button.dataset.userId
                             );
 
+
+                        if (
+                            !Number.isFinite(id)
+                        ) {
+                            return;
+                        }
+
+
                         const user =
                             users.find(
                                 item =>
-                                    Number(item.id) ===
-                                    id
+                                    Number(
+                                        item.id
+                                    ) === id
                             );
 
-                        if (user) {
 
-                            await selectUser(
-                                user
-                            );
+                        if (!user) {
+                            return;
                         }
+
+
+                        await selectUser(
+                            user
+                        );
                     }
                 );
             }
@@ -771,21 +901,40 @@ async function selectUser(user) {
         user;
 
 
+    /*
+     * ابتدا منو را ببند.
+     * این قسمت مهم است تا Overlay روی صفحه باقی نماند.
+     */
+
+    closeSidebarMobile(
+        true
+    );
+
+
     renderUsers();
 
     renderChatHeader();
 
     showChat();
 
-    closeSidebarMobile();
 
+    try {
 
-    await loadMessages();
+        await loadMessages();
+
+    } catch (error) {
+
+        console.error(
+            "selectUser / loadMessages:",
+            error
+        );
+    }
 
 
     if (
         !socket ||
-        socket.readyState !== WebSocket.OPEN
+        socket.readyState !==
+            WebSocket.OPEN
     ) {
 
         await prepareWebSocketSession();
@@ -802,6 +951,10 @@ async function selectUser(user) {
     }
 }
 
+
+/* =========================================================
+   CHAT HEADER
+   ========================================================= */
 
 function renderChatHeader() {
 
@@ -846,7 +999,10 @@ function renderChatHeader() {
     if (chatStatus) {
 
         const online =
-            Boolean(selectedUser.online);
+            Boolean(
+                selectedUser.online
+            );
+
 
         chatStatus.textContent =
             online
@@ -855,6 +1011,7 @@ function renderChatHeader() {
                     selectedUser.status ||
                     "آفلاین"
                 );
+
 
         chatStatus.classList.toggle(
             "online",
@@ -867,14 +1024,13 @@ function renderChatHeader() {
 
         if (selectedUser.avatar) {
 
-            const src =
-                avatarUrl(
-                    selectedUser.avatar
-                );
-
             chatAvatar.innerHTML = `
                 <img
-                    src="${escapeHtml(src)}"
+                    src="${escapeHtml(
+                        avatarUrl(
+                            selectedUser.avatar
+                        )
+                    )}"
                     alt=""
                     class="avatar-image"
                 >
@@ -935,68 +1091,67 @@ function showWelcome() {
 
 async function loadMessages() {
 
-    if (!selectedUser || !currentUser) {
+    if (
+        !selectedUser ||
+        !currentUser
+    ) {
         return;
     }
 
 
-    try {
-
-        const response =
-            await fetch(
-                apiUrl(
-                    `/api/messages/${Number(selectedUser.id)}`
-                ),
-                {
-                    method: "GET",
-                    credentials: "include",
-                    cache: "no-store"
+    const response =
+        await fetch(
+            apiUrl(
+                `/api/messages/${Number(
+                    selectedUser.id
+                )}`
+            ),
+            {
+                method: "GET",
+                credentials: "include",
+                cache: "no-store",
+                headers: {
+                    "Accept":
+                        "application/json"
                 }
-            );
+            }
+        );
 
 
-        const data =
-            await readJson(response);
+    const data =
+        await readJson(response);
 
 
-        if (!response.ok) {
+    if (!response.ok) {
 
-            throw new Error(
-                data?.detail ||
-                "دریافت پیام‌ها ناموفق بود."
-            );
-        }
-
-
-        messages =
-            Array.isArray(data)
-                ? data
-                : [];
-
-
-        renderMessages();
-
-        scrollMessagesToBottom();
-
-
-    } catch (error) {
-
-        console.error(error);
-
-        showToast(
-            error.message ||
-            "دریافت پیام‌ها انجام نشد.",
-            "error"
+        throw new Error(
+            data?.detail ||
+            "دریافت پیام‌ها ناموفق بود."
         );
     }
+
+
+    messages =
+        Array.isArray(data)
+            ? data
+            : [];
+
+
+    renderMessages();
+
+    scrollMessagesToBottom();
 }
 
 
 function isMyMessage(message) {
 
     return (
-        Number(message?.sender_id) ===
-        Number(currentUser?.id)
+        Number(
+            message?.sender_id
+        ) ===
+        Number(
+            currentUser?.id
+        )
     );
 }
 
@@ -1016,7 +1171,7 @@ function renderMessages() {
                     margin:auto;
                     text-align:center;
                     color:var(--muted);
-                    font-size:8px;
+                    font-size:16px;
                     padding:30px;
                 "
             >
@@ -1061,7 +1216,9 @@ function renderMessages() {
 }
 
 
-function renderSingleMessage(message) {
+function renderSingleMessage(
+    message
+) {
 
     const mine =
         isMyMessage(message);
@@ -1140,9 +1297,13 @@ function renderSingleMessage(message) {
                         <img
                             src="${escapeHtml(url)}"
                             class="message-image"
-                            alt="${escapeHtml(fileName)}"
+                            alt="${escapeHtml(
+                                fileName
+                            )}"
                             loading="lazy"
-                            data-image-url="${escapeHtml(url)}"
+                            data-image-url="${escapeHtml(
+                                url
+                            )}"
                         >
 
                     </div>
@@ -1160,7 +1321,9 @@ function renderSingleMessage(message) {
                         <audio
                             controls
                             preload="metadata"
-                            src="${escapeHtml(url)}"
+                            src="${escapeHtml(
+                                url
+                            )}"
                         ></audio>
 
                     </div>
@@ -1183,12 +1346,16 @@ function renderSingleMessage(message) {
                         <div class="message-file-info">
 
                             <div class="message-file-name">
-                                ${escapeHtml(fileName)}
+                                ${escapeHtml(
+                                    fileName
+                                )}
                             </div>
 
                             <a
                                 class="message-file-link"
-                                href="${escapeHtml(url)}"
+                                href="${escapeHtml(
+                                    url
+                                )}"
                                 target="_blank"
                                 rel="noopener noreferrer"
                             >
@@ -1230,7 +1397,9 @@ function renderSingleMessage(message) {
                 message-row
                 ${mine ? "mine" : "theirs"}
             "
-            data-message-id="${Number(message.id)}"
+            data-message-id="${Number(
+                message.id
+            )}"
         >
 
             <div
@@ -1239,8 +1408,12 @@ function renderSingleMessage(message) {
                     ${mine ? "mine" : "theirs"}
                     ${deleted ? "deleted" : ""}
                 "
-                data-message-id="${Number(message.id)}"
-                ${!deleted ? 'data-message-menu="true"' : ""}
+                data-message-id="${Number(
+                    message.id
+                )}"
+                ${!deleted
+                    ? 'data-message-menu="true"'
+                    : ""}
             >
 
                 ${content}
@@ -1368,10 +1541,6 @@ function openMessageMenu(
         "dynamicMessageMenu";
 
 
-    const mine =
-        isMyMessage(message);
-
-
     menu.innerHTML = `
 
         <button
@@ -1383,7 +1552,7 @@ function openMessageMenu(
         </button>
 
         ${
-            mine
+            isMyMessage(message)
                 ? `
                     <button
                         type="button"
@@ -1404,25 +1573,38 @@ function openMessageMenu(
                 `
                 : ""
         }
-
     `;
+
+
+    const x =
+        Number(event.clientX || 0);
+
+    const y =
+        Number(event.clientY || 0);
 
 
     menu.style.position =
         "fixed";
 
+    menu.style.zIndex =
+        "100000";
 
     menu.style.left =
-        `${Math.min(
-            event.clientX,
-            window.innerWidth - 150
+        `${Math.max(
+            8,
+            Math.min(
+                x,
+                window.innerWidth - 160
+            )
         )}px`;
 
-
     menu.style.top =
-        `${Math.min(
-            event.clientY,
-            window.innerHeight - 140
+        `${Math.max(
+            8,
+            Math.min(
+                y,
+                window.innerHeight - 140
+            )
         )}px`;
 
 
@@ -1450,6 +1632,7 @@ function openMessageMenu(
                         action ===
                         "copy"
                     ) {
+
                         await copyMessage(
                             message
                         );
@@ -1460,6 +1643,7 @@ function openMessageMenu(
                         action ===
                         "edit"
                     ) {
+
                         await editMessage(
                             message
                         );
@@ -1470,6 +1654,7 @@ function openMessageMenu(
                         action ===
                         "delete"
                     ) {
+
                         await deleteMessage(
                             message
                         );
@@ -1498,7 +1683,6 @@ function openMessageMenu(
 
 
 function closeMessageMenuOnce() {
-
     closeMessageMenu();
 }
 
@@ -1606,7 +1790,9 @@ async function editMessage(
         const response =
             await fetch(
                 apiUrl(
-                    `/api/messages/${Number(message.id)}/edit`
+                    `/api/messages/${Number(
+                        message.id
+                    )}/edit`
                 ),
                 {
                     method:
@@ -1687,7 +1873,9 @@ async function deleteMessage(
         const response =
             await fetch(
                 apiUrl(
-                    `/api/messages/${Number(message.id)}`
+                    `/api/messages/${Number(
+                        message.id
+                    )}`
                 ),
                 {
                     method:
@@ -1742,7 +1930,9 @@ function replaceMessage(
         messages.findIndex(
             item =>
                 Number(item.id) ===
-                Number(updatedMessage.id)
+                Number(
+                    updatedMessage.id
+                )
         );
 
 
@@ -1827,6 +2017,9 @@ async function sendMessage() {
 
                     headers: {
                         "Content-Type":
+                            "application/json",
+
+                        "Accept":
                             "application/json"
                     },
 
@@ -1836,7 +2029,6 @@ async function sendMessage() {
                                 Number(
                                     selectedUser.id
                                 ),
-
                             text
                         })
                 }
@@ -1864,11 +2056,9 @@ async function sendMessage() {
 
         resizeMessageInput();
 
-
         addOrReplaceMessage(
             data
         );
-
 
         scrollMessagesToBottom();
 
@@ -1898,6 +2088,10 @@ async function sendMessage() {
     }
 }
 
+
+/* =========================================================
+   ADD MESSAGE
+   ========================================================= */
 
 function addOrReplaceMessage(
     message
@@ -1941,7 +2135,7 @@ function addOrReplaceMessage(
 
 
 /* =========================================================
-   FILES
+   FILE UPLOAD
    ========================================================= */
 
 async function uploadFile(
@@ -2232,7 +2426,6 @@ function stopVoiceRecording() {
             "در حال آماده‌سازی پیام صوتی..."
         );
 
-
     } catch {
 
         mediaRecorder =
@@ -2258,9 +2451,6 @@ function updateVoiceButton() {
         voiceButton.title =
             "توقف ضبط";
 
-        voiceButton.style.background =
-            "rgba(239,68,68,.10)";
-
     } else {
 
         voiceButton.textContent =
@@ -2268,9 +2458,6 @@ function updateVoiceButton() {
 
         voiceButton.title =
             "ضبط پیام صوتی";
-
-        voiceButton.style.background =
-            "";
     }
 }
 
@@ -2294,9 +2481,7 @@ async function connectSocket() {
     }
 
 
-    disconnectSocket(
-        false
-    );
+    disconnectSocket(false);
 
 
     const sessionReady =
@@ -2326,16 +2511,9 @@ async function connectSocket() {
                 socketReconnectAttempts =
                     0;
 
-
                 console.log(
                     "GAPINO WebSocket connected:",
                     `${WS_BASE}/ws`
-                );
-
-
-                showToast(
-                    "اتصال زنده برقرار شد. ✅",
-                    "success"
                 );
 
 
@@ -2481,9 +2659,7 @@ function disconnectSocket(
     if (socket) {
 
         try {
-
             socket.close();
-
         } catch {}
 
         socket =
@@ -2491,6 +2667,10 @@ function disconnectSocket(
     }
 }
 
+
+/* =========================================================
+   SOCKET MESSAGE
+   ========================================================= */
 
 function handleSocketMessage(
     rawData
@@ -2594,14 +2774,83 @@ function handleSocketMessage(
             break;
 
 
+        case "profile_updated":
+
+            if (data.user) {
+
+                const updated =
+                    data.user;
+
+
+                users =
+                    users.map(
+                        user =>
+                            Number(
+                                user.id
+                            ) ===
+                            Number(
+                                updated.id
+                            )
+                                ? {
+                                    ...user,
+                                    ...updated
+                                }
+                                : user
+                    );
+
+
+                if (
+                    currentUser &&
+                    Number(
+                        currentUser.id
+                    ) ===
+                    Number(
+                        updated.id
+                    )
+                ) {
+
+                    currentUser =
+                        {
+                            ...currentUser,
+                            ...updated
+                        };
+
+                    renderCurrentUser();
+                }
+
+
+                if (
+                    selectedUser &&
+                    Number(
+                        selectedUser.id
+                    ) ===
+                    Number(
+                        updated.id
+                    )
+                ) {
+
+                    selectedUser =
+                        {
+                            ...selectedUser,
+                            ...updated
+                        };
+
+                    renderChatHeader();
+                }
+
+
+                renderUsers();
+            }
+
+            break;
+
+
         default:
 
             console.log(
                 "Unknown WebSocket event:",
                 data
             );
-
-            break;
     }
 }
 
@@ -2634,14 +2883,7 @@ function handleIncomingMessage(
     );
 
 
-    if (
-        Number(message.sender_id) !==
-        Number(currentUser?.id)
-    ) {
-
-        scrollMessagesToBottom();
-    }
-
+    scrollMessagesToBottom();
 
     refreshUsersSilently();
 }
@@ -2683,8 +2925,12 @@ function handleSocketReady(
             const refreshed =
                 users.find(
                     user =>
-                        Number(user.id) ===
-                        Number(selectedUser.id)
+                        Number(
+                            user.id
+                        ) ===
+                        Number(
+                            selectedUser.id
+                        )
                 );
 
 
@@ -2753,6 +2999,10 @@ function isRelevantMessage(
 }
 
 
+/* =========================================================
+   ONLINE USERS
+   ========================================================= */
+
 function updateUserOnlineState(
     userId,
     online
@@ -2784,8 +3034,9 @@ function updateUserOnlineState(
 
     if (
         selectedUser &&
-        Number(selectedUser.id) ===
-        id
+        Number(
+            selectedUser.id
+        ) === id
     ) {
 
         selectedUser =
@@ -2801,6 +3052,10 @@ function updateUserOnlineState(
     renderUsers();
 }
 
+
+/* =========================================================
+   TYPING
+   ========================================================= */
 
 function sendSocketTyping(
     value
@@ -2830,9 +3085,7 @@ function sendSocketTyping(
                         ),
 
                     value:
-                        Boolean(
-                            value
-                        )
+                        Boolean(value)
                 }
             )
         );
@@ -2895,11 +3148,14 @@ function showTyping(value) {
         return;
     }
 
-
     typingArea.hidden =
         !value;
 }
 
+
+/* =========================================================
+   USERS SILENT REFRESH
+   ========================================================= */
 
 function refreshUsersSilently() {
 
@@ -2933,10 +3189,7 @@ function openProfile() {
     );
 
 
-    if (appOverlay) {
-        appOverlay.hidden =
-            false;
-    }
+    openOverlay();
 
 
     loadProfileIntoPanel();
@@ -2955,28 +3208,12 @@ function closeProfilePanel() {
     );
 
 
-    window.setTimeout(
-        () => {
-
-            if (
-                !profilePanel.classList.contains(
-                    "open"
-                )
-            ) {
-
-                profilePanel.hidden =
-                    true;
-            }
-
-        },
-        250
-    );
+    profilePanel.hidden =
+        true;
 
 
-    if (appOverlay) {
-
-        appOverlay.hidden =
-            true;
+    if (!sidebarOpen) {
+        closeOverlay();
     }
 }
 
@@ -3144,7 +3381,6 @@ async function saveCurrentProfile() {
     try {
 
         if (saveProfile) {
-
             saveProfile.disabled =
                 true;
         }
@@ -3171,9 +3407,7 @@ async function saveCurrentProfile() {
                         JSON.stringify({
                             display_name:
                                 display,
-
                             bio,
-
                             status
                         })
                 }
@@ -3229,11 +3463,48 @@ async function saveCurrentProfile() {
     } finally {
 
         if (saveProfile) {
-
             saveProfile.disabled =
                 false;
         }
     }
+}
+
+
+/* =========================================================
+   OVERLAY
+   ========================================================= */
+
+function openOverlay() {
+
+    if (!appOverlay) {
+        return;
+    }
+
+
+    appOverlay.hidden =
+        false;
+
+
+    appOverlay.classList.add(
+        "visible"
+    );
+}
+
+
+function closeOverlay() {
+
+    if (!appOverlay) {
+        return;
+    }
+
+
+    appOverlay.classList.remove(
+        "visible"
+    );
+
+
+    appOverlay.hidden =
+        true;
 }
 
 
@@ -3248,23 +3519,52 @@ function openSidebarMobile() {
     }
 
 
+    sidebarOpen =
+        true;
+
+
     appShell.classList.add(
         "sidebar-open"
     );
 
 
-    if (appOverlay) {
-        appOverlay.hidden =
-            false;
+    openOverlay();
+
+
+    /*
+     * مهم برای اندروید:
+     * سایدبار باید از overlay بالاتر باشد.
+     */
+
+    if (sidebar) {
+
+        sidebar.style.zIndex =
+            "10001";
+    }
+
+
+    if (userList) {
+
+        userList.style.pointerEvents =
+            "auto";
+
+        userList.style.touchAction =
+            "pan-y";
     }
 }
 
 
-function closeSidebarMobile() {
+function closeSidebarMobile(
+    force = false
+) {
 
     if (!appShell) {
         return;
     }
+
+
+    sidebarOpen =
+        false;
 
 
     appShell.classList.remove(
@@ -3272,34 +3572,31 @@ function closeSidebarMobile() {
     );
 
 
+    if (sidebar) {
+
+        sidebar.style.zIndex =
+            "";
+    }
+
+
+    /*
+     * حتماً overlay بسته شود.
+     */
+
     if (
-        profilePanel &&
-        !profilePanel.classList.contains(
-            "open"
-        ) &&
-        appOverlay
+        force ||
+        !profilePanel ||
+        profilePanel.hidden
     ) {
 
-        appOverlay.hidden =
-            true;
+        closeOverlay();
     }
 }
 
 
 function toggleSidebar() {
 
-    if (!appShell) {
-        return;
-    }
-
-
-    const open =
-        appShell.classList.contains(
-            "sidebar-open"
-        );
-
-
-    if (open) {
+    if (sidebarOpen) {
 
         closeSidebarMobile();
 
@@ -3555,7 +3852,11 @@ if (clearSearch) {
 
     clearSearch.addEventListener(
         "click",
-        () => {
+        event => {
+
+            event.preventDefault();
+            event.stopPropagation();
+
 
             if (userSearch) {
 
@@ -3628,7 +3929,7 @@ if (messageInput) {
 
 
 /* =========================================================
-   FILE BUTTONS
+   FILE
    ========================================================= */
 
 if (attachButton) {
@@ -3671,7 +3972,7 @@ if (fileInput) {
 
 
 /* =========================================================
-   VOICE BUTTON
+   VOICE
    ========================================================= */
 
 if (voiceButton) {
@@ -3687,14 +3988,16 @@ if (voiceButton) {
 
 
 /* =========================================================
-   PROFILE BUTTONS
+   PROFILE
    ========================================================= */
 
 if (profileButton) {
 
     profileButton.addEventListener(
         "click",
-        () => {
+        event => {
+
+            event.preventDefault();
 
             openProfile();
         }
@@ -3706,7 +4009,9 @@ if (profileHeaderButton) {
 
     profileHeaderButton.addEventListener(
         "click",
-        () => {
+        event => {
+
+            event.preventDefault();
 
             openProfile();
         }
@@ -3718,7 +4023,9 @@ if (closeProfile) {
 
     closeProfile.addEventListener(
         "click",
-        () => {
+        event => {
+
+            event.preventDefault();
 
             closeProfilePanel();
         }
@@ -3759,7 +4066,10 @@ if (menuButton) {
 
     menuButton.addEventListener(
         "click",
-        () => {
+        event => {
+
+            event.preventDefault();
+            event.stopPropagation();
 
             toggleSidebar();
         }
@@ -3771,7 +4081,10 @@ if (mobileMenuButton) {
 
     mobileMenuButton.addEventListener(
         "click",
-        () => {
+        event => {
+
+            event.preventDefault();
+            event.stopPropagation();
 
             toggleSidebar();
         }
@@ -3779,15 +4092,28 @@ if (mobileMenuButton) {
 }
 
 
+/* =========================================================
+   OVERLAY CLICK
+   ========================================================= */
+
 if (appOverlay) {
 
     appOverlay.addEventListener(
         "click",
-        () => {
+        event => {
+
+            event.preventDefault();
+            event.stopPropagation();
 
             closeSidebarMobile();
 
-            closeProfilePanel();
+            if (
+                profilePanel &&
+                !profilePanel.hidden
+            ) {
+
+                closeProfilePanel();
+            }
         }
     );
 }
@@ -3801,7 +4127,10 @@ if (refreshButton) {
 
     refreshButton.addEventListener(
         "click",
-        async () => {
+        async event => {
+
+            event.preventDefault();
+
 
             refreshButton.disabled =
                 true;
@@ -3821,6 +4150,15 @@ if (refreshButton) {
                 showToast(
                     "اطلاعات به‌روزرسانی شد. ✅",
                     "success"
+                );
+
+
+            } catch (error) {
+
+                showToast(
+                    error.message ||
+                    "به‌روزرسانی انجام نشد.",
+                    "error"
                 );
 
 
@@ -3852,6 +4190,11 @@ if (logoutButton) {
 
 /* =========================================================
    THEME BUTTON
+   =========================================================
+   فقط اینجا ثبت می‌شود.
+   chat.html نباید دوباره event مربوط به theme
+   ثبت کند؛ در حال حاضر برای جلوگیری از دوبار اجرا،
+   این handler فقط از همین فایل استفاده می‌کند.
    ========================================================= */
 
 const themeButton =
@@ -3864,7 +4207,10 @@ if (themeButton) {
 
     themeButton.addEventListener(
         "click",
-        () => {
+        event => {
+
+            event.preventDefault();
+            event.stopPropagation();
 
             toggleTheme();
         }
@@ -3890,7 +4236,9 @@ document.addEventListener(
 
             if (selectedUser) {
 
-                await loadMessages();
+                try {
+                    await loadMessages();
+                } catch {}
             }
 
 
@@ -3919,10 +4267,35 @@ window.addEventListener(
             window.innerWidth > 820
         ) {
 
-            closeSidebarMobile();
+            closeSidebarMobile(
+                true
+            );
         }
     }
 );
+
+
+/* =========================================================
+   ANDROID / TOUCH SAFETY
+   ========================================================= */
+
+if (userList) {
+
+    userList.addEventListener(
+        "touchstart",
+        event => {
+
+            /*
+             * اجازه اسکرول عمودی طبیعی
+             */
+            event.stopPropagation();
+
+        },
+        {
+            passive: true
+        }
+    );
+}
 
 
 /* =========================================================
@@ -3970,26 +4343,36 @@ async function startApp() {
     renderCurrentUser();
 
 
+    /*
+     * دریافت کاربران
+     */
+
     await loadUsers();
 
 
     /*
-     * Important:
-     * /api/me creates/refreshes the
-     * WebSocket ticket cookie.
+     * آماده‌سازی Session
      */
+
     await prepareWebSocketSession();
 
 
     /*
-     * Start live connection.
+     * اتصال WebSocket
      */
+
     await connectSocket();
 
 
     /*
-     * Refresh users every 15 seconds.
+     * بروزرسانی خودکار کاربران
      */
+
+    window.clearInterval(
+        usersRefreshTimer
+    );
+
+
     usersRefreshTimer =
         window.setInterval(
             () => {
