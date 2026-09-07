@@ -8,80 +8,347 @@
         content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     >
 
-    <meta
-        name="theme-color"
-        content="#0f172a"
-    >
+    <meta name="theme-color" content="#0f172a">
 
     <title>گپینو | چت</title>
 
     <link
         rel="stylesheet"
-        href="/static/style.css?v=306"
+        href="/static/style.css?v=308"
     >
 
     <style>
         /* =====================================================
-           GAPINO CHAT PAGE
-           Mobile / Desktop
+           پایه
            ===================================================== */
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+        }
 
         html,
         body {
+            width: 100%;
+            height: 100%;
             margin: 0;
             padding: 0;
-            width: 100%;
-            min-height: 100%;
+        }
+
+        html {
+            overflow: hidden;
         }
 
         body {
-            overflow-x: hidden;
+            overflow: hidden;
+            font-family: inherit;
+        }
+
+        button,
+        input,
+        textarea {
+            font: inherit;
         }
 
         /* =====================================================
-           CHAT HEADER
+           APP LAYOUT
            ===================================================== */
 
-        .chat-header {
-            display: flex !important;
-            align-items: center !important;
-            gap: 8px !important;
-            min-width: 0 !important;
+        .app-shell {
+            width: 100%;
+            height: 100dvh;
+            min-height: 100vh;
+
+            display: flex;
+            flex-direction: row;
+
+            overflow: hidden;
         }
 
-        .chat-contact {
-            display: flex !important;
-            align-items: center !important;
-            gap: 10px !important;
-            min-width: 0 !important;
-            flex: 1 1 auto !important;
+        /* =====================================================
+           SIDEBAR
+           در RTL سمت راست قرار می‌گیرد
+           ===================================================== */
+
+        .sidebar {
+            width: 340px;
+            min-width: 340px;
+            height: 100%;
+
+            display: flex;
+            flex-direction: column;
+
+            overflow: hidden;
         }
 
-        .chat-contact-info {
-            min-width: 0 !important;
+        .sidebar-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+
+            gap: 12px;
+            padding: 14px;
         }
 
-        .chat-contact-info strong,
-        .chat-contact-info span {
-            display: block;
+        .brand {
+            min-width: 0;
+
+            display: flex;
+            align-items: center;
+
+            gap: 10px;
+        }
+
+        .brand-logo {
+            flex: 0 0 auto;
+
+            width: 44px;
+            height: 44px;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            border-radius: 14px;
+
+            font-size: 20px;
+            font-weight: 900;
+        }
+
+        .brand-text {
+            min-width: 0;
+
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .brand-text strong {
+            font-size: 18px;
+            font-weight: 900;
+        }
+
+        .brand-text span {
+            font-size: 12px;
+            opacity: 0.65;
+        }
+
+        .search-box {
+            padding: 0 14px 12px;
+        }
+
+        .search-box input {
+            width: 100%;
+            height: 44px;
+
+            padding: 0 14px;
+
+            border-radius: 14px;
+            border: 0;
+            outline: none;
+        }
+
+        .users-list {
+            flex: 1 1 auto;
+            min-height: 0;
+
+            overflow-y: auto;
+            overflow-x: hidden;
+
+            padding: 6px 8px 10px;
+        }
+
+        .user-item {
+            width: 100%;
+
+            border: 0;
+            outline: none;
+            background: transparent;
+
+            display: flex;
+            align-items: center;
+
+            gap: 10px;
+
+            padding: 10px;
+
+            border-radius: 16px;
+
+            text-align: right;
+
+            cursor: pointer;
+        }
+
+        .user-item-avatar {
+            flex: 0 0 auto;
+
+            width: 48px;
+            height: 48px;
+
+            border-radius: 50%;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            overflow: hidden;
+        }
+
+        .user-item-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .user-item-info {
+            min-width: 0;
+            flex: 1;
+
+            display: flex;
+            flex-direction: column;
+
+            gap: 3px;
+        }
+
+        .user-item-info strong {
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
         }
 
+        .user-item-info span {
+            font-size: 12px;
+            opacity: 0.65;
+
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .sidebar-footer {
+            flex: 0 0 auto;
+
+            display: flex;
+            gap: 8px;
+
+            padding: 10px 12px 14px;
+        }
+
+        .sidebar-action {
+            flex: 1;
+
+            min-height: 42px;
+
+            border: 0;
+            border-radius: 14px;
+
+            cursor: pointer;
+        }
+
+        /* =====================================================
+           CHAT AREA
+           ===================================================== */
+
+        .chat-area {
+            min-width: 0;
+            min-height: 0;
+
+            flex: 1 1 auto;
+
+            display: flex;
+            flex-direction: column;
+
+            overflow: hidden;
+        }
+
+        /* =====================================================
+           HEADER
+           ===================================================== */
+
+        .chat-header {
+            flex: 0 0 auto;
+
+            width: 100%;
+            min-height: 72px;
+
+            display: flex;
+            align-items: center;
+
+            gap: 10px;
+
+            padding: 10px 14px;
+
+            overflow: hidden;
+        }
+
+        .chat-contact {
+            min-width: 0;
+            flex: 1 1 auto;
+
+            display: flex;
+            align-items: center;
+
+            gap: 10px;
+        }
+
+        .chat-avatar {
+            flex: 0 0 auto;
+
+            width: 48px;
+            height: 48px;
+
+            border-radius: 50%;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            overflow: hidden;
+        }
+
+        .chat-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .chat-contact-info {
+            min-width: 0;
+
+            display: flex;
+            flex-direction: column;
+
+            gap: 3px;
+        }
+
+        .chat-contact-info strong,
+        .chat-contact-info span {
+            display: block;
+
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .chat-contact-info span {
+            font-size: 12px;
+            opacity: 0.65;
+        }
+
         .chat-header-actions {
-            display: flex !important;
-            align-items: center !important;
-            justify-content: flex-end !important;
-            gap: 5px !important;
-            margin-inline-start: auto !important;
-            flex: 0 0 auto !important;
+            flex: 0 0 auto;
+
+            display: flex;
+            align-items: center;
+
+            gap: 5px;
+
+            margin-inline-start: auto;
         }
 
         .chat-header-actions .icon-button {
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
+            flex: 0 0 auto;
 
             width: 42px !important;
             min-width: 42px !important;
@@ -92,43 +359,363 @@
             max-height: 42px !important;
 
             padding: 0 !important;
-            border-radius: 12px !important;
+
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
 
             visibility: visible !important;
-            opacity: 1 !important;
         }
 
         #callButton {
             display: flex !important;
             visibility: visible !important;
             opacity: 1 !important;
+
             pointer-events: auto !important;
+
             font-size: 19px !important;
-            cursor: pointer;
         }
 
         #callButton:disabled {
-            opacity: 0.5 !important;
-            cursor: not-allowed !important;
+            opacity: 0.45 !important;
         }
 
         /* =====================================================
-           CALL OVERLAY
+           MESSAGES AREA
            ===================================================== */
 
-        .gapino-call-overlay {
-            position: fixed;
-            inset: 0;
-            z-index: 99999;
+        .messages-container {
+            position: relative;
+
+            flex: 1 1 auto;
+            min-height: 0;
+
+            overflow-y: auto;
+            overflow-x: hidden;
+
+            padding: 18px 16px 12px;
+
+            scroll-behavior: smooth;
+        }
+
+        .messages-list {
+            width: 100%;
+
+            display: flex;
+            flex-direction: column;
+
+            gap: 8px;
+        }
+
+        .message-row {
+            width: 100%;
+
+            display: flex;
+        }
+
+        .message-row.mine {
+            justify-content: flex-start;
+        }
+
+        .message-row.theirs {
+            justify-content: flex-end;
+        }
+
+        .message-bubble {
+            max-width: min(72%, 680px);
+
+            padding: 10px 13px;
+
+            border-radius: 18px;
+
+            overflow-wrap: anywhere;
+            word-break: break-word;
+
+            line-height: 1.65;
+        }
+
+        .message-file-link {
+            text-decoration: none;
+            overflow-wrap: anywhere;
+        }
+
+        .empty-chat {
+            min-height: 100%;
+
+            display: flex;
+            flex-direction: column;
+
+            align-items: center;
+            justify-content: center;
+
+            text-align: center;
+
+            padding: 30px;
+        }
+
+        .empty-chat-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+
+        .empty-chat h2 {
+            margin: 0 0 8px;
+        }
+
+        .empty-chat p {
+            margin: 0;
+
+            opacity: 0.65;
+        }
+
+        .typing-indicator {
+            position: sticky;
+
+            bottom: 8px;
+
+            width: max-content;
+
+            margin-top: 5px;
+
+            padding: 6px 11px;
+
+            border-radius: 12px;
+
+            font-size: 12px;
+        }
+
+        /* =====================================================
+           COMPOSER
+           ===================================================== */
+
+        .chat-composer {
+            flex: 0 0 auto;
+
+            display: flex;
+            align-items: flex-end;
+
+            gap: 8px;
+
+            padding:
+                10px 12px
+                max(
+                    10px,
+                    env(safe-area-inset-bottom)
+                );
+        }
+
+        .chat-composer textarea {
+            flex: 1 1 auto;
+
+            min-width: 0;
+            max-height: 150px;
+
+            resize: none;
+
+            padding: 11px 14px;
+
+            border-radius: 18px;
+
+            outline: none;
+        }
+
+        .composer-button,
+        .send-button {
+            flex: 0 0 auto;
+
+            width: 44px;
+            height: 44px;
+
+            min-width: 44px;
+            min-height: 44px;
+
+            border: 0;
+            border-radius: 14px;
 
             display: flex;
             align-items: center;
             justify-content: center;
 
-            padding: 20px;
+            cursor: pointer;
+        }
 
-            background: rgba(2, 6, 23, 0.78);
-            backdrop-filter: blur(12px);
+        /* =====================================================
+           PROFILE / SEARCH MODAL
+           ===================================================== */
+
+        .modal-overlay {
+            position: fixed;
+
+            inset: 0;
+
+            z-index: 100000;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            padding: 18px;
+
+            background: rgba(2, 6, 23, 0.74);
+            backdrop-filter: blur(8px);
+        }
+
+        .modal-overlay[hidden] {
+            display: none !important;
+        }
+
+        .modal-card {
+            width: min(440px, 100%);
+            max-height: calc(100dvh - 36px);
+
+            overflow: auto;
+
+            position: relative;
+
+            padding: 22px;
+
+            border-radius: 24px;
+        }
+
+        .modal-close {
+            position: absolute;
+
+            inset-inline-start: 14px;
+            top: 12px;
+
+            width: 36px;
+            height: 36px;
+
+            border: 0;
+            border-radius: 10px;
+
+            cursor: pointer;
+        }
+
+        .modal-header {
+            margin-bottom: 18px;
+        }
+
+        .profile-form {
+            display: flex;
+            flex-direction: column;
+
+            gap: 10px;
+        }
+
+        .profile-avatar-preview {
+            width: 88px;
+            height: 88px;
+
+            margin: 0 auto 10px;
+
+            border-radius: 50%;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            overflow: hidden;
+
+            font-size: 28px;
+            font-weight: 800;
+        }
+
+        .profile-avatar-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .form-input {
+            width: 100%;
+
+            border: 0;
+            outline: none;
+
+            padding: 11px 13px;
+
+            border-radius: 13px;
+        }
+
+        .primary-button {
+            min-height: 46px;
+
+            border: 0;
+            border-radius: 14px;
+
+            cursor: pointer;
+
+            font-weight: 800;
+        }
+
+        .message-search-results {
+            margin-top: 14px;
+
+            display: flex;
+            flex-direction: column;
+
+            gap: 8px;
+        }
+
+        .message-search-item {
+            padding: 10px 12px;
+            border-radius: 12px;
+        }
+
+        /* =====================================================
+           TOAST
+           ===================================================== */
+
+        .toast-container {
+            position: fixed;
+
+            z-index: 110000;
+
+            left: 50%;
+            bottom: 18px;
+
+            transform: translateX(-50%);
+
+            width: min(92vw, 420px);
+
+            pointer-events: none;
+        }
+
+        .gapino-toast {
+            padding: 11px 14px;
+
+            border-radius: 14px;
+
+            text-align: center;
+
+            margin-top: 8px;
+
+            box-shadow:
+                0 12px 30px rgba(0, 0, 0, 0.18);
+        }
+
+        /* =====================================================
+           CALL UI
+           ===================================================== */
+
+        .gapino-call-overlay {
+            position: fixed;
+
+            inset: 0;
+
+            z-index: 120000;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            padding: 18px;
+
+            background: rgba(2, 6, 23, 0.80);
+
+            backdrop-filter: blur(13px);
 
             opacity: 0;
             visibility: hidden;
@@ -146,29 +733,26 @@
         }
 
         .gapino-call-card {
-            width: min(420px, 100%);
-
-            box-sizing: border-box;
+            width: min(410px, 100%);
 
             padding: 28px 22px;
 
             border-radius: 28px;
 
-            background: rgba(15, 23, 42, 0.97);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-
-            box-shadow:
-                0 30px 80px rgba(0, 0, 0, 0.45);
+            background: #0f172a;
+            color: #fff;
 
             text-align: center;
-            color: #fff;
+
+            box-shadow:
+                0 30px 90px rgba(0, 0, 0, 0.45);
         }
 
         .gapino-call-avatar {
             width: 96px;
             height: 96px;
 
-            margin: 0 auto 18px;
+            margin: 0 auto 16px;
 
             border-radius: 50%;
 
@@ -178,15 +762,15 @@
 
             overflow: hidden;
 
-            font-size: 34px;
-            font-weight: 800;
-
             background:
                 linear-gradient(
                     135deg,
                     #2563eb,
                     #7c3aed
                 );
+
+            font-size: 34px;
+            font-weight: 900;
         }
 
         .gapino-call-avatar img {
@@ -197,111 +781,176 @@
 
         .gapino-call-name {
             font-size: 22px;
-            font-weight: 800;
-            margin-bottom: 8px;
+            font-weight: 900;
+
+            margin-bottom: 7px;
         }
 
         .gapino-call-status {
-            font-size: 15px;
-            opacity: 0.75;
-            margin-bottom: 12px;
+            font-size: 14px;
+            opacity: 0.72;
+
+            margin-bottom: 10px;
         }
 
         .gapino-call-timer {
             font-size: 30px;
-            font-weight: 800;
-            letter-spacing: 1px;
-            margin-bottom: 24px;
+            font-weight: 900;
+
+            margin-bottom: 22px;
         }
 
         .gapino-call-actions {
             display: flex;
             flex-wrap: wrap;
+
             justify-content: center;
-            gap: 10px;
+
+            gap: 9px;
         }
 
         .gapino-call-button {
-            border: 0;
-            outline: none;
-
             min-width: 120px;
 
-            padding: 13px 18px;
+            padding: 12px 16px;
 
-            border-radius: 15px;
+            border: 0;
+            border-radius: 14px;
 
-            font-family: inherit;
-            font-size: 15px;
+            color: #fff;
+
             font-weight: 800;
 
             cursor: pointer;
-
-            transition:
-                transform 0.15s ease,
-                opacity 0.15s ease;
-        }
-
-        .gapino-call-button:hover {
-            transform: translateY(-1px);
-        }
-
-        .gapino-call-button:active {
-            transform: translateY(1px);
         }
 
         .gapino-call-button.accept {
             background: #16a34a;
-            color: #fff;
         }
 
         .gapino-call-button.reject {
             background: #dc2626;
-            color: #fff;
         }
 
         /* =====================================================
-           RESPONSIVE
+           MOBILE
            ===================================================== */
 
-        @media (max-width: 700px) {
-            .chat-header {
+        @media (max-width: 800px) {
+
+            html,
+            body {
                 width: 100%;
-                box-sizing: border-box;
+                height: 100dvh;
             }
 
-            .chat-contact {
-                gap: 7px !important;
+            .app-shell {
+                height: 100dvh;
+                min-height: 100dvh;
+            }
+
+            .sidebar {
+                width: 100%;
+                min-width: 100%;
+            }
+
+            .chat-area {
+                display: none;
+                width: 100%;
+                min-width: 100%;
+            }
+
+            /*
+             * وقتی یک چت انتخاب شد،
+             * chat.js این کلاس را اضافه می‌کند.
+             */
+
+            .app-shell.chat-open .sidebar {
+                display: none;
+            }
+
+            .app-shell.chat-open .chat-area {
+                display: flex;
+            }
+
+            .chat-header {
+                min-height: 64px;
+
+                padding:
+                    max(8px, env(safe-area-inset-top))
+                    8px
+                    8px
+                    8px;
             }
 
             .chat-header-actions {
-                gap: 4px !important;
+                gap: 3px;
             }
 
             .chat-header-actions .icon-button {
-                width: 42px !important;
-                min-width: 42px !important;
-                max-width: 42px !important;
+                width: 40px !important;
+                min-width: 40px !important;
+                max-width: 40px !important;
 
-                height: 42px !important;
-                min-height: 42px !important;
-                max-height: 42px !important;
+                height: 40px !important;
+                min-height: 40px !important;
+                max-height: 40px !important;
             }
 
             #callButton {
+                display: flex !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+
                 font-size: 18px !important;
             }
 
+            .chat-avatar {
+                width: 42px;
+                height: 42px;
+            }
+
+            .messages-container {
+                padding:
+                    12px 10px
+                    8px;
+            }
+
+            .message-bubble {
+                max-width: 84%;
+            }
+
+            .chat-composer {
+                padding:
+                    8px
+                    8px
+                    max(
+                        8px,
+                        env(safe-area-inset-bottom)
+                    );
+            }
+
+            .composer-button,
+            .send-button {
+                width: 42px;
+                height: 42px;
+
+                min-width: 42px;
+                min-height: 42px;
+            }
+
             .gapino-call-card {
-                width: 100%;
-                max-width: 360px;
-                padding: 25px 18px;
+                width: min(360px, 100%);
+
+                padding: 24px 16px;
+
                 border-radius: 24px;
             }
 
             .gapino-call-avatar {
-                width: 84px;
-                height: 84px;
+                width: 82px;
+                height: 82px;
+
                 font-size: 30px;
             }
 
@@ -315,51 +964,48 @@
 
             .gapino-call-button {
                 width: 100%;
-                min-width: 0;
             }
         }
 
         @media (max-width: 420px) {
-            .chat-header-actions .icon-button {
-                width: 39px !important;
-                min-width: 39px !important;
-                max-width: 39px !important;
 
-                height: 39px !important;
-                min-height: 39px !important;
-                max-height: 39px !important;
+            .chat-header-actions .icon-button {
+                width: 38px !important;
+                min-width: 38px !important;
+                max-width: 38px !important;
+
+                height: 38px !important;
+                min-height: 38px !important;
+                max-height: 38px !important;
             }
 
             #callButton {
                 font-size: 17px !important;
             }
+
+            .chat-contact {
+                gap: 7px;
+            }
+
+            .chat-contact-info strong {
+                font-size: 14px;
+            }
+
+            .chat-contact-info span {
+                font-size: 11px;
+            }
         }
 
         /* =====================================================
-           SAFE AREA FOR MOBILE
+           REDUCE MOTION
            ===================================================== */
 
-        @supports (padding: env(safe-area-inset-bottom)) {
-            .chat-header {
-                padding-top:
-                    max(
-                        0px,
-                        env(safe-area-inset-top)
-                    );
-            }
-
-            .gapino-call-overlay {
-                padding-top:
-                    max(
-                        20px,
-                        env(safe-area-inset-top)
-                    );
-
-                padding-bottom:
-                    max(
-                        20px,
-                        env(safe-area-inset-bottom)
-                    );
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                scroll-behavior: auto !important;
+                transition: none !important;
             }
         }
     </style>
@@ -368,10 +1014,10 @@
 <body>
 
     <!-- =====================================================
-         MAIN CHAT APP
+         APP
          ===================================================== -->
 
-    <div class="app-shell">
+    <div class="app-shell" id="appShell">
 
         <!-- =================================================
              SIDEBAR
@@ -385,6 +1031,7 @@
             <div class="sidebar-header">
 
                 <div class="brand">
+
                     <div class="brand-logo">
                         G
                     </div>
@@ -393,23 +1040,20 @@
                         <strong>گپینو</strong>
                         <span>پیام‌رسان</span>
                     </div>
+
                 </div>
 
                 <button
                     id="newChatButton"
                     class="icon-button"
                     type="button"
-                    aria-label="گفتگوی جدید"
                     title="گفتگوی جدید"
+                    aria-label="گفتگوی جدید"
                 >
                     ✏️
                 </button>
 
             </div>
-
-            <!-- =================================================
-                 SEARCH
-                 ================================================= -->
 
             <div class="search-box">
 
@@ -423,19 +1067,11 @@
 
             </div>
 
-            <!-- =================================================
-                 USER LIST
-                 ================================================= -->
-
             <div
                 id="usersList"
                 class="users-list"
             >
             </div>
-
-            <!-- =================================================
-                 SIDEBAR FOOTER
-                 ================================================= -->
 
             <div class="sidebar-footer">
 
@@ -470,9 +1106,7 @@
             class="chat-area"
         >
 
-            <!-- =================================================
-                 CHAT HEADER
-                 ================================================= -->
+            <!-- HEADER -->
 
             <header class="chat-header">
 
@@ -507,32 +1141,38 @@
                     class="chat-header-actions"
                 >
 
+                    <!-- تماس صوتی -->
+
                     <button
                         id="callButton"
                         class="icon-button"
                         type="button"
-                        aria-label="تماس صوتی"
                         title="تماس صوتی"
+                        aria-label="تماس صوتی"
                     >
                         📞
                     </button>
+
+                    <!-- جستجو -->
 
                     <button
                         id="chatSearchButton"
                         class="icon-button"
                         type="button"
-                        aria-label="جستجوی پیام"
                         title="جستجوی پیام"
+                        aria-label="جستجوی پیام"
                     >
                         🔎
                     </button>
+
+                    <!-- منو -->
 
                     <button
                         id="chatMenuButton"
                         class="icon-button"
                         type="button"
-                        aria-label="منو"
                         title="منو"
+                        aria-label="منو"
                     >
                         ⋮
                     </button>
@@ -541,9 +1181,7 @@
 
             </header>
 
-            <!-- =================================================
-                 MESSAGES
-                 ================================================= -->
+            <!-- MESSAGES -->
 
             <section
                 id="messagesContainer"
@@ -585,9 +1223,7 @@
 
             </section>
 
-            <!-- =================================================
-                 FILE PREVIEW
-                 ================================================= -->
+            <!-- ATTACHMENT PREVIEW -->
 
             <div
                 id="attachmentPreview"
@@ -596,9 +1232,7 @@
             >
             </div>
 
-            <!-- =================================================
-                 CHAT COMPOSER
-                 ================================================= -->
+            <!-- COMPOSER -->
 
             <div class="chat-composer">
 
@@ -606,8 +1240,8 @@
                     id="attachButton"
                     class="composer-button"
                     type="button"
-                    aria-label="پیوست فایل"
                     title="پیوست فایل"
+                    aria-label="پیوست فایل"
                 >
                     📎
                 </button>
@@ -630,8 +1264,8 @@
                     id="voiceButton"
                     class="composer-button"
                     type="button"
-                    aria-label="ضبط صدا"
                     title="ضبط صدا"
+                    aria-label="ضبط صدا"
                 >
                     🎙️
                 </button>
@@ -640,8 +1274,8 @@
                     id="sendButton"
                     class="send-button"
                     type="button"
-                    aria-label="ارسال پیام"
                     title="ارسال"
+                    aria-label="ارسال"
                 >
                     ➤
                 </button>
@@ -697,7 +1331,7 @@
                     id="profileDisplayName"
                     class="form-input"
                     type="text"
-                    maxlength="100"
+                    maxlength="60"
                     autocomplete="off"
                 >
 
@@ -712,7 +1346,7 @@
                     id="profileBio"
                     class="form-input"
                     rows="4"
-                    maxlength="500"
+                    maxlength="250"
                 ></textarea>
 
                 <button
@@ -730,7 +1364,7 @@
     </div>
 
     <!-- =====================================================
-         CHAT SEARCH MODAL
+         MESSAGE SEARCH MODAL
          ===================================================== -->
 
     <div
@@ -773,7 +1407,7 @@
     </div>
 
     <!-- =====================================================
-         HIDDEN STATUS ELEMENTS
+         TOAST
          ===================================================== -->
 
     <div
@@ -784,36 +1418,21 @@
     ></div>
 
     <!-- =====================================================
-         GAPINO SCRIPTS
+         TURN CONFIG
          ===================================================== -->
 
-    <script src="/frontend/chat.js?v=307" defer></script>
-
     <script>
-        /*
-         * ==========================================
-         * GAPINO TURN SERVER
-         * ==========================================
-         *
-         * فعلاً STUN گوگل فعال است.
-         *
-         * وقتی TURN واقعی داشته باشیم، فقط همین آرایه
-         * را پر می‌کنیم.
-         */
-
-        window.GAPINO_TURN_SERVERS = [
-            /*
-            {
-                urls: [
-                    "turn:YOUR-TURN-SERVER:3478?transport=udp",
-                    "turn:YOUR-TURN-SERVER:3478?transport=tcp"
-                ],
-                username: "YOUR_USERNAME",
-                credential: "YOUR_PASSWORD"
-            }
-            */
-        ];
+        window.GAPINO_TURN_SERVERS = [];
     </script>
+
+    <!-- =====================================================
+         SCRIPTS
+         ===================================================== -->
+
+    <script
+        src="/frontend/chat.js?v=308"
+        defer
+    ></script>
 
     <script
         src="/frontend/call.js?v=6"
