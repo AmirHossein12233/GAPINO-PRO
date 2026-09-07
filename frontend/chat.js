@@ -202,26 +202,31 @@
             typeof requestOptions.body === "object" &&
             !(requestOptions.body instanceof FormData)
         ) {
-            headers["Content-Type"] = "application/json";
+            headers["Content-Type"] =
+                "application/json";
 
             requestOptions.body =
-                JSON.stringify(requestOptions.body);
+                JSON.stringify(
+                    requestOptions.body
+                );
         }
 
-        const response = await fetch(
-            API + path,
-            {
-                credentials: "include",
-                cache: "no-store",
-                ...requestOptions,
-                headers
-            }
-        );
+        const response =
+            await fetch(
+                API + path,
+                {
+                    credentials: "include",
+                    cache: "no-store",
+                    ...requestOptions,
+                    headers
+                }
+            );
 
         let data = null;
 
         try {
-            data = await response.json();
+            data =
+                await response.json();
         } catch {
             data = null;
         }
@@ -242,7 +247,8 @@
        ========================================================= */
 
     async function loadCurrentUser() {
-        const data = await api("/api/me");
+        const data =
+            await api("/api/me");
 
         currentUser =
             data?.user ||
@@ -298,11 +304,16 @@
                 );
 
             if (avatar) {
-                profileAvatar.src = avatar;
+                profileAvatar.src =
+                    avatar;
+
                 profileAvatar.style.visibility =
                     "visible";
             } else {
-                profileAvatar.removeAttribute("src");
+                profileAvatar.removeAttribute(
+                    "src"
+                );
+
                 profileAvatar.style.visibility =
                     "hidden";
             }
@@ -437,7 +448,8 @@
 
         const response =
             await fetch(
-                API + "/api/profile/avatar",
+                API +
+                    "/api/profile/avatar",
                 {
                     method: "POST",
                     credentials: "include",
@@ -517,7 +529,9 @@
 
         try {
             const data =
-                await api("/api/users");
+                await api(
+                    "/api/users"
+                );
 
             if (Array.isArray(data)) {
                 users = data;
@@ -601,139 +615,167 @@
             return;
         }
 
-        items.forEach(user => {
-            const id =
-                getUserId(user);
+        items.forEach(
+            user => {
+                const id =
+                    getUserId(user);
 
-            if (id === null) {
-                return;
-            }
+                if (id === null) {
+                    return;
+                }
 
-            const item =
-                document.createElement(
-                    "button"
-                );
+                const item =
+                    document.createElement(
+                        "button"
+                    );
 
-            item.type = "button";
-            item.className = "user-item";
+                item.type = "button";
+                item.className =
+                    "user-item";
 
-            if (
-                currentChatUser &&
-                getUserId(currentChatUser) === id
-            ) {
-                item.classList.add("active");
-            }
+                if (
+                    currentChatUser &&
+                    getUserId(
+                        currentChatUser
+                    ) === id
+                ) {
+                    item.classList.add(
+                        "active"
+                    );
+                }
 
-            const wrap =
-                document.createElement(
-                    "div"
-                );
+                const wrap =
+                    document.createElement(
+                        "div"
+                    );
 
-            wrap.className =
-                "user-avatar-wrap";
+                wrap.className =
+                    "user-avatar-wrap";
 
-            const avatar =
-                document.createElement(
-                    "img"
-                );
+                const avatar =
+                    document.createElement(
+                        "img"
+                    );
 
-            avatar.className =
-                "user-avatar";
+                avatar.className =
+                    "user-avatar";
 
-            avatar.alt =
-                getDisplayName(user);
+                avatar.alt =
+                    getDisplayName(
+                        user
+                    );
 
-            const avatarUrl =
-                getAvatarUrl(
-                    getAvatar(user)
-                );
+                const avatarUrl =
+                    getAvatarUrl(
+                        getAvatar(user)
+                    );
 
-            if (avatarUrl) {
-                avatar.src =
-                    avatarUrl;
+                if (avatarUrl) {
+                    avatar.src =
+                        avatarUrl;
 
-                avatar.style.visibility =
-                    "visible";
-            } else {
-                avatar.style.visibility =
-                    "hidden";
-            }
-
-            avatar.addEventListener(
-                "error",
-                () => {
+                    avatar.style.visibility =
+                        "visible";
+                } else {
                     avatar.style.visibility =
                         "hidden";
                 }
-            );
 
-            const dot =
-                document.createElement(
-                    "span"
+                avatar.addEventListener(
+                    "error",
+                    () => {
+                        avatar.style.visibility =
+                            "hidden";
+                    }
                 );
 
-            dot.className =
-                "online-dot";
+                const dot =
+                    document.createElement(
+                        "span"
+                    );
 
-            if (isOnline(user)) {
-                dot.classList.add(
-                    "online"
+                dot.className =
+                    "online-dot";
+
+                if (isOnline(user)) {
+                    dot.classList.add(
+                        "online"
+                    );
+                }
+
+                wrap.appendChild(
+                    avatar
+                );
+
+                wrap.appendChild(
+                    dot
+                );
+
+                const info =
+                    document.createElement(
+                        "div"
+                    );
+
+                info.className =
+                    "user-info";
+
+                const name =
+                    document.createElement(
+                        "div"
+                    );
+
+                name.className =
+                    "user-name";
+
+                name.textContent =
+                    getDisplayName(
+                        user
+                    );
+
+                const status =
+                    document.createElement(
+                        "div"
+                    );
+
+                status.className =
+                    "user-status";
+
+                status.textContent =
+                    user.status ||
+                    (
+                        isOnline(user)
+                            ? "آنلاین"
+                            : "آفلاین"
+                    );
+
+                info.appendChild(
+                    name
+                );
+
+                info.appendChild(
+                    status
+                );
+
+                item.appendChild(
+                    wrap
+                );
+
+                item.appendChild(
+                    info
+                );
+
+                item.addEventListener(
+                    "click",
+                    () => {
+                        openChat(user);
+                    }
+                );
+
+                list.appendChild(
+                    item
                 );
             }
-
-            wrap.appendChild(avatar);
-            wrap.appendChild(dot);
-
-            const info =
-                document.createElement(
-                    "div"
-                );
-
-            info.className =
-                "user-info";
-
-            const name =
-                document.createElement(
-                    "div"
-                );
-
-            name.className =
-                "user-name";
-
-            name.textContent =
-                getDisplayName(user);
-
-            const status =
-                document.createElement(
-                    "div"
-                );
-
-            status.className =
-                "user-status";
-
-            status.textContent =
-                user.status ||
-                (
-                    isOnline(user)
-                        ? "آنلاین"
-                        : "آفلاین"
-                );
-
-            info.appendChild(name);
-            info.appendChild(status);
-
-            item.appendChild(wrap);
-            item.appendChild(info);
-
-            item.addEventListener(
-                "click",
-                () => {
-                    openChat(user);
-                }
-            );
-
-            list.appendChild(item);
-        });
+        );
     }
 
     function setupUserSearch() {
@@ -753,29 +795,43 @@
                         .toLowerCase();
 
                 if (!text) {
-                    renderUsers(users);
+                    renderUsers(
+                        users
+                    );
+
                     return;
                 }
 
                 const filtered =
-                    users.filter(user => {
-                        const name =
-                            getDisplayName(user)
-                                .toLowerCase();
+                    users.filter(
+                        user => {
+                            const name =
+                                getDisplayName(
+                                    user
+                                )
+                                    .toLowerCase();
 
-                        const username =
-                            String(
-                                user.username ||
-                                ""
-                            ).toLowerCase();
+                            const username =
+                                String(
+                                    user.username ||
+                                    ""
+                                )
+                                    .toLowerCase();
 
-                        return (
-                            name.includes(text) ||
-                            username.includes(text)
-                        );
-                    });
+                            return (
+                                name.includes(
+                                    text
+                                ) ||
+                                username.includes(
+                                    text
+                                )
+                            );
+                        }
+                    );
 
-                renderUsers(filtered);
+                renderUsers(
+                    filtered
+                );
             }
         );
     }
@@ -794,6 +850,8 @@
 
         window.GAPINO_CURRENT_CHAT =
             user;
+
+        messagesCache = [];
 
         const shell =
             $("appShell");
@@ -829,6 +887,9 @@
         const avatar =
             $("chatAvatar");
 
+        const dot =
+            $("chatOnlineDot");
+
         if (name) {
             name.textContent =
                 getDisplayName(
@@ -846,6 +907,15 @@
                         ? "آنلاین"
                         : "آفلاین"
                 );
+        }
+
+        if (dot) {
+            dot.classList.toggle(
+                "online",
+                isOnline(
+                    currentChatUser
+                )
+            );
         }
 
         if (avatar) {
@@ -877,8 +947,35 @@
         const input =
             $("messageInput");
 
+        const sendButton =
+            $("sendButton");
+
+        const voiceButton =
+            $("voiceButton");
+
+        const attachButton =
+            $("attachButton");
+
         if (input) {
             input.disabled = false;
+        }
+
+        if (sendButton) {
+            sendButton.disabled =
+                false;
+        }
+
+        if (voiceButton) {
+            voiceButton.disabled =
+                false;
+        }
+
+        if (attachButton) {
+            attachButton.disabled =
+                false;
+        }
+
+        if (input) {
             input.focus();
         }
     }
@@ -888,7 +985,10 @@
        ========================================================= */
 
     async function loadMessages(otherId) {
-        if (!otherId) {
+        if (
+            otherId === null ||
+            otherId === undefined
+        ) {
             return;
         }
 
@@ -899,7 +999,16 @@
             $("emptyChat");
 
         if (container) {
-            container.innerHTML = "";
+            container.innerHTML = `
+                <div style="
+                    padding:30px;
+                    text-align:center;
+                    color:#94a3b8;
+                    font-size:13px;
+                ">
+                    در حال بارگذاری پیام‌ها...
+                </div>
+            `;
         }
 
         if (empty) {
@@ -916,7 +1025,8 @@
                 );
 
             if (Array.isArray(data)) {
-                messagesCache = data;
+                messagesCache =
+                    data;
             } else if (
                 Array.isArray(
                     data?.messages
@@ -932,7 +1042,8 @@
                 messagesCache =
                     data.data;
             } else {
-                messagesCache = [];
+                messagesCache =
+                    [];
             }
 
             renderMessages(
@@ -948,14 +1059,25 @@
                 container.innerHTML = `
                     <div style="
                         text-align:center;
-                        color:#94a3b8;
+                        color:#fca5a5;
                         padding:30px;
                         font-size:12px;
                     ">
                         پیام‌ها بارگذاری نشدند.
+                        <br>
+                        <small>
+                            ${escapeHTML(
+                                error.message
+                            )}
+                        </small>
                     </div>
                 `;
             }
+
+            showToast(
+                error?.message ||
+                "بارگذاری پیام‌ها ناموفق بود"
+            );
         }
     }
 
@@ -992,204 +1114,225 @@
         const myId =
             getUserId(currentUser);
 
-        messages.forEach(message => {
-            const senderId =
-                Number(
-                    message.sender_id ??
-                    message.from_id ??
-                    message.sender ??
-                    0
-                );
+        messages.forEach(
+            message => {
+                const senderId =
+                    Number(
+                        message.sender_id ??
+                        message.from_id ??
+                        message.sender ??
+                        0
+                    );
 
-            const mine =
-                senderId === myId;
+                const mine =
+                    senderId === myId;
 
-            const row =
-                document.createElement(
-                    "div"
-                );
-
-            row.className =
-                "message-row " +
-                (
-                    mine
-                        ? "mine"
-                        : "other"
-                );
-
-            const bubble =
-                document.createElement(
-                    "div"
-                );
-
-            bubble.className =
-                "message-bubble";
-
-            const text =
-                message.text ??
-                message.content ??
-                "";
-
-            const type =
-                message.message_type ||
-                message.type ||
-                "text";
-
-            if (
-                type === "image" &&
-                message.file_url
-            ) {
-                const image =
+                const row =
                     document.createElement(
-                        "img"
+                        "div"
                     );
 
-                image.src =
-                    getAvatarUrl(
-                        message.file_url
+                row.className =
+                    "message-row " +
+                    (
+                        mine
+                            ? "mine"
+                            : "other"
                     );
 
-                image.alt =
-                    "تصویر";
-
-                image.style.maxWidth =
-                    "240px";
-
-                image.style.borderRadius =
-                    "12px";
-
-                image.style.display =
-                    "block";
-
-                bubble.appendChild(image);
-            } else if (
-                type === "audio" &&
-                message.file_url
-            ) {
-                const audio =
+                const bubble =
                     document.createElement(
-                        "audio"
+                        "div"
                     );
 
-                audio.controls = true;
+                bubble.className =
+                    "message-bubble";
 
-                audio.src =
-                    getAvatarUrl(
-                        message.file_url
-                    );
+                const text =
+                    message.text ??
+                    message.content ??
+                    "";
 
-                bubble.appendChild(audio);
-            } else if (
-                type === "video" &&
-                message.file_url
-            ) {
-                const video =
-                    document.createElement(
-                        "video"
-                    );
+                const type =
+                    message.message_type ||
+                    message.type ||
+                    "text";
 
-                video.controls = true;
-
-                video.playsInline =
-                    true;
-
-                video.src =
-                    getAvatarUrl(
-                        message.file_url
-                    );
-
-                video.style.maxWidth =
-                    "240px";
-
-                video.style.borderRadius =
-                    "12px";
-
-                bubble.appendChild(video);
-            } else if (
-                message.file_url
-            ) {
-                const link =
-                    document.createElement(
-                        "a"
-                    );
-
-                link.href =
-                    getAvatarUrl(
-                        message.file_url
-                    );
-
-                link.target =
-                    "_blank";
-
-                link.rel =
-                    "noopener noreferrer";
-
-                link.textContent =
-                    message.file_name ||
-                    "باز کردن فایل";
-
-                link.style.color =
-                    "#fff";
-
-                bubble.appendChild(link);
-
-                if (text) {
-                    const caption =
+                if (
+                    type === "image" &&
+                    message.file_url
+                ) {
+                    const image =
                         document.createElement(
-                            "div"
+                            "img"
                         );
 
-                    caption.textContent =
-                        text;
+                    image.src =
+                        getAvatarUrl(
+                            message.file_url
+                        );
 
-                    caption.style.marginTop =
-                        "6px";
+                    image.alt =
+                        "تصویر";
+
+                    image.style.maxWidth =
+                        "240px";
+
+                    image.style.borderRadius =
+                        "12px";
+
+                    image.style.display =
+                        "block";
 
                     bubble.appendChild(
-                        caption
+                        image
                     );
+                } else if (
+                    type === "audio" &&
+                    message.file_url
+                ) {
+                    const audio =
+                        document.createElement(
+                            "audio"
+                        );
+
+                    audio.controls =
+                        true;
+
+                    audio.src =
+                        getAvatarUrl(
+                            message.file_url
+                        );
+
+                    bubble.appendChild(
+                        audio
+                    );
+                } else if (
+                    type === "video" &&
+                    message.file_url
+                ) {
+                    const video =
+                        document.createElement(
+                            "video"
+                        );
+
+                    video.controls =
+                        true;
+
+                    video.playsInline =
+                        true;
+
+                    video.src =
+                        getAvatarUrl(
+                            message.file_url
+                        );
+
+                    video.style.maxWidth =
+                        "240px";
+
+                    video.style.borderRadius =
+                        "12px";
+
+                    bubble.appendChild(
+                        video
+                    );
+                } else if (
+                    message.file_url
+                ) {
+                    const link =
+                        document.createElement(
+                            "a"
+                        );
+
+                    link.href =
+                        getAvatarUrl(
+                            message.file_url
+                        );
+
+                    link.target =
+                        "_blank";
+
+                    link.rel =
+                        "noopener noreferrer";
+
+                    link.textContent =
+                        message.file_name ||
+                        "باز کردن فایل";
+
+                    link.style.color =
+                        "#fff";
+
+                    bubble.appendChild(
+                        link
+                    );
+
+                    if (text) {
+                        const caption =
+                            document.createElement(
+                                "div"
+                            );
+
+                        caption.textContent =
+                            text;
+
+                        caption.style.marginTop =
+                            "6px";
+
+                        bubble.appendChild(
+                            caption
+                        );
+                    }
+                } else {
+                    bubble.textContent =
+                        String(text);
                 }
-            } else {
-                bubble.textContent =
-                    String(text);
+
+                const time =
+                    document.createElement(
+                        "div"
+                    );
+
+                time.className =
+                    "message-time";
+
+                time.textContent =
+                    formatTime(
+                        message.created_at ||
+                        message.timestamp ||
+                        message.time
+                    );
+
+                bubble.appendChild(
+                    time
+                );
+
+                row.appendChild(
+                    bubble
+                );
+
+                container.appendChild(
+                    row
+                );
             }
-
-            const time =
-                document.createElement(
-                    "div"
-                );
-
-            time.className =
-                "message-time";
-
-            time.textContent =
-                formatTime(
-                    message.created_at ||
-                    message.timestamp ||
-                    message.time
-                );
-
-            bubble.appendChild(time);
-
-            row.appendChild(
-                bubble
-            );
-
-            container.appendChild(
-                row
-            );
-        });
+        );
 
         const messagesContainer =
             $("messagesContainer");
 
         if (messagesContainer) {
-            setTimeout(() => {
-                messagesContainer.scrollTop =
-                    messagesContainer.scrollHeight;
-            }, 0);
+            setTimeout(
+                () => {
+                    messagesContainer.scrollTop =
+                        messagesContainer.scrollHeight;
+                },
+                0
+            );
         }
     }
+
+    /* =========================================================
+       SEND TEXT MESSAGE
+       ========================================================= */
 
     async function sendMessage() {
         if (!currentChatUser) {
@@ -1204,6 +1347,10 @@
             $("messageInput");
 
         if (!input) {
+            showToast(
+                "کادر پیام پیدا نشد"
+            );
+
             return;
         }
 
@@ -1219,28 +1366,104 @@
                 currentChatUser
             );
 
-        if (!receiverId) {
+        if (
+            receiverId === null ||
+            receiverId === undefined
+        ) {
+            showToast(
+                "شناسه کاربر گیرنده نامعتبر است"
+            );
+
+            console.error(
+                "GAPINO receiver:",
+                currentChatUser
+            );
+
             return;
         }
 
+        const button =
+            $("sendButton");
+
         try {
-            const data =
-                await api(
-                    "/api/messages",
+            if (button) {
+                button.disabled =
+                    true;
+            }
+
+            console.log(
+                "GAPINO sending message:",
+                {
+                    receiver_id:
+                        receiverId,
+                    text:
+                        text
+                }
+            );
+
+            const response =
+                await fetch(
+                    API +
+                        "/api/messages",
                     {
                         method: "POST",
-                        body: {
-                            receiver_id:
-                                receiverId,
-                            text:
-                                text
-                        }
+                        credentials:
+                            "include",
+                        cache:
+                            "no-store",
+                        headers: {
+                            "Content-Type":
+                                "application/json",
+                            "Accept":
+                                "application/json"
+                        },
+                        body:
+                            JSON.stringify({
+                                receiver_id:
+                                    receiverId,
+                                text:
+                                    text
+                            })
                     }
                 );
 
+            let data = null;
+
+            try {
+                data =
+                    await response.json();
+            } catch {
+                data = null;
+            }
+
+            console.log(
+                "GAPINO send response:",
+                {
+                    status:
+                        response.status,
+                    ok:
+                        response.ok,
+                    data:
+                        data
+                }
+            );
+
+            if (!response.ok) {
+                const errorMessage =
+                    data?.detail ||
+                    data?.message ||
+                    `خطای سرور: ${response.status}`;
+
+                throw new Error(
+                    errorMessage
+                );
+            }
+
             input.value = "";
 
-            sendTyping(false);
+            sendTyping(
+                false
+            );
 
             const message =
                 data?.message ||
@@ -1248,15 +1471,35 @@
 
             if (
                 message &&
-                (
-                    message.id ||
-                    message.message_id ||
-                    message.text
-                )
+                typeof message ===
+                    "object"
             ) {
-                messagesCache.push(
-                    message
-                );
+                const messageId =
+                    message.id ??
+                    message.message_id;
+
+                const alreadyExists =
+                    messageId !==
+                        undefined &&
+                    messageId !==
+                        null &&
+                    messagesCache.some(
+                        item =>
+                            String(
+                                item.id ??
+                                item.message_id ??
+                                ""
+                            ) ===
+                            String(
+                                messageId
+                            )
+                    );
+
+                if (!alreadyExists) {
+                    messagesCache.push(
+                        message
+                    );
+                }
 
                 renderMessages(
                     messagesCache
@@ -1266,15 +1509,24 @@
                     receiverId
                 );
             }
+
         } catch (error) {
             console.error(
-                "GAPINO sendMessage:",
+                "GAPINO sendMessage ERROR:",
                 error
             );
 
             showToast(
+                error?.message ||
                 "ارسال پیام انجام نشد"
             );
+        } finally {
+            if (button) {
+                button.disabled =
+                    false;
+            }
+
+            input.focus();
         }
     }
 
@@ -1297,7 +1549,9 @@
                 currentChatUser
             );
 
-        if (!receiverId) {
+        if (
+            receiverId === null
+        ) {
             return;
         }
 
@@ -1317,7 +1571,8 @@
         try {
             socket.send(
                 JSON.stringify({
-                    type: "typing",
+                    type:
+                        "typing",
                     receiver_id:
                         receiverId,
                     value:
@@ -1408,6 +1663,7 @@
             );
 
             scheduleReconnect();
+
             return;
         }
 
@@ -1430,7 +1686,8 @@
                 try {
                     socket.send(
                         JSON.stringify({
-                            type: "ping"
+                            type:
+                                "ping"
                         })
                     );
                 } catch {}
@@ -1544,6 +1801,18 @@
                 );
                 break;
 
+            case "message:update":
+                handleUpdatedMessage(
+                    data
+                );
+                break;
+
+            case "message_deleted":
+                handleDeletedMessage(
+                    data
+                );
+                break;
+
             case "call_offer":
             case "call_answer":
             case "call_ice":
@@ -1578,24 +1847,33 @@
         }
 
         users =
-            users.map(user => {
-                if (
-                    getUserId(user) ===
-                    id
-                ) {
-                    return {
-                        ...user,
-                        online:
-                            Boolean(online),
-                        is_online:
-                            Boolean(online)
-                    };
+            users.map(
+                user => {
+                    if (
+                        getUserId(
+                            user
+                        ) === id
+                    ) {
+                        return {
+                            ...user,
+                            online:
+                                Boolean(
+                                    online
+                                ),
+                            is_online:
+                                Boolean(
+                                    online
+                                )
+                        };
+                    }
+
+                    return user;
                 }
+            );
 
-                return user;
-            });
-
-        renderUsers(users);
+        renderUsers(
+            users
+        );
 
         if (
             currentChatUser &&
@@ -1606,9 +1884,13 @@
             currentChatUser = {
                 ...currentChatUser,
                 online:
-                    Boolean(online),
+                    Boolean(
+                        online
+                    ),
                 is_online:
-                    Boolean(online)
+                    Boolean(
+                        online
+                    )
             };
 
             updateChatHeader();
@@ -1641,7 +1923,9 @@
             );
 
         const myId =
-            getUserId(currentUser);
+            getUserId(
+                currentUser
+            );
 
         if (!myId) {
             return;
@@ -1675,9 +1959,111 @@
             return;
         }
 
+        const messageId =
+            message.id ??
+            message.message_id;
+
+        if (
+            messageId !==
+                undefined &&
+            messageId !== null &&
+            messagesCache.some(
+                item =>
+                    String(
+                        item.id ??
+                        item.message_id ??
+                        ""
+                    ) ===
+                    String(
+                        messageId
+                    )
+            )
+        ) {
+            return;
+        }
+
         messagesCache.push(
             message
         );
+
+        renderMessages(
+            messagesCache
+        );
+    }
+
+    function handleUpdatedMessage(data) {
+        const updated =
+            data.message ||
+            data;
+
+        if (!updated) {
+            return;
+        }
+
+        const messageId =
+            updated.id ??
+            updated.message_id;
+
+        if (
+            messageId ===
+                undefined ||
+            messageId ===
+                null
+        ) {
+            return;
+        }
+
+        const index =
+            messagesCache.findIndex(
+                item =>
+                    String(
+                        item.id ??
+                        item.message_id ??
+                        ""
+                    ) ===
+                    String(
+                        messageId
+                    )
+            );
+
+        if (index === -1) {
+            return;
+        }
+
+        messagesCache[index] =
+            updated;
+
+        renderMessages(
+            messagesCache
+        );
+    }
+
+    function handleDeletedMessage(data) {
+        const messageId =
+            data?.message_id ??
+            data?.id;
+
+        if (
+            messageId ===
+                undefined ||
+            messageId ===
+                null
+        ) {
+            return;
+        }
+
+        messagesCache =
+            messagesCache.filter(
+                item =>
+                    String(
+                        item.id ??
+                        item.message_id ??
+                        ""
+                    ) !==
+                    String(
+                        messageId
+                    )
+            );
 
         renderMessages(
             messagesCache
@@ -1698,7 +2084,10 @@
         if (button) {
             button.addEventListener(
                 "click",
-                sendMessage
+                event => {
+                    event.preventDefault();
+                    sendMessage();
+                }
             );
         }
 
@@ -1711,7 +2100,8 @@
             event => {
                 if (
                     event.key ===
-                    "Enter"
+                    "Enter" &&
+                    !event.shiftKey
                 ) {
                     event.preventDefault();
                     sendMessage();
@@ -1722,6 +2112,12 @@
         input.addEventListener(
             "input",
             () => {
+                if (
+                    !currentChatUser
+                ) {
+                    return;
+                }
+
                 sendTyping(true);
 
                 clearTimeout(
@@ -1759,7 +2155,8 @@
         ) {
             attach.addEventListener(
                 "click",
-                () => {
+                event => {
+                    event.preventDefault();
                     input.click();
                 }
             );
@@ -1780,10 +2177,12 @@
             remove.addEventListener(
                 "click",
                 () => {
-                    selectedFile = null;
+                    selectedFile =
+                        null;
 
                     if (input) {
-                        input.value = "";
+                        input.value =
+                            "";
                     }
 
                     updateAttachmentPreview();
@@ -1809,7 +2208,8 @@
             );
 
             if (name) {
-                name.textContent = "";
+                name.textContent =
+                    "";
             }
 
             return;
@@ -1839,7 +2239,9 @@
 
         button.addEventListener(
             "click",
-            async () => {
+            async event => {
+                event.preventDefault();
+
                 if (isRecording) {
                     stopRecording();
                     return;
@@ -1853,10 +2255,19 @@
     async function startRecording() {
         if (
             !navigator.mediaDevices ||
-            !navigator.mediaDevices.getUserMedia
+            !navigator.mediaDevices
+                .getUserMedia
         ) {
             showToast(
                 "ضبط صدا در این دستگاه در دسترس نیست"
+            );
+
+            return;
+        }
+
+        if (!currentChatUser) {
+            showToast(
+                "ابتدا یک کاربر را انتخاب کنید"
             );
 
             return;
@@ -1904,6 +2315,7 @@
             if (button) {
                 button.textContent =
                     "⏹";
+
                 button.setAttribute(
                     "aria-label",
                     "توقف ضبط"
@@ -1915,7 +2327,8 @@
                 event => {
                     if (
                         event.data &&
-                        event.data.size > 0
+                        event.data.size >
+                            0
                     ) {
                         recordingChunks.push(
                             event.data
@@ -1929,13 +2342,16 @@
                 async () => {
                     stream
                         .getTracks()
-                        .forEach(track => {
-                            try {
-                                track.stop();
-                            } catch {}
-                        });
+                        .forEach(
+                            track => {
+                                try {
+                                    track.stop();
+                                } catch {}
+                            }
+                        );
 
-                    isRecording = false;
+                    isRecording =
+                        false;
 
                     const button =
                         $("voiceButton");
@@ -1980,6 +2396,7 @@
                         );
 
                         showToast(
+                            error?.message ||
                             "ارسال صدا انجام نشد"
                         );
                     }
@@ -1987,6 +2404,7 @@
             );
 
             mediaRecorder.start();
+
         } catch (error) {
             console.error(
                 "GAPINO recording:",
@@ -2020,6 +2438,21 @@
             return;
         }
 
+        const receiverId =
+            getUserId(
+                currentChatUser
+            );
+
+        if (
+            receiverId === null
+        ) {
+            showToast(
+                "شناسه گیرنده نامعتبر است"
+            );
+
+            return;
+        }
+
         const extension =
             blob.type.includes(
                 "ogg"
@@ -2046,14 +2479,23 @@
             file
         );
 
+        formData.append(
+            "receiver_id",
+            String(receiverId)
+        );
+
         const response =
             await fetch(
-                API + "/api/upload",
+                API +
+                    "/api/upload",
                 {
                     method: "POST",
-                    credentials: "include",
-                    cache: "no-store",
-                    body: formData
+                    credentials:
+                        "include",
+                    cache:
+                        "no-store",
+                    body:
+                        formData
                 }
             );
 
@@ -2069,7 +2511,8 @@
         if (!response.ok) {
             throw new Error(
                 data?.detail ||
-                "آپلود صدا ناموفق بود"
+                data?.message ||
+                `آپلود صدا ناموفق بود: ${response.status}`
             );
         }
 
@@ -2084,28 +2527,37 @@
             );
         }
 
-        await api(
-            "/api/messages",
-            {
-                method: "POST",
-                body: {
-                    receiver_id:
-                        getUserId(
-                            currentChatUser
-                        ),
-                    text: "",
-                    file_url:
-                        fileUrl,
-                    message_type:
-                        "audio"
+        /*
+         * توجه:
+         * در بک‌اند فعلی ممکن است آپلود فایل
+         * خودش پیام را ایجاد کند.
+         * بنابراین فقط وقتی response
+         * شامل message نبود، پیام صوتی
+         * را جداگانه ارسال می‌کنیم.
+         */
+
+        if (!data?.message) {
+            await api(
+                "/api/messages",
+                {
+                    method:
+                        "POST",
+                    body: {
+                        receiver_id:
+                            receiverId,
+                        text:
+                            "",
+                        file_url:
+                            fileUrl,
+                        message_type:
+                            "audio"
+                    }
                 }
-            }
-        );
+            );
+        }
 
         await loadMessages(
-            getUserId(
-                currentChatUser
-            )
+            receiverId
         );
     }
 
@@ -2142,7 +2594,8 @@
                         $("profileAvatarInput");
 
                     if (input) {
-                        input.value = "";
+                        input.value =
+                            "";
                     }
 
                     const status =
@@ -2199,13 +2652,17 @@
 
         try {
             if (button) {
-                button.disabled = true;
+                button.disabled =
+                    true;
+
                 button.textContent =
                     "⏳ در حال ذخیره...";
             }
 
             const previousCurrentChatId =
-                getUserId(currentChatUser);
+                getUserId(
+                    currentChatUser
+                );
 
             let uploadedAvatar =
                 null;
@@ -2221,7 +2678,8 @@
                 await api(
                     "/api/profile",
                     {
-                        method: "PUT",
+                        method:
+                            "PUT",
                         body: {
                             display_name:
                                 name?.value.trim() ||
@@ -2260,7 +2718,9 @@
                 const fresh =
                     users.find(
                         user =>
-                            getUserId(user) ===
+                            getUserId(
+                                user
+                            ) ===
                             previousCurrentChatId
                     );
 
@@ -2273,7 +2733,9 @@
 
                     updateChatHeader();
 
-                    renderUsers(users);
+                    renderUsers(
+                        users
+                    );
                 }
             }
 
@@ -2289,6 +2751,7 @@
             showToast(
                 "پروفایل با موفقیت ذخیره شد ✅"
             );
+
         } catch (error) {
             console.error(
                 "GAPINO saveProfile:",
@@ -2299,9 +2762,11 @@
                 error?.message ||
                 "ذخیره پروفایل انجام نشد"
             );
+
         } finally {
             if (button) {
-                button.disabled = false;
+                button.disabled =
+                    false;
 
                 button.textContent =
                     "💾 ذخیره";
@@ -2336,6 +2801,14 @@
             button.addEventListener(
                 "click",
                 () => {
+                    if (!currentChatUser) {
+                        showToast(
+                            "ابتدا یک گفتگو را انتخاب کنید"
+                        );
+
+                        return;
+                    }
+
                     modal.classList.add(
                         "show"
                     );
@@ -2387,7 +2860,9 @@
                                     ""
                                 )
                                     .toLowerCase()
-                                    .includes(text)
+                                    .includes(
+                                        text
+                                    )
                         );
 
                     if (!found.length) {
@@ -2511,6 +2986,8 @@
                 currentChatUser =
                     null;
 
+                messagesCache = [];
+
                 window.GAPINO_CURRENT_CHAT =
                     null;
 
@@ -2525,6 +3002,14 @@
                         "";
                 }
 
+                const sendButton =
+                    $("sendButton");
+
+                if (sendButton) {
+                    sendButton.disabled =
+                        true;
+                }
+
                 const name =
                     $("chatUserName");
 
@@ -2533,6 +3018,9 @@
 
                 const avatar =
                     $("chatAvatar");
+
+                const dot =
+                    $("chatOnlineDot");
 
                 if (name) {
                     name.textContent =
@@ -2551,6 +3039,28 @@
 
                     avatar.style.visibility =
                         "hidden";
+                }
+
+                if (dot) {
+                    dot.classList.remove(
+                        "online"
+                    );
+                }
+
+                const messages =
+                    $("messagesList");
+
+                if (messages) {
+                    messages.innerHTML =
+                        "";
+                }
+
+                const empty =
+                    $("emptyChat");
+
+                if (empty) {
+                    empty.style.display =
+                        "block";
                 }
             }
         );
@@ -2633,7 +3143,9 @@
     function startRefreshTimers() {
         setInterval(
             async () => {
-                if (document.hidden) {
+                if (
+                    document.hidden
+                ) {
                     return;
                 }
 
@@ -2692,13 +3204,39 @@
             const input =
                 $("messageInput");
 
+            const sendButton =
+                $("sendButton");
+
+            const voiceButton =
+                $("voiceButton");
+
+            const attachButton =
+                $("attachButton");
+
             if (input) {
-                input.disabled = true;
+                input.disabled =
+                    true;
+            }
+
+            if (sendButton) {
+                sendButton.disabled =
+                    true;
+            }
+
+            if (voiceButton) {
+                voiceButton.disabled =
+                    false;
+            }
+
+            if (attachButton) {
+                attachButton.disabled =
+                    false;
             }
 
             console.log(
                 "GAPINO chat loaded successfully"
             );
+
         } catch (error) {
             console.error(
                 "GAPINO boot:",
@@ -2706,6 +3244,7 @@
             );
 
             showToast(
+                error?.message ||
                 "خطا در بارگذاری گپینو"
             );
 
