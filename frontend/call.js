@@ -31,18 +31,16 @@
         return document.getElementById(id);
     }
 
-    function getUser() {
-        return window.GAPINO?.currentUser || null;
-    }
-
     function getChatUser() {
         return window.GAPINO?.currentChatUser || null;
     }
 
     function getSocket() {
-        return window.GAPINO?.socket ||
+        return (
+            window.GAPINO?.socket ||
             window.GAPINO_SOCKET ||
-            null;
+            null
+        );
     }
 
     function uid(user) {
@@ -80,49 +78,36 @@
 
         setTimeout(() => {
             toast.remove();
-        }, 6000);
+        }, 5000);
     }
 
     function showError(title, error) {
-        const name = error?.name || "Error";
-        const message =
-            error?.message ||
-            String(error || "خطای نامشخص");
-
         console.error(
             "GAPINO CALL ERROR:",
             title,
-            {
-                name,
-                message,
-                error
-            }
+            error
         );
+
+        const name =
+            error?.name ||
+            "Error";
+
+        const message =
+            error?.message ||
+            String(error || "خطای نامشخص");
 
         showToast(
             `${title}: ${name} - ${message}`
         );
     }
 
-    function getSocketState() {
+    function socketIsOpen() {
         const ws = getSocket();
 
-        if (!ws) {
-            return "missing";
-        }
-
-        switch (ws.readyState) {
-            case WebSocket.CONNECTING:
-                return "connecting";
-            case WebSocket.OPEN:
-                return "open";
-            case WebSocket.CLOSING:
-                return "closing";
-            case WebSocket.CLOSED:
-                return "closed";
-            default:
-                return "unknown";
-        }
+        return !!(
+            ws &&
+            ws.readyState === WebSocket.OPEN
+        );
     }
 
     function send(data) {
@@ -133,12 +118,19 @@
             data
         );
 
+        if (!ws) {
+            showToast(
+                "WebSocket تماس پیدا نشد."
+            );
+            return false;
+        }
+
         if (
-            !ws ||
-            ws.readyState !== WebSocket.OPEN
+            ws.readyState !==
+            WebSocket.OPEN
         ) {
             showToast(
-                `اتصال تماس برقرار نیست (${getSocketState()})`
+                "اتصال WebSocket تماس برقرار نیست."
             );
             return false;
         }
@@ -151,7 +143,6 @@
             return true;
 
         } catch (error) {
-
             showError(
                 "ارسال سیگنال تماس ناموفق بود",
                 error
@@ -190,9 +181,11 @@
             return;
         }
 
-        const style = document.createElement("style");
+        const style =
+            document.createElement("style");
 
-        style.id = "gapinoCallStyles";
+        style.id =
+            "gapinoCallStyles";
 
         style.textContent = `
             #gapinoCallOverlay {
@@ -203,7 +196,7 @@
                 align-items: center;
                 justify-content: center;
                 padding: 18px;
-                background: rgba(0,0,0,.80);
+                background: rgba(0,0,0,.82);
             }
 
             #gapinoCallOverlay.show {
@@ -211,7 +204,7 @@
             }
 
             .gapino-call-card {
-                width: min(390px,100%);
+                width: min(390px, 100%);
                 padding: 25px 18px 18px;
                 border-radius: 24px;
                 background: #111827;
@@ -274,7 +267,8 @@
                 background: #16a34a;
             }
 
-            .gapino-call-btn.reject {
+            .gapino-call-btn.reject,
+            .gapino-call-btn.end {
                 background: #dc2626;
             }
 
@@ -339,7 +333,7 @@
 
                     <button
                         id="gapinoEndCall"
-                        class="gapino-call-btn reject"
+                        class="gapino-call-btn end"
                         type="button"
                     >
                         ☎️ قطع تماس
@@ -349,31 +343,61 @@
             </div>
         `;
 
-        document.body.appendChild(overlay);
-
-        $("gapinoAcceptCall")?.addEventListener(
-            "click",
-            acceptCall
+        document.body.appendChild(
+            overlay
         );
 
-        $("gapinoRejectCall")?.addEventListener(
+        const accept =
+            $("gapinoAcceptCall");
+
+        const reject =
+            $("gapinoRejectCall");
+
+        const end =
+            $("gapinoEndCall");
+
+        accept?.addEventListener(
             "click",
-            rejectCall
+            event => {
+                event.preventDefault();
+                event.stopPropagation();
+                acceptCall();
+            }
         );
 
-        $("gapinoEndCall")?.addEventListener(
+        reject?.addEventListener(
             "click",
-            () => endCall(true, true)
+            event => {
+                event.preventDefault();
+                event.stopPropagation();
+                rejectCall();
+            }
+        );
+
+        end?.addEventListener(
+            "click",
+            event => {
+                event.preventDefault();
+                event.stopPropagation();
+                endCall(true, true);
+            }
         );
     }
 
     function showUI(user, status) {
         createUI();
 
-        const overlay = $("gapinoCallOverlay");
-        const avatar = $("gapinoCallAvatar");
-        const name = $("gapinoCallName");
-        const statusEl = $("gapinoCallStatus");
+        const overlay =
+            $("gapinoCallOverlay");
+
+        const avatar =
+            $("gapinoCallAvatar");
+
+        const name =
+            $("gapinoCallName");
+
+        const statusEl =
+            $("gapinoCallStatus");
 
         if (!overlay) {
             return;
@@ -381,14 +405,17 @@
 
         overlay.classList.add("show");
 
-        const displayName = uname(user);
+        const displayName =
+            uname(user);
 
         if (name) {
-            name.textContent = displayName;
+            name.textContent =
+                displayName;
         }
 
         if (statusEl) {
-            statusEl.textContent = status;
+            statusEl.textContent =
+                status;
         }
 
         if (avatar) {
@@ -409,14 +436,16 @@
                 img.onerror = () => {
                     avatar.innerHTML = "";
                     avatar.textContent =
-                        displayName.charAt(0) || "G";
+                        displayName.charAt(0) ||
+                        "G";
                 };
 
                 avatar.appendChild(img);
 
             } else {
                 avatar.textContent =
-                    displayName.charAt(0) || "G";
+                    displayName.charAt(0) ||
+                    "G";
             }
         }
 
@@ -464,90 +493,64 @@
        MICROPHONE
        ========================================================= */
 
-    async function testMicrophone() {
+    async function getMicrophone() {
         console.log(
-            "GAPINO microphone test started"
-        );
-
-        console.log(
-            "secure:",
-            window.isSecureContext
-        );
-
-        console.log(
-            "mediaDevices:",
-            !!navigator.mediaDevices
+            "GAPINO microphone request"
         );
 
         if (!window.isSecureContext) {
             throw new Error(
-                "صفحه امن نیست. تماس باید از HTTPS اجرا شود."
+                "صفحه امن نیست. HTTPS مورد نیاز است."
             );
         }
 
         if (!navigator.mediaDevices) {
             throw new Error(
-                "navigator.mediaDevices در این WebView وجود ندارد."
+                "mediaDevices در این WebView وجود ندارد."
             );
         }
 
-        if (!navigator.mediaDevices.getUserMedia) {
+        if (
+            !navigator.mediaDevices.getUserMedia
+        ) {
             throw new Error(
-                "getUserMedia در این WebView در دسترس نیست."
+                "getUserMedia در این WebView وجود ندارد."
             );
         }
 
-        try {
+        const stream =
+            await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                },
+                video: false
+            });
 
-            const stream =
-                await navigator.mediaDevices.getUserMedia({
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        autoGainControl: true
-                    },
-                    video: false
-                });
+        const tracks =
+            stream.getAudioTracks();
 
-            const tracks =
-                stream.getAudioTracks();
-
-            console.log(
-                "GAPINO microphone tracks:",
-                tracks
+        if (!tracks.length) {
+            stream.getTracks().forEach(
+                track => track.stop()
             );
 
-            if (!tracks.length) {
-
-                stream.getTracks().forEach(
-                    track => track.stop()
-                );
-
-                throw new Error(
-                    "میکروفون Track صوتی ایجاد نکرد."
-                );
-            }
-
-            return stream;
-
-        } catch (error) {
-
-            console.error(
-                "GAPINO getUserMedia ERROR:",
-                {
-                    name: error?.name,
-                    message: error?.message,
-                    constraint: error?.constraint,
-                    error
-                }
+            throw new Error(
+                "Track صوتی از میکروفون دریافت نشد."
             );
-
-            throw error;
         }
+
+        console.log(
+            "GAPINO microphone OK",
+            tracks
+        );
+
+        return stream;
     }
 
     /* =========================================================
-       PEER
+       PEER CONNECTION
        ========================================================= */
 
     function createPeer(targetId) {
@@ -564,7 +567,7 @@
             } catch (_) {}
         }
 
-        const turn =
+        const turnServers =
             Array.isArray(
                 window.GAPINO_TURN_SERVERS
             )
@@ -575,7 +578,7 @@
             new RTCPeerConnection({
                 iceServers: [
                     ...STUN_SERVERS,
-                    ...turn
+                    ...turnServers
                 ],
                 iceCandidatePoolSize: 10
             });
@@ -583,18 +586,22 @@
         pc.onicecandidate =
             event => {
 
-                if (
-                    !event.candidate ||
-                    !targetId
-                ) {
+                if (!event.candidate) {
                     return;
                 }
 
                 send({
-                    type: "call_ice",
-                    receiver_id: Number(targetId),
-                    call_id: callId,
-                    candidate: event.candidate
+                    type:
+                        "call_ice",
+
+                    receiver_id:
+                        Number(targetId),
+
+                    call_id:
+                        callId,
+
+                    candidate:
+                        event.candidate
                 });
             };
 
@@ -602,32 +609,45 @@
             event => {
 
                 console.log(
-                    "GAPINO remote track"
+                    "GAPINO remote track",
+                    event
                 );
 
                 remoteStream =
-                    event.streams?.[0] || null;
+                    event.streams?.[0] ||
+                    null;
 
                 if (!remoteStream) {
-                    console.warn(
-                        "GAPINO remote stream not found"
-                    );
                     return;
                 }
 
                 if (!remoteAudio) {
 
                     remoteAudio =
-                        document.createElement("audio");
+                        document.createElement(
+                            "audio"
+                        );
 
-                    remoteAudio.autoplay = true;
-                    remoteAudio.playsInline = true;
-                    remoteAudio.controls = false;
-                    remoteAudio.muted = false;
-                    remoteAudio.volume = 1;
+                    remoteAudio.autoplay =
+                        true;
+
+                    remoteAudio.playsInline =
+                        true;
+
+                    remoteAudio.muted =
+                        false;
+
+                    remoteAudio.volume =
+                        1;
 
                     remoteAudio.style.position =
                         "fixed";
+
+                    remoteAudio.style.width =
+                        "1px";
+
+                    remoteAudio.style.height =
+                        "1px";
 
                     remoteAudio.style.left =
                         "-9999px";
@@ -641,26 +661,20 @@
                     remoteStream;
 
                 try {
-                    const playResult =
+                    const result =
                         remoteAudio.play();
 
-                    if (
-                        playResult &&
-                        typeof playResult.catch ===
-                            "function"
-                    ) {
-                        playResult.catch(
-                            error => {
-                                console.warn(
-                                    "GAPINO remote audio play:",
-                                    error
-                                );
-                            }
-                        );
-                    }
+                    result?.catch?.(
+                        error => {
+                            console.warn(
+                                "GAPINO remote audio play:",
+                                error
+                            );
+                        }
+                    );
                 } catch (error) {
                     console.warn(
-                        "GAPINO audio play error:",
+                        "GAPINO remote audio error:",
                         error
                     );
                 }
@@ -677,26 +691,22 @@
                     pc.connectionState;
 
                 console.log(
-                    "GAPINO WebRTC state:",
+                    "GAPINO connection state:",
                     state
                 );
 
-                if (state === "new") {
-                    showUI(
-                        callTarget,
-                        "🔄 آماده اتصال..."
-                    );
-                }
-
-                if (state === "connecting") {
+                if (
+                    state === "connecting"
+                ) {
                     showUI(
                         callTarget,
                         "🔄 در حال اتصال..."
                     );
                 }
 
-                if (state === "connected") {
-
+                if (
+                    state === "connected"
+                ) {
                     inCall = true;
 
                     showUI(
@@ -705,29 +715,25 @@
                     );
                 }
 
-                if (state === "disconnected") {
-
+                if (
+                    state === "disconnected"
+                ) {
                     showUI(
                         callTarget,
                         "⚠️ ارتباط ناپایدار"
                     );
                 }
 
-                if (state === "failed") {
-
+                if (
+                    state === "failed"
+                ) {
                     showUI(
                         callTarget,
                         "❌ اتصال تماس برقرار نشد"
                     );
 
                     showToast(
-                        "اتصال WebRTC برقرار نشد."
-                    );
-                }
-
-                if (state === "closed") {
-                    console.log(
-                        "GAPINO WebRTC closed"
+                        "WebRTC نتوانست تماس را وصل کند."
                     );
                 }
             };
@@ -740,95 +746,51 @@
                 }
 
                 console.log(
-                    "GAPINO ICE state:",
+                    "GAPINO ICE:",
                     pc.iceConnectionState
-                );
-
-                if (
-                    pc.iceConnectionState ===
-                    "checking"
-                ) {
-                    showUI(
-                        callTarget,
-                        "🌐 بررسی اتصال شبکه..."
-                    );
-                }
-
-                if (
-                    pc.iceConnectionState ===
-                    "connected"
-                ) {
-                    showUI(
-                        callTarget,
-                        "🟢 در حال مکالمه"
-                    );
-                }
-
-                if (
-                    pc.iceConnectionState ===
-                    "failed"
-                ) {
-                    showUI(
-                        callTarget,
-                        "❌ اتصال شبکه تماس برقرار نشد"
-                    );
-
-                    showToast(
-                        "ICE نتوانست مسیر صوتی پیدا کند."
-                    );
-                }
-            };
-
-        pc.onsignalingstatechange =
-            () => {
-                if (!pc) {
-                    return;
-                }
-
-                console.log(
-                    "GAPINO signaling state:",
-                    pc.signalingState
                 );
             };
 
         return pc;
     }
 
-    async function addLocalStream() {
+    function addLocalTracks() {
 
         if (!pc) {
             throw new Error(
-                "PeerConnection ساخته نشده."
+                "PeerConnection موجود نیست."
             );
         }
 
         if (!localStream) {
-            localStream =
-                await testMicrophone();
+            throw new Error(
+                "localStream موجود نیست."
+            );
         }
 
-        localStream
-            .getTracks()
-            .forEach(track => {
-
-                const exists =
-                    pc.getSenders()
-                        .some(
-                            sender =>
-                                sender.track === track
-                        );
-
-                if (!exists) {
-                    pc.addTrack(
-                        track,
-                        localStream
+        for (
+            const track
+            of localStream.getTracks()
+        ) {
+            const exists =
+                pc.getSenders()
+                    .some(
+                        sender =>
+                            sender.track ===
+                            track
                     );
-                }
-            });
+
+            if (!exists) {
+                pc.addTrack(
+                    track,
+                    localStream
+                );
+            }
+        }
     }
 
     /* =========================================================
-       OUTGOING
+       START CALL
        ========================================================= */
 
     async function startCall() {
@@ -850,13 +812,7 @@
             return;
         }
 
-        const ws =
-            getSocket();
-
-        if (
-            !ws ||
-            ws.readyState !== WebSocket.OPEN
-        ) {
+        if (!socketIsOpen()) {
             showToast(
                 "WebSocket هنوز متصل نشده."
             );
@@ -865,33 +821,35 @@
 
         try {
 
-            callTarget = target;
+            callTarget =
+                target;
 
-            callId = createCallId();
+            callId =
+                createCallId();
 
             outgoing = true;
             inCall = false;
-
+            pendingOffer = null;
             pendingIce = [];
 
             showUI(
-                target,
+                callTarget,
                 "📤 در حال دسترسی به میکروفون..."
             );
 
             localStream =
-                await testMicrophone();
-
-            showUI(
-                target,
-                "📤 در حال ایجاد تماس..."
-            );
+                await getMicrophone();
 
             createPeer(
-                uid(target)
+                uid(callTarget)
             );
 
-            await addLocalStream();
+            addLocalTracks();
+
+            showUI(
+                callTarget,
+                "📤 در حال ساخت تماس..."
+            );
 
             const offer =
                 await pc.createOffer({
@@ -902,25 +860,40 @@
                 offer
             );
 
-            const sent =
-                send({
-                    type: "call_offer",
-                    receiver_id:
-                        Number(uid(target)),
-                    call_id:
-                        callId,
-                    offer:
-                        pc.localDescription
-                });
+            const payload = {
+                type:
+                    "call_offer",
 
-            if (!sent) {
+                receiver_id:
+                    Number(
+                        uid(callTarget)
+                    ),
+
+                call_id:
+                    callId,
+
+                offer: {
+                    type:
+                        pc.localDescription.type,
+
+                    sdp:
+                        pc.localDescription.sdp
+                }
+            };
+
+            console.log(
+                "GAPINO CALL OFFER:",
+                payload
+            );
+
+            if (!send(payload)) {
                 throw new Error(
                     "call_offer ارسال نشد."
                 );
             }
 
             showUI(
-                target,
+                callTarget,
                 "📤 در انتظار پاسخ..."
             );
 
@@ -936,22 +909,27 @@
     }
 
     /* =========================================================
-       INCOMING
+       INCOMING OFFER
        ========================================================= */
 
     async function handleOffer(data) {
 
         console.log(
-            "GAPINO CALL OFFER RECEIVED:",
+            "GAPINO INCOMING OFFER:",
             data
         );
 
         if (pc || inCall) {
 
             send({
-                type: "call_busy",
+                type:
+                    "call_busy",
+
                 receiver_id:
-                    Number(data.sender_id),
+                    Number(
+                        data.sender_id
+                    ),
+
                 call_id:
                     data.call_id || ""
             });
@@ -969,7 +947,7 @@
 
         if (!senderId) {
             console.error(
-                "GAPINO call_offer sender id missing",
+                "GAPINO offer sender missing",
                 data
             );
             return;
@@ -977,9 +955,55 @@
 
         if (!data.offer) {
             console.error(
-                "GAPINO call_offer offer missing",
+                "GAPINO offer missing",
                 data
             );
+            return;
+        }
+
+        let normalizedOffer = null;
+
+        if (
+            typeof data.offer ===
+            "string"
+        ) {
+            normalizedOffer = {
+                type:
+                    "offer",
+                sdp:
+                    data.offer
+            };
+
+        } else if (
+            data.offer &&
+            typeof data.offer ===
+                "object"
+        ) {
+
+            normalizedOffer = {
+                type:
+                    data.offer.type ||
+                    "offer",
+
+                sdp:
+                    data.offer.sdp ||
+                    ""
+            };
+        }
+
+        if (
+            !normalizedOffer ||
+            !normalizedOffer.sdp
+        ) {
+            console.error(
+                "GAPINO invalid offer:",
+                data.offer
+            );
+
+            showToast(
+                "اطلاعات تماس ورودی نامعتبر است."
+            );
+
             return;
         }
 
@@ -993,22 +1017,28 @@
         callTarget =
             users.find(
                 user =>
-                    uid(user) === senderId
+                    uid(user) ===
+                    senderId
             ) || {
-                id: senderId,
+                id:
+                    senderId,
+
                 display_name:
                     "کاربر گپینو"
             };
 
         callId =
             String(
-                data.call_id || createCallId()
+                data.call_id ||
+                createCallId()
             );
 
         outgoing = false;
         inCall = false;
 
-        pendingOffer = data.offer;
+        pendingOffer =
+            normalizedOffer;
+
         pendingIce = [];
 
         showUI(
@@ -1024,39 +1054,31 @@
     async function acceptCall() {
 
         console.log(
-            "GAPINO ACCEPT CLICK",
+            "GAPINO ACCEPT START",
             {
-                pendingOffer,
-                callTarget,
                 callId,
-                socketState:
-                    getSocketState()
+                callTarget,
+                pendingOffer
             }
         );
 
         if (!pendingOffer) {
             showToast(
-                "اطلاعات تماس ورودی پیدا نشد."
+                "اطلاعات تماس ورودی موجود نیست."
             );
             return;
         }
 
         if (!callTarget) {
             showToast(
-                "اطلاعات تماس‌گیرنده پیدا نشد."
+                "تماس‌گیرنده پیدا نشد."
             );
             return;
         }
 
-        const ws =
-            getSocket();
-
-        if (
-            !ws ||
-            ws.readyState !== WebSocket.OPEN
-        ) {
+        if (!socketIsOpen()) {
             showToast(
-                `اتصال تماس برقرار نیست (${getSocketState()})`
+                "اتصال WebSocket قطع است."
             );
             return;
         }
@@ -1069,58 +1091,66 @@
             );
 
             localStream =
-                await testMicrophone();
+                await getMicrophone();
 
             console.log(
-                "GAPINO ACCEPT microphone OK"
-            );
-
-            showUI(
-                callTarget,
-                "🔄 در حال آماده‌سازی تماس..."
+                "GAPINO ACCEPT STEP 1 OK"
             );
 
             createPeer(
                 uid(callTarget)
             );
 
-            await addLocalStream();
+            addLocalTracks();
 
             console.log(
-                "GAPINO ACCEPT setting remote offer",
-                pendingOffer
+                "GAPINO ACCEPT STEP 2 OK"
             );
 
-            const offerDescription =
-                pendingOffer.type &&
-                pendingOffer.sdp
-                    ? pendingOffer
-                    : {
-                        type: "offer",
-                        sdp:
-                            pendingOffer.sdp ||
-                            pendingOffer
-                    };
+            const remoteOffer = {
+                type:
+                    pendingOffer.type ||
+                    "offer",
+
+                sdp:
+                    pendingOffer.sdp
+            };
+
+            console.log(
+                "GAPINO ACCEPT REMOTE OFFER:",
+                remoteOffer
+            );
+
+            if (
+                !remoteOffer.sdp
+            ) {
+                throw new Error(
+                    "SDP تماس ورودی خالی است."
+                );
+            }
+
+            showUI(
+                callTarget,
+                "🔄 در حال ثبت تماس..."
+            );
 
             await pc.setRemoteDescription(
                 new RTCSessionDescription(
-                    offerDescription
+                    remoteOffer
                 )
             );
 
             console.log(
-                "GAPINO ACCEPT remote description set"
+                "GAPINO ACCEPT STEP 3 REMOTE DESCRIPTION OK"
             );
 
             await flushIce();
 
             const answer =
-                await pc.createAnswer({
-                    offerToReceiveAudio: true
-                });
+                await pc.createAnswer();
 
             console.log(
-                "GAPINO ACCEPT answer created",
+                "GAPINO ACCEPT ANSWER CREATED:",
                 answer
             );
 
@@ -1129,22 +1159,32 @@
             );
 
             console.log(
-                "GAPINO ACCEPT local description set",
-                pc.localDescription
+                "GAPINO ACCEPT STEP 4 LOCAL DESCRIPTION OK"
             );
 
             const answerPayload = {
-                type: "call_answer",
+                type:
+                    "call_answer",
+
                 receiver_id:
-                    Number(uid(callTarget)),
+                    Number(
+                        uid(callTarget)
+                    ),
+
                 call_id:
                     callId,
-                answer:
-                    pc.localDescription
+
+                answer: {
+                    type:
+                        pc.localDescription.type,
+
+                    sdp:
+                        pc.localDescription.sdp
+                }
             };
 
             console.log(
-                "GAPINO ACCEPT sending answer",
+                "GAPINO ACCEPT ANSWER PAYLOAD:",
                 answerPayload
             );
 
@@ -1157,17 +1197,22 @@
                 );
             }
 
-            pendingOffer = null;
+            pendingOffer =
+                null;
 
             showUI(
                 callTarget,
                 "🔄 در حال اتصال..."
             );
 
+            console.log(
+                "GAPINO ACCEPT SUCCESS"
+            );
+
         } catch (error) {
 
             console.error(
-                "GAPINO ACCEPT ERROR FULL:",
+                "GAPINO ACCEPT FAILED:",
                 error
             );
 
@@ -1181,35 +1226,38 @@
     }
 
     /* =========================================================
-       ANSWER
+       ANSWER RECEIVED
        ========================================================= */
 
     async function handleAnswer(data) {
 
         console.log(
-            "GAPINO CALL ANSWER RECEIVED:",
+            "GAPINO ANSWER RECEIVED:",
             data
         );
 
         if (!pc) {
             console.warn(
-                "GAPINO answer received without peer"
+                "GAPINO answer without peer"
             );
             return;
         }
 
         if (
             data.call_id &&
+            callId &&
             String(data.call_id) !==
                 String(callId)
         ) {
             console.warn(
-                "GAPINO answer call_id mismatch",
+                "GAPINO answer call id mismatch",
                 {
                     local: callId,
-                    remote: data.call_id
+                    remote:
+                        data.call_id
                 }
             );
+
             return;
         }
 
@@ -1222,20 +1270,27 @@
 
         try {
 
-            const answerDescription =
-                data.answer.type &&
-                data.answer.sdp
-                    ? data.answer
-                    : {
-                        type: "answer",
-                        sdp:
-                            data.answer.sdp ||
-                            data.answer
-                    };
+            const normalizedAnswer = {
+                type:
+                    data.answer.type ||
+                    "answer",
+
+                sdp:
+                    data.answer.sdp ||
+                    data.answer
+            };
+
+            if (
+                !normalizedAnswer.sdp
+            ) {
+                throw new Error(
+                    "SDP پاسخ تماس خالی است."
+                );
+            }
 
             await pc.setRemoteDescription(
                 new RTCSessionDescription(
-                    answerDescription
+                    normalizedAnswer
                 )
             );
 
@@ -1261,12 +1316,7 @@
 
     async function handleIce(data) {
 
-        console.log(
-            "GAPINO CALL ICE RECEIVED:",
-            data
-        );
-
-        if (!data.candidate) {
+        if (!data?.candidate) {
             return;
         }
 
@@ -1283,11 +1333,9 @@
             !pc ||
             !pc.remoteDescription
         ) {
-
             pendingIce.push(
                 data.candidate
             );
-
             return;
         }
 
@@ -1302,7 +1350,7 @@
         } catch (error) {
 
             console.warn(
-                "GAPINO ICE error:",
+                "GAPINO ICE ERROR:",
                 error
             );
         }
@@ -1317,14 +1365,13 @@
             return;
         }
 
-        const list =
+        const candidates =
             pendingIce.splice(0);
 
         for (
             const candidate
-            of list
+            of candidates
         ) {
-
             try {
 
                 await pc.addIceCandidate(
@@ -1336,7 +1383,7 @@
             } catch (error) {
 
                 console.warn(
-                    "GAPINO ICE flush:",
+                    "GAPINO ICE FLUSH ERROR:",
                     error
                 );
             }
@@ -1344,7 +1391,7 @@
     }
 
     /* =========================================================
-       CONTROL
+       REJECT / END
        ========================================================= */
 
     function rejectCall() {
@@ -1352,9 +1399,14 @@
         if (callTarget) {
 
             send({
-                type: "call_reject",
+                type:
+                    "call_reject",
+
                 receiver_id:
-                    Number(uid(callTarget)),
+                    Number(
+                        uid(callTarget)
+                    ),
+
                 call_id:
                     callId
             });
@@ -1368,7 +1420,6 @@
     }
 
     function handleReject() {
-
         cleanup();
 
         showToast(
@@ -1377,7 +1428,6 @@
     }
 
     function handleBusy() {
-
         cleanup();
 
         showToast(
@@ -1386,7 +1436,6 @@
     }
 
     function handleRemoteEnd() {
-
         cleanup();
 
         showToast(
@@ -1403,11 +1452,15 @@
             notifyRemote &&
             callTarget
         ) {
-
             send({
-                type: "call_end",
+                type:
+                    "call_end",
+
                 receiver_id:
-                    Number(uid(callTarget)),
+                    Number(
+                        uid(callTarget)
+                    ),
+
                 call_id:
                     callId
             });
@@ -1439,7 +1492,6 @@
                 pc.ontrack = null;
                 pc.onconnectionstatechange = null;
                 pc.oniceconnectionstatechange = null;
-                pc.onsignalingstatechange = null;
 
                 pc.close();
             } catch (_) {}
@@ -1466,7 +1518,8 @@
                 remoteAudio.pause();
             } catch (_) {}
 
-            remoteAudio.srcObject = null;
+            remoteAudio.srcObject =
+                null;
         }
 
         remoteStream = null;
@@ -1484,7 +1537,7 @@
     }
 
     /* =========================================================
-       EVENT BRIDGE
+       EVENTS
        ========================================================= */
 
     function handleCallEvent(data) {
@@ -1532,7 +1585,6 @@
                     "GAPINO unknown call event:",
                     data.type
                 );
-                break;
         }
     }
 
@@ -1555,7 +1607,7 @@
     );
 
     /* =========================================================
-       BUTTON
+       CALL BUTTON
        ========================================================= */
 
     function bindCallButton() {
@@ -1602,7 +1654,6 @@
         handleCallEvent;
 
     window.GAPINO_CALL = {
-
         start:
             startCall,
 
@@ -1636,7 +1687,7 @@
         bindCallButton();
 
         console.log(
-            "GAPINO voice call fixed diagnostic version loaded"
+            "GAPINO call.js v501 loaded"
         );
     }
 
@@ -1644,17 +1695,12 @@
         document.readyState ===
         "loading"
     ) {
-
         document.addEventListener(
             "DOMContentLoaded",
             init,
-            {
-                once: true
-            }
+            { once: true }
         );
-
     } else {
-
         init();
     }
 
