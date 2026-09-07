@@ -1,0 +1,9 @@
+﻿{
+  "appId": "com.gapino.chat",
+  "appName": "GAPINO",
+  "webDir": "www",
+  "server": {
+    "url": "https://mygapino.shop",
+    "cleartext": false
+  }
+}

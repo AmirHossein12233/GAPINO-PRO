@@ -1,1155 +1,3214 @@
-```html
-<!DOCTYPE html>
-<html lang="fa" dir="rtl">
+"use strict";
 
-<head>
+const API = window.location.origin;
 
-    <meta charset="UTF-8">
+let currentUser = null;
+let currentChatUser = null;
 
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0, viewport-fit=cover"
-    >
+let socket = null;
 
-    <meta
-        name="theme-color"
-        content="#080d1a"
-    >
+let reconnectTimer = null;
+let pingTimer = null;
+let usersRefreshTimer = null;
+let typingTimer = null;
 
-    <title>گپینو | چت</title>
+let reconnectAttempts = 0;
 
+let allUsers = [];
 
-    <!-- =====================================================
-         STYLE
-         ===================================================== -->
+let mediaRecorder = null;
+let mediaStream = null;
+let audioChunks = [];
+let isRecording = false;
 
-    <link
-        rel="stylesheet"
-        href="/static/style.css?v=302"
-    >
+let selectedAvatarUrl = "";
+let isSavingProfile = false;
 
 
-    <!-- =====================================================
-         EXTRA CHAT FIXES
-         ===================================================== -->
+/* =========================================================
+   HELPERS
+   ========================================================= */
 
-    <style>
+function $(id) {
+    return document.getElementById(id);
+}
 
-        [hidden] {
-            display: none !important;
+function safeText(value) {
+    return String(value ?? "");
+}
+
+function getCurrentUserId() {
+    return String(
+        currentUser?.id ||
+        currentUser?.user_id ||
+        ""
+    );
+}
+
+function getUserId(user) {
+    return String(
+        user?.id ||
+        user?.user_id ||
+        ""
+    );
+}
+
+function getUserName(user) {
+    return (
+        user?.display_name ||
+        user?.full_name ||
+        user?.name ||
+        user?.username ||
+        "کاربر"
+    );
+}
+
+function isOnline(user) {
+    return Boolean(
+        user?.online === true ||
+        user?.status === "online" ||
+        user?.status === "آنلاین"
+    );
+}
+
+
+/* =========================================================
+   DOM
+   ========================================================= */
+
+const appShell = $("appShell");
+const sidebar = $("sidebar");
+const menuButton = $("menuButton");
+const mobileMenuButton = $("mobileMenuButton");
+const appOverlay = $("appOverlay");
+
+const profileButton = $("profileButton");
+const profileHeaderButton = $("profileHeaderButton");
+const closeProfile = $("closeProfile");
+
+const currentAvatar = $("currentAvatar");
+const currentDisplayName = $("currentDisplayName");
+const currentUsername = $("currentUsername");
+
+const userSearch = $("userSearch");
+const clearSearch = $("clearSearch");
+const userList = $("userList");
+const userCount = $("userCount");
+
+const chatContact = $("chatContact");
+const chatHeaderEmpty = $("chatHeaderEmpty");
+const chatAvatar = $("chatAvatar");
+const chatName = $("chatName");
+const chatStatus = $("chatStatus");
+
+const callButton = $("callButton");
+const refreshButton = $("refreshButton");
+
+const welcomeScreen = $("welcomeScreen");
+const chatView = $("chatView");
+const messagesBox = $("messages");
+const typingArea = $("typingArea");
+
+const fileInput = $("fileInput");
+const attachButton = $("attachButton");
+const voiceButton = $("voiceButton");
+const messageInput = $("messageInput");
+const sendButton = $("sendButton");
+
+const profilePanel = $("profilePanel");
+const profileAvatar = $("profileAvatar");
+const profileName = $("profileName");
+const profileUsername = $("profileUsername");
+const editDisplayName = $("editDisplayName");
+const editBio = $("editBio");
+const editStatus = $("editStatus");
+const saveProfile = $("saveProfile");
+const profilePageButton = $("profilePageButton");
+
+const themeButton = $("themeButton");
+const logoutButton = $("logoutButton");
+
+const toast = $("toast");
+
+
+/* =========================================================
+   TOAST
+   ========================================================= */
+
+function showToast(text, timeout = 2600) {
+
+    if (!toast) {
+        console.log("GAPINO:", text);
+        return;
+    }
+
+    toast.textContent = safeText(text);
+
+    toast.style.display = "block";
+
+    toast.classList.add("show");
+
+    clearTimeout(showToast.timer);
+
+    showToast.timer = setTimeout(() => {
+
+        toast.classList.remove("show");
+        toast.style.display = "none";
+
+    }, timeout);
+}
+
+
+/* =========================================================
+   API
+   ========================================================= */
+
+async function apiFetch(path, options = {}) {
+
+    const response = await fetch(
+        API + path,
+        {
+            ...options,
+            credentials: "include",
+            cache: "no-store"
+        }
+    );
+
+    let data = null;
+
+    try {
+        data = await response.json();
+    } catch (_) {
+        data = null;
+    }
+
+    if (!response.ok) {
+
+        throw new Error(
+            data?.message ||
+            data?.detail ||
+            `HTTP ${response.status}`
+        );
+
+    }
+
+    return data;
+}
+
+
+/* =========================================================
+   AVATAR
+   ========================================================= */
+
+function getAvatarLetter(user) {
+
+    return (
+        getUserName(user)
+            .trim()
+            .charAt(0)
+        || "G"
+    );
+}
+
+function renderAvatar(element, user) {
+
+    if (!element) {
+        return;
+    }
+
+    element.innerHTML = "";
+
+    const avatar = safeText(
+        user?.avatar ||
+        user?.profile?.avatar
+    ).trim();
+
+    if (!avatar) {
+
+        element.textContent =
+            getAvatarLetter(user);
+
+        return;
+    }
+
+    const img =
+        document.createElement("img");
+
+    img.src = avatar;
+    img.alt = "آواتار";
+    img.loading = "lazy";
+
+    img.onerror = () => {
+
+        element.innerHTML = "";
+
+        element.textContent =
+            getAvatarLetter(user);
+
+    };
+
+    element.appendChild(img);
+}
+
+
+/* =========================================================
+   CURRENT USER
+   ========================================================= */
+
+function updateCurrentUserUI() {
+
+    if (!currentUser) {
+        return;
+    }
+
+    if (currentDisplayName) {
+
+        currentDisplayName.textContent =
+            getUserName(currentUser);
+
+    }
+
+    if (currentUsername) {
+
+        const username =
+            safeText(currentUser.username);
+
+        currentUsername.textContent =
+            username
+                ? `@${username}`
+                : "کاربر";
+
+    }
+
+    renderAvatar(
+        currentAvatar,
+        currentUser
+    );
+}
+
+
+/* =========================================================
+   CHAT HEADER
+   ========================================================= */
+
+function updateChatHeader(user) {
+
+    if (!user) {
+        return;
+    }
+
+    if (chatName) {
+        chatName.textContent =
+            getUserName(user);
+    }
+
+    if (chatStatus) {
+
+        chatStatus.textContent =
+            isOnline(user)
+                ? "آنلاین"
+                : "آفلاین";
+
+    }
+
+    renderAvatar(
+        chatAvatar,
+        user
+    );
+
+    if (chatContact) {
+        chatContact.hidden = false;
+    }
+
+    if (chatHeaderEmpty) {
+        chatHeaderEmpty.hidden = true;
+    }
+
+    if (callButton) {
+
+        callButton.disabled =
+            !isOnline(user);
+
+        callButton.title =
+            isOnline(user)
+                ? "تماس صوتی"
+                : "کاربر آفلاین است";
+
+    }
+}
+
+
+/* =========================================================
+   INPUT
+   ========================================================= */
+
+function setChatInputEnabled(enabled) {
+
+    const state =
+        Boolean(enabled);
+
+    if (messageInput) {
+
+        messageInput.disabled =
+            !state;
+
+        messageInput.placeholder =
+            state
+                ? "پیامت را بنویس..."
+                : "یک کاربر را انتخاب کنید...";
+
+    }
+
+    if (sendButton) {
+        sendButton.disabled = !state;
+    }
+
+    if (attachButton) {
+        attachButton.disabled = !state;
+    }
+
+    if (voiceButton) {
+        voiceButton.disabled = !state;
+    }
+
+    if (callButton) {
+
+        callButton.disabled =
+            !state ||
+            !currentChatUser ||
+            !isOnline(currentChatUser);
+
+    }
+}
+
+
+/* =========================================================
+   CURRENT USER
+   ========================================================= */
+
+async function loadCurrentUser() {
+
+    try {
+
+        const data =
+            await apiFetch("/me");
+
+        if (
+            data?.authenticated &&
+            data?.user
+        ) {
+
+            currentUser =
+                data.user;
+
+            localStorage.setItem(
+                "gapino_user",
+                JSON.stringify(currentUser)
+            );
+
+            updateCurrentUserUI();
+
+            return currentUser;
         }
 
+    } catch (error) {
 
-        /* =============================================
-           OVERLAY
-           ============================================= */
+        console.warn(
+            "Session error:",
+            error
+        );
 
-        .app-overlay {
-            position: fixed !important;
+    }
 
-            inset: 0 !important;
+    localStorage.removeItem(
+        "gapino_user"
+    );
 
-            z-index: 9000 !important;
+    window.location.replace(
+        "/login.html"
+    );
 
-            background:
-                rgba(0, 0, 0, .48);
-
-            backdrop-filter:
-                blur(4px);
-
-            -webkit-backdrop-filter:
-                blur(4px);
-
-            pointer-events: auto;
-
-            touch-action: none;
-        }
+    return null;
+}
 
 
-        /* =============================================
-           SIDEBAR
-           ============================================= */
+/* =========================================================
+   USERS
+   ========================================================= */
 
-        .sidebar {
-            pointer-events: auto !important;
-        }
+async function loadUsers() {
 
+    try {
 
-        .user-list {
-            pointer-events: auto !important;
+        const data =
+            await apiFetch("/users");
 
-            touch-action: pan-y;
-        }
+        if (Array.isArray(data)) {
 
+            allUsers = data;
 
-        .user-item {
-            pointer-events: auto !important;
+        } else if (
+            Array.isArray(data?.users)
+        ) {
 
-            cursor: pointer;
+            allUsers = data.users;
 
-            touch-action: manipulation;
-        }
+        } else {
 
-
-        /* =============================================
-           VOICE RECORDING
-           ============================================= */
-
-        #voiceButton.recording {
-            background:
-                rgba(239, 68, 68, .17) !important;
-
-            border-color:
-                rgba(239, 68, 68, .40) !important;
-
-            color:
-                #fca5a5 !important;
-
-            animation:
-                gapinoVoicePulse 1.2s
-                infinite ease-in-out;
-        }
-
-
-        @keyframes gapinoVoicePulse {
-
-            0% {
-                box-shadow:
-                    0 0 0 0
-                    rgba(239, 68, 68, .15);
-            }
-
-            50% {
-                box-shadow:
-                    0 0 0 7px
-                    rgba(239, 68, 68, 0);
-            }
-
-            100% {
-                box-shadow:
-                    0 0 0 0
-                    rgba(239, 68, 68, 0);
-            }
-        }
-
-
-        /* =============================================
-           AUDIO
-           ============================================= */
-
-        .message-audio {
-            min-width:
-                min(280px, 100%);
-
-            max-width:
-                min(360px, 100%);
-        }
-
-
-        .message-audio audio {
-            display: block;
-
-            width: 100%;
-
-            min-width: 240px;
-
-            max-width: 100%;
-        }
-
-
-        .voice-name {
-            margin-top: 6px;
-
-            color:
-                rgba(255,255,255,.70);
-
-            font-size: 10px;
-
-            line-height: 1.5;
-        }
-
-
-        .message.theirs .voice-name {
-            color:
-                var(--muted);
-        }
-
-
-        /* =============================================
-           IMAGE
-           ============================================= */
-
-        .message-image {
-            max-width:
-                min(380px, 100%);
-
-            max-height:
-                450px;
-
-            display:
-                block;
-
-            border-radius:
-                14px;
-
-            object-fit:
-                cover;
-
-            cursor:
-                pointer;
-        }
-
-
-        /* =============================================
-           PROFILE PANEL
-           ============================================= */
-
-        .profile-panel[hidden] {
-            display:
-                none !important;
-        }
-
-
-        /* =============================================
-           DESKTOP
-           ============================================= */
-
-        @media (min-width: 821px) {
-
-            .app-overlay {
-                display:
-                    none !important;
-
-                pointer-events:
-                    none !important;
-            }
+            allUsers = [];
 
         }
 
+        renderUsers();
 
-        /* =============================================
-           MOBILE
-           ============================================= */
+        window.GAPINO_USERS =
+            allUsers;
 
-        @media (max-width: 820px) {
+    } catch (error) {
 
-            .sidebar {
-                position:
-                    fixed !important;
+        console.error(
+            "Users error:",
+            error
+        );
 
-                top:
-                    0 !important;
+        if (userList) {
 
-                right:
-                    0 !important;
+            userList.innerHTML = `
 
-                bottom:
-                    0 !important;
+                <div class="empty-users">
 
-                width:
-                    min(88vw, 360px) !important;
+                    <div class="empty-icon">
+                        ⚠️
+                    </div>
 
-                z-index:
-                    10001 !important;
-            }
-
-
-            .app-shell.sidebar-open .sidebar {
-                transform:
-                    translateX(0) !important;
-            }
-
-
-            .app-overlay {
-                z-index:
-                    10000 !important;
-            }
-
-
-            .profile-panel {
-                z-index:
-                    10002 !important;
-            }
-
-        }
-
-
-        /* =============================================
-           SAFE BUTTON STATE
-           ============================================= */
-
-        button:disabled {
-            opacity:
-                .50;
-
-            cursor:
-                not-allowed;
-        }
-
-
-        /* =============================================
-           TEXT SELECTION
-           ============================================= */
-
-        .message-text,
-        .message-file-name {
-            user-select:
-                text;
-
-            -webkit-user-select:
-                text;
-        }
-
-    </style>
-
-</head>
-
-
-<body>
-
-
-<div
-    id="appShell"
-    class="app-shell"
->
-
-
-    <!-- =====================================================
-         SIDEBAR
-         ===================================================== -->
-
-    <aside
-        id="sidebar"
-        class="sidebar"
-    >
-
-
-        <!-- ===============================================
-             HEADER
-             =============================================== -->
-
-        <div class="sidebar-header">
-
-
-            <div class="sidebar-brand">
-
-
-                <div
-                    class="sidebar-logo"
-                    aria-hidden="true"
-                >
-                    G
-                </div>
-
-
-                <div>
-
-                    <h1>
-                        گپینو
-                    </h1>
-
-                    <span>
-                        پیام‌رسان شما
-                    </span>
-
-                </div>
-
-
-            </div>
-
-
-            <button
-                id="menuButton"
-                class="icon-button"
-                type="button"
-                title="بستن منو"
-                aria-label="بستن منو"
-            >
-                ☰
-            </button>
-
-
-        </div>
-
-
-        <!-- =================================================
-             CURRENT USER
-             ================================================= -->
-
-        <div class="current-user-card">
-
-
-            <button
-                id="profileButton"
-                class="current-user-main"
-                type="button"
-                title="پروفایل من"
-                aria-label="پروفایل من"
-            >
-
-
-                <div
-                    id="currentAvatar"
-                    class="avatar avatar-large"
-                >
-                    G
-                </div>
-
-
-                <div class="current-user-info">
-
-
-                    <strong
-                        id="currentDisplayName"
-                    >
-                        گپینو
+                    <strong>
+                        دریافت کاربران انجام نشد
                     </strong>
 
-
-                    <span
-                        id="currentUsername"
-                    >
-                        @user
+                    <span>
+                        اتصال سرور را بررسی کن.
                     </span>
 
-
                 </div>
+            `;
+        }
+    }
+}
 
 
-            </button>
+function renderUsers() {
 
+    if (!userList) {
+        return;
+    }
 
-            <span
-                class="online-dot"
-                title="آنلاین"
-                aria-label="آنلاین"
-            ></span>
+    const query =
+        safeText(
+            userSearch?.value
+        )
+        .trim()
+        .toLowerCase();
 
+    const filtered =
+        allUsers.filter(user => {
 
-        </div>
+            if (!user) {
+                return false;
+            }
 
+            if (
+                getUserId(user) ===
+                getCurrentUserId()
+            ) {
 
-        <!-- =================================================
-             SEARCH
-             ================================================= -->
+                return false;
+            }
 
-        <div class="search-box">
+            if (!query) {
+                return true;
+            }
 
+            const name =
+                getUserName(user)
+                    .toLowerCase();
 
-            <span
-                class="search-icon"
-                aria-hidden="true"
-            >
-                🔎
-            </span>
+            const username =
+                safeText(user.username)
+                    .toLowerCase();
 
+            return (
+                name.includes(query) ||
+                username.includes(query)
+            );
+        });
 
-            <input
-                id="userSearch"
-                type="search"
-                placeholder="جستجوی کاربران..."
-                autocomplete="off"
-                spellcheck="false"
-                aria-label="جستجوی کاربران"
-            >
+    userList.innerHTML = "";
 
+    if (userCount) {
 
-            <button
-                id="clearSearch"
-                class="search-clear"
-                type="button"
-                hidden
-                title="پاک کردن"
-                aria-label="پاک کردن جستجو"
-            >
-                ×
-            </button>
+        userCount.textContent =
+            filtered.length.toLocaleString(
+                "fa-IR"
+            );
 
+    }
 
-        </div>
+    if (!filtered.length) {
 
-
-        <!-- =================================================
-             USER LIST HEADER
-             ================================================= -->
-
-        <div class="list-header">
-
-
-            <span>
-                کاربران
-            </span>
-
-
-            <span id="userCount">
-                0
-            </span>
-
-
-        </div>
-
-
-        <!-- =================================================
-             USER LIST
-             ================================================= -->
-
-        <div
-            id="userList"
-            class="user-list"
-            aria-label="فهرست کاربران"
-        >
-
+        userList.innerHTML = `
 
             <div class="empty-users">
 
-
-                <div
-                    class="empty-icon"
-                    aria-hidden="true"
-                >
-                    💬
+                <div class="empty-icon">
+                    🔎
                 </div>
-
 
                 <strong>
-                    در حال دریافت کاربران...
+                    کاربری پیدا نشد
                 </strong>
 
-
                 <span>
-                    لطفاً کمی صبر کن.
+                    جستجوی دیگری انجام بده.
                 </span>
 
+            </div>
+        `;
 
+        return;
+    }
+
+    filtered.forEach(user => {
+
+        const item =
+            document.createElement("button");
+
+        item.type = "button";
+        item.className = "user-item";
+
+        if (
+            currentChatUser &&
+            getUserId(currentChatUser) ===
+            getUserId(user)
+        ) {
+
+            item.classList.add("active");
+
+        }
+
+        const avatar =
+            document.createElement("div");
+
+        avatar.className = "avatar";
+
+        renderAvatar(
+            avatar,
+            user
+        );
+
+        const info =
+            document.createElement("div");
+
+        info.className =
+            "user-info";
+
+        const row =
+            document.createElement("div");
+
+        row.className =
+            "username-row";
+
+        const name =
+            document.createElement("strong");
+
+        name.className =
+            "username";
+
+        name.textContent =
+            getUserName(user);
+
+        const dot =
+            document.createElement("span");
+
+        dot.className =
+            isOnline(user)
+                ? "online-dot"
+                : "offline-dot";
+
+        row.appendChild(name);
+        row.appendChild(dot);
+
+        const status =
+            document.createElement("span");
+
+        status.className =
+            "status-text";
+
+        status.textContent =
+            user.username
+                ? `@${user.username} • ${
+                    isOnline(user)
+                        ? "آنلاین"
+                        : "آفلاین"
+                }`
+                : (
+                    isOnline(user)
+                        ? "آنلاین"
+                        : "آفلاین"
+                );
+
+        info.appendChild(row);
+        info.appendChild(status);
+
+        item.appendChild(avatar);
+        item.appendChild(info);
+
+        item.addEventListener(
+            "click",
+            () => openChat(user)
+        );
+
+        userList.appendChild(item);
+
+    });
+}
+
+
+/* =========================================================
+   CHAT
+   ========================================================= */
+
+async function openChat(user) {
+
+    if (!user) {
+        return;
+    }
+
+    currentChatUser =
+        user;
+
+    updateChatHeader(
+        user
+    );
+
+    renderUsers();
+
+    setChatInputEnabled(
+        true
+    );
+
+    if (welcomeScreen) {
+        welcomeScreen.hidden =
+            true;
+    }
+
+    if (chatView) {
+        chatView.hidden =
+            false;
+    }
+
+    closeSidebar();
+
+    clearMessages();
+
+    await loadConversation(
+        getUserId(user)
+    );
+
+    await markConversationRead(
+        getUserId(user)
+    );
+
+    if (messageInput) {
+
+        setTimeout(
+            () => messageInput.focus(),
+            80
+        );
+
+    }
+}
+
+
+async function loadConversation(
+    otherUserId
+) {
+
+    if (
+        !getCurrentUserId() ||
+        !otherUserId
+    ) {
+        return;
+    }
+
+    try {
+
+        const data =
+            await apiFetch(
+                `/messages/${encodeURIComponent(
+                    getCurrentUserId()
+                )}/${encodeURIComponent(
+                    otherUserId
+                )}`
+            );
+
+        const messages =
+            Array.isArray(data)
+                ? data
+                : (
+                    Array.isArray(
+                        data?.messages
+                    )
+                        ? data.messages
+                        : []
+                );
+
+        renderMessages(
+            messages
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Conversation error:",
+            error
+        );
+
+        showToast(
+            "دریافت پیام‌ها انجام نشد."
+        );
+    }
+}
+
+
+function clearMessages() {
+
+    if (!messagesBox) {
+        return;
+    }
+
+    messagesBox.innerHTML = `
+
+        <div class="empty-chat">
+
+            <div class="empty-chat-icon">
+                💬
             </div>
 
+            <h2>
+                گفتگو
+            </h2>
+
+            <p>
+                پیام‌ها اینجا نمایش داده می‌شوند.
+            </p>
 
         </div>
+    `;
+}
 
 
-        <!-- =================================================
-             SIDEBAR FOOTER
-             ================================================= -->
+function removeEmptyMessage() {
 
-        <div class="sidebar-footer">
+    messagesBox
+        ?.querySelector(
+            ".empty-chat"
+        )
+        ?.remove();
 
+}
 
-            <!-- THEME -->
 
-            <button
-                id="themeButton"
-                class="sidebar-action"
-                type="button"
-                title="تغییر حالت نمایش"
-            >
-                ☀️
-                <span>
-                    حالت روشن
-                </span>
-            </button>
+function renderMessages(
+    messages
+) {
 
+    if (!messagesBox) {
+        return;
+    }
 
-            <!-- LOGOUT -->
+    messagesBox.innerHTML = "";
 
-            <button
-                id="logoutButton"
-                class="sidebar-action danger"
-                type="button"
-                title="خروج از حساب"
-            >
-                🚪
+    if (
+        !Array.isArray(messages) ||
+        !messages.length
+    ) {
 
-                <span>
-                    خروج از حساب
-                </span>
+        clearMessages();
 
-            </button>
+        return;
+    }
 
+    messages.forEach(
+        message =>
+            appendMessage(
+                message,
+                false
+            )
+    );
 
-        </div>
+    scrollToBottom();
+}
 
 
-    </aside>
+function appendMessage(
+    message,
+    shouldScroll = true
+) {
 
+    if (
+        !messagesBox ||
+        !message
+    ) {
+        return;
+    }
 
-    <!-- =====================================================
-         MAIN CHAT
-         ===================================================== -->
+    removeEmptyMessage();
 
-    <main
-        class="chat-main"
-    >
+    const senderId =
+        String(
+            message.sender_id ||
+            message.sender ||
+            ""
+        );
 
+    const mine =
+        senderId ===
+        getCurrentUserId();
 
-        <!-- =================================================
-             CHAT HEADER
-             ================================================= -->
+    const row =
+        document.createElement("div");
 
-        <header
-            id="chatHeader"
-            class="chat-header"
-        >
+    row.className =
+        mine
+            ? "message-row mine"
+            : "message-row theirs";
 
+    const bubble =
+        document.createElement("div");
 
-            <!-- MOBILE MENU -->
+    bubble.className =
+        "message-bubble";
 
-            <button
-                id="mobileMenuButton"
-                class="icon-button mobile-only"
-                type="button"
-                title="کاربران"
-                aria-label="باز کردن فهرست کاربران"
-            >
-                ☰
-            </button>
+    renderMessageContent(
+        bubble,
+        message
+    );
 
+    const time =
+        document.createElement("span");
 
-            <!-- CONTACT -->
+    time.className =
+        "message-time";
 
-            <div
-                id="chatContact"
-                class="chat-contact"
-                hidden
-            >
+    time.textContent =
+        formatTime(
+            message.created_at ||
+            message.time
+        );
+
+    bubble.appendChild(time);
+
+    row.appendChild(bubble);
+
+    messagesBox.appendChild(row);
 
+    if (shouldScroll) {
+        scrollToBottom();
+    }
+}
 
-                <div
-                    id="chatAvatar"
-                    class="avatar"
-                >
-                    G
-                </div>
 
+function renderMessageContent(
+    container,
+    message
+) {
 
-                <div class="chat-contact-info">
+    if (
+        message.file
+    ) {
 
+        renderFileObject(
+            container,
+            message.file
+        );
 
-                    <strong
-                        id="chatName"
-                    >
-                        کاربر
-                    </strong>
+        return;
+    }
 
+    if (
+        message.file_url ||
+        message.file_name
+    ) {
 
-                    <span
-                        id="chatStatus"
-                    >
-                        آفلاین
-                    </span>
+        renderFileObject(
+            container,
+            message
+        );
 
+        return;
+    }
 
-                </div>
+    const text =
+        document.createElement("div");
 
+    text.className =
+        "message-text";
 
-            </div>
+    text.textContent =
+        safeText(
+            message.text
+        );
 
+    container.appendChild(text);
+}
 
-            <!-- EMPTY HEADER -->
 
-            <div
-                id="chatHeaderEmpty"
-                class="chat-header-empty"
-            >
+/* =========================================================
+   FILE
+   ========================================================= */
 
+function renderFileObject(
+    container,
+    file
+) {
 
-                <strong>
-                    گپینو
-                </strong>
+    const url =
+        safeText(
+            file?.url ||
+            file?.file_url ||
+            ""
+        );
 
+    const name =
+        safeText(
+            file?.name ||
+            file?.file_name ||
+            "فایل"
+        );
 
-                <span>
-                    گفتگوی خودت را انتخاب کن
-                </span>
+    const size =
+        Number(
+            file?.size ||
+            file?.file_size ||
+            0
+        );
 
+    const type =
+        safeText(
+            file?.type ||
+            file?.file_type ||
+            ""
+        );
 
-            </div>
+    const isAudio =
+        type.startsWith("audio/") ||
+        /\.(webm|ogg|mp3|wav|m4a)$/i.test(url);
 
+    const isImage =
+        type.startsWith("image/") ||
+        /\.(jpg|jpeg|png|gif|webp)$/i.test(url);
 
-            <!-- HEADER ACTIONS -->
+    if (!url) {
 
-            <div class="chat-header-actions">
+        container.textContent =
+            name;
 
+        return;
+    }
 
-                <button
-                    id="refreshButton"
-                    class="icon-button"
-                    type="button"
-                    title="به‌روزرسانی"
-                    aria-label="به‌روزرسانی"
-                >
-                    ↻
-                </button>
+    if (isAudio) {
 
+        const wrapper =
+            document.createElement("div");
 
-                <button
-                    id="profileHeaderButton"
-                    class="icon-button"
-                    type="button"
-                    title="پروفایل"
-                    aria-label="پروفایل"
-                >
-                    👤
-                </button>
+        wrapper.className =
+            "message-audio";
 
+        const audio =
+            document.createElement("audio");
 
-            </div>
+        audio.controls = true;
+        audio.preload = "metadata";
+        audio.src = url;
 
+        const label =
+            document.createElement("div");
 
-        </header>
+        label.className =
+            "voice-name";
 
+        label.textContent =
+            `🎙️ ${name}`;
 
-        <!-- =================================================
-             WELCOME SCREEN
-             ================================================= -->
+        wrapper.appendChild(audio);
+        wrapper.appendChild(label);
 
-        <section
-            id="welcomeScreen"
-            class="welcome-screen"
-        >
+        container.appendChild(
+            wrapper
+        );
 
+        return;
+    }
 
-            <div class="welcome-card">
+    if (isImage) {
 
+        const image =
+            document.createElement("img");
 
-                <div
-                    class="welcome-logo"
-                    aria-hidden="true"
-                >
-                    G
-                </div>
+        image.className =
+            "message-image";
 
+        image.src =
+            url;
 
-                <h2>
-                    به گپینو خوش آمدی 👋
-                </h2>
+        image.alt =
+            name;
 
+        image.loading =
+            "lazy";
 
-                <p>
-                    یک کاربر را از فهرست انتخاب کن
-                    تا گفتگوی خودت را شروع کنی.
-                </p>
+        image.addEventListener(
+            "click",
+            () => {
+                window.open(
+                    url,
+                    "_blank",
+                    "noopener,noreferrer"
+                );
+            }
+        );
 
+        container.appendChild(
+            image
+        );
 
-                <div class="welcome-features">
+        return;
+    }
 
+    const link =
+        document.createElement("a");
 
-                    <div>
+    link.className =
+        "message-file";
 
-                        <span>
-                            ⚡
-                        </span>
+    link.href =
+        url;
 
-                        <small>
-                            گفتگوی سریع
-                        </small>
+    link.target =
+        "_blank";
 
-                    </div>
+    link.rel =
+        "noopener noreferrer";
 
+    link.innerHTML =
+        "📎 ";
 
-                    <div>
+    const strong =
+        document.createElement("strong");
 
-                        <span>
-                            🎙️
-                        </span>
+    strong.textContent =
+        name;
 
-                        <small>
-                            پیام صوتی
-                        </small>
+    link.appendChild(
+        strong
+    );
 
-                    </div>
+    if (size > 0) {
 
+        const small =
+            document.createElement("small");
 
-                    <div>
+        small.textContent =
+            ` • ${formatFileSize(size)}`;
 
-                        <span>
-                            📎
-                        </span>
+        link.appendChild(
+            small
+        );
+    }
 
-                        <small>
-                            ارسال فایل
-                        </small>
+    container.appendChild(
+        link
+    );
+}
 
-                    </div>
 
+function formatFileSize(bytes) {
 
-                </div>
+    const size =
+        Number(bytes || 0);
 
+    if (
+        !Number.isFinite(size) ||
+        size <= 0
+    ) {
+        return "";
+    }
 
-            </div>
+    if (size < 1024) {
 
+        return (
+            `${size.toLocaleString("fa-IR")} بایت`
+        );
+    }
 
-        </section>
+    if (
+        size <
+        1024 * 1024
+    ) {
 
+        return (
+            `${(
+                size / 1024
+            ).toFixed(1)} KB`
+        );
+    }
 
-        <!-- =================================================
-             CHAT VIEW
-             ================================================= -->
+    return (
+        `${(
+            size / 1024 / 1024
+        ).toFixed(1)} MB`
+    );
+}
 
-        <section
-            id="chatView"
-            class="chat-view"
-            hidden
-        >
 
+/* =========================================================
+   TIME
+   ========================================================= */
 
-            <!-- =================================================
-                 MESSAGES
-                 ================================================= -->
+function formatTime(value) {
 
-            <div
-                id="messages"
-                class="messages"
-                aria-live="polite"
-            ></div>
+    if (!value) {
+        return "";
+    }
 
+    const text =
+        safeText(value);
 
-            <!-- =================================================
-                 TYPING
-                 ================================================= -->
+    if (
+        /^\d{2}:\d{2}$/.test(text)
+    ) {
+        return text;
+    }
 
-            <div
-                id="typingArea"
-                class="typing-area"
-                hidden
-                aria-live="polite"
-            >
+    const date =
+        new Date(value);
 
+    if (
+        Number.isNaN(
+            date.getTime()
+        )
+    ) {
 
-                <div class="typing-dots">
+        return text.length >= 16
+            ? text.substring(11,16)
+            : text;
+    }
 
-                    <span></span>
-                    <span></span>
-                    <span></span>
+    return date.toLocaleTimeString(
+        "fa-IR",
+        {
+            hour: "2-digit",
+            minute: "2-digit"
+        }
+    );
+}
 
-                </div>
 
+function scrollToBottom() {
 
-                <span>
-                    در حال نوشتن...
-                </span>
+    requestAnimationFrame(
+        () => {
 
+            if (messagesBox) {
 
-            </div>
+                messagesBox.scrollTop =
+                    messagesBox.scrollHeight;
 
+            }
 
-            <!-- =================================================
-                 COMPOSER
-                 ================================================= -->
+        }
+    );
+}
 
-            <div class="composer">
 
+/* =========================================================
+   MESSAGE SEND
+   ========================================================= */
 
-                <!-- FILE INPUT -->
+function sendTextMessage() {
 
-                <input
-                    id="fileInput"
-                    type="file"
-                    hidden
-                >
+    if (!currentChatUser) {
 
+        showToast(
+            "ابتدا یک کاربر را انتخاب کن."
+        );
 
-                <!-- ATTACH -->
+        return;
+    }
 
-                <button
-                    id="attachButton"
-                    class="composer-button"
-                    type="button"
-                    title="ارسال فایل"
-                    aria-label="ارسال فایل"
-                >
-                    📎
-                </button>
+    const text =
+        safeText(
+            messageInput?.value
+        ).trim();
 
+    if (!text) {
+        return;
+    }
 
-                <!-- VOICE -->
+    if (
+        text.length > 5000
+    ) {
 
-                <button
-                    id="voiceButton"
-                    class="composer-button"
-                    type="button"
-                    title="ضبط پیام صوتی"
-                    aria-label="ضبط پیام صوتی"
-                >
-                    🎙️
-                </button>
+        showToast(
+            "پیام نباید بیشتر از ۵۰۰۰ کاراکتر باشد."
+        );
 
+        return;
+    }
 
-                <!-- MESSAGE INPUT -->
+    const sent =
+        sendSocket({
 
-                <div
-                    class="message-input-wrapper"
-                >
+            type:
+                "message",
 
+            receiver_id:
+                getUserId(
+                    currentChatUser
+                ),
 
-                    <textarea
-                        id="messageInput"
-                        rows="1"
-                        maxlength="5000"
-                        placeholder="پیامت را بنویس..."
-                        autocomplete="off"
-                        spellcheck="false"
-                        aria-label="متن پیام"
-                    ></textarea>
+            text
 
+        });
 
-                </div>
+    if (!sent) {
 
+        showToast(
+            "اتصال گپینو برقرار نیست."
+        );
 
-                <!-- SEND -->
+        return;
+    }
 
-                <button
-                    id="sendButton"
-                    class="send-button"
-                    type="button"
-                    title="ارسال پیام"
-                    aria-label="ارسال پیام"
-                >
-                    ➤
-                </button>
+    if (messageInput) {
 
+        messageInput.value =
+            "";
 
-            </div>
+        resizeMessageInput();
 
+    }
 
-        </section>
+    stopTyping();
+}
 
 
-    </main>
+/* =========================================================
+   TYPING
+   ========================================================= */
 
+function sendTyping() {
 
-    <!-- =====================================================
-         PROFILE PANEL
-         ===================================================== -->
+    if (!currentChatUser) {
+        return;
+    }
 
-    <aside
-        id="profilePanel"
-        class="profile-panel"
-        hidden
-    >
+    sendSocket({
 
+        type:
+            "typing",
 
-        <!-- HEADER -->
+        receiver_id:
+            getUserId(
+                currentChatUser
+            )
 
-        <div class="profile-panel-header">
+    });
 
+    clearTimeout(
+        typingTimer
+    );
 
-            <strong>
-                پروفایل من
-            </strong>
+    typingTimer =
+        setTimeout(
+            stopTyping,
+            1200
+        );
+}
 
 
-            <button
-                id="closeProfile"
-                class="icon-button"
-                type="button"
-                title="بستن"
-                aria-label="بستن پروفایل"
-            >
-                ×
-            </button>
+function stopTyping() {
 
+    clearTimeout(
+        typingTimer
+    );
 
-        </div>
+    if (!currentChatUser) {
+        return;
+    }
 
+    sendSocket({
 
-        <!-- CONTENT -->
+        type:
+            "stop_typing",
 
-        <div class="profile-content">
+        receiver_id:
+            getUserId(
+                currentChatUser
+            )
 
+    });
+}
 
-            <!-- AVATAR -->
 
-            <div
-                id="profileAvatar"
-                class="profile-avatar-large"
-            >
-                G
-            </div>
+function showTyping() {
 
+    if (typingArea) {
+        typingArea.hidden = false;
+    }
+}
 
-            <!-- NAME -->
 
-            <div
-                id="profileName"
-                class="profile-name"
-            >
-                گپینو
-            </div>
+function hideTyping() {
 
+    if (typingArea) {
+        typingArea.hidden = true;
+    }
+}
 
-            <!-- USERNAME -->
 
-            <div
-                id="profileUsername"
-                class="profile-username"
-            >
-                @user
-            </div>
+/* =========================================================
+   READ
+   ========================================================= */
 
+async function markConversationRead(
+    otherUserId
+) {
 
-            <!-- DISPLAY NAME -->
+    if (!otherUserId) {
+        return;
+    }
 
-            <div class="profile-section">
+    sendSocket({
 
+        type:
+            "read",
 
-                <label
-                    for="editDisplayName"
-                >
-                    نام نمایشی
-                </label>
+        other_user_id:
+            String(otherUserId)
 
+    });
 
-                <input
-                    id="editDisplayName"
-                    type="text"
-                    maxlength="60"
-                    placeholder="نام نمایشی"
-                    autocomplete="name"
-                >
+    try {
 
+        await apiFetch(
+            "/unread/read",
+            {
+                method: "POST",
+                body:
+                    new URLSearchParams({
+                        other_user_id:
+                            String(otherUserId)
+                    })
+            }
+        );
 
-            </div>
+    } catch (_) {}
+}
 
 
-            <!-- BIO -->
+/* =========================================================
+   UPLOAD
+   ========================================================= */
 
-            <div class="profile-section">
+async function uploadFile(
+    file,
+    purpose = ""
+) {
 
+    if (!file) {
+        return null;
+    }
 
-                <label
-                    for="editBio"
-                >
-                    درباره من
-                </label>
+    const limit =
+        purpose === "avatar"
+            ? 5 * 1024 * 1024
+            : 10 * 1024 * 1024;
 
+    if (
+        file.size > limit
+    ) {
 
-                <textarea
-                    id="editBio"
-                    maxlength="300"
-                    rows="4"
-                    placeholder="چند کلمه درباره خودت..."
-                ></textarea>
+        showToast(
+            purpose === "avatar"
+                ? "حجم آواتار نباید بیشتر از ۵ مگابایت باشد."
+                : "حجم فایل نباید بیشتر از ۱۰ مگابایت باشد."
+        );
 
+        return null;
+    }
 
-            </div>
+    const form =
+        new FormData();
 
+    form.append(
+        "file",
+        file
+    );
 
-            <!-- STATUS -->
+    let endpoint =
+        "/upload";
 
-            <div class="profile-section">
+    if (purpose) {
 
+        endpoint +=
+            `?purpose=${encodeURIComponent(
+                purpose
+            )}`;
 
-                <label
-                    for="editStatus"
-                >
-                    وضعیت
-                </label>
+    }
 
+    try {
 
-                <select
-                    id="editStatus"
-                >
+        const data =
+            await apiFetch(
+                endpoint,
+                {
+                    method: "POST",
+                    body: form
+                }
+            );
 
+        if (
+            !data?.success ||
+            !data?.file
+        ) {
 
-                    <option
-                        value="در دسترس"
-                    >
-                        🟢 در دسترس
-                    </option>
+            throw new Error(
+                data?.message ||
+                "آپلود انجام نشد."
+            );
 
+        }
 
-                    <option
-                        value="مشغول"
-                    >
-                        🔴 مشغول
-                    </option>
+        return data.file;
 
+    } catch (error) {
 
-                    <option
-                        value="غیرفعال"
-                    >
-                        🟡 غیرفعال
-                    </option>
+        console.error(
+            "Upload error:",
+            error
+        );
 
+        showToast(
+            error.message ||
+            "آپلود انجام نشد."
+        );
 
-                    <option
-                        value="نامرئی"
-                    >
-                        ⚫ نامرئی
-                    </option>
+        return null;
+    }
+}
 
 
-                </select>
+async function sendFile(file) {
 
+    if (
+        !file ||
+        !currentChatUser
+    ) {
+        return;
+    }
 
-            </div>
+    const uploaded =
+        await uploadFile(file);
 
+    if (!uploaded) {
+        return;
+    }
 
-            <!-- SAVE -->
+    const sent =
+        sendSocket({
 
-            <button
-                id="saveProfile"
-                class="primary-button"
-                type="button"
-            >
-                ذخیره تغییرات
-            </button>
+            type:
+                "file",
 
+            receiver_id:
+                getUserId(
+                    currentChatUser
+                ),
 
-            <!-- PROFILE PAGE -->
+            file:
+                uploaded
 
-            <button
-                id="profilePageButton"
-                class="secondary-button"
-                type="button"
-            >
-                صفحه کامل پروفایل
-            </button>
+        });
 
+    if (!sent) {
 
-        </div>
+        showToast(
+            "اتصال چت برقرار نیست."
+        );
 
+        return;
+    }
 
-    </aside>
+    if (
+        file.type.startsWith("audio/")
+    ) {
 
+        showToast(
+            "🎙️ پیام صوتی ارسال شد."
+        );
 
-    <!-- =====================================================
-         OVERLAY
-         ===================================================== -->
+    } else if (
+        file.type.startsWith("image/")
+    ) {
 
-    <div
-        id="appOverlay"
-        class="app-overlay"
-        hidden
-        aria-hidden="true"
-    ></div>
+        showToast(
+            "🖼️ عکس ارسال شد."
+        );
 
+    } else {
 
-    <!-- =====================================================
-         TOAST
-         ===================================================== -->
+        showToast(
+            "📎 فایل ارسال شد."
+        );
+    }
+}
 
-    <div
-        id="toast"
-        class="toast"
-        aria-live="polite"
-        role="status"
-    ></div>
 
+/* =========================================================
+   VOICE MESSAGE
+   ========================================================= */
 
-</div>
+function getSupportedAudioType() {
 
+    if (!window.MediaRecorder) {
+        return "";
+    }
 
-<!-- =========================================================
-     CHAT.JS
-     ========================================================= -->
+    const types = [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/ogg;codecs=opus",
+        "audio/ogg"
+    ];
 
-<script
-    src="/chat.js?v=302"
-    defer
-></script>
+    for (
+        const type of types
+    ) {
 
+        try {
 
-</body>
-</html>
-```
+            if (
+                MediaRecorder.isTypeSupported(
+                    type
+                )
+            ) {
+
+                return type;
+
+            }
+
+        } catch (_) {}
+    }
+
+    return "";
+}
+
+
+async function toggleVoiceRecording() {
+
+    if (isRecording) {
+
+        stopVoiceRecording();
+
+        return;
+    }
+
+    if (!currentChatUser) {
+
+        showToast(
+            "ابتدا یک کاربر را انتخاب کن."
+        );
+
+        return;
+    }
+
+    if (
+        !navigator.mediaDevices?.getUserMedia ||
+        !window.MediaRecorder
+    ) {
+
+        showToast(
+            "مرورگر از ضبط صدا پشتیبانی نمی‌کند."
+        );
+
+        return;
+    }
+
+    try {
+
+        mediaStream =
+            await navigator.mediaDevices.getUserMedia(
+                {
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
+                }
+            );
+
+        audioChunks = [];
+
+        const mimeType =
+            getSupportedAudioType();
+
+        mediaRecorder =
+            mimeType
+                ? new MediaRecorder(
+                    mediaStream,
+                    { mimeType }
+                )
+                : new MediaRecorder(
+                    mediaStream
+                );
+
+        mediaRecorder.ondataavailable =
+            event => {
+
+                if (
+                    event.data &&
+                    event.data.size > 0
+                ) {
+
+                    audioChunks.push(
+                        event.data
+                    );
+
+                }
+
+            };
+
+        mediaRecorder.onstop =
+            async () => {
+
+                try {
+
+                    const recorderMime =
+                        mediaRecorder?.mimeType ||
+                        mimeType ||
+                        "audio/webm";
+
+                    const blob =
+                        new Blob(
+                            audioChunks,
+                            {
+                                type:
+                                    recorderMime
+                            }
+                        );
+
+                    cleanupVoice();
+
+                    if (!blob.size) {
+
+                        showToast(
+                            "صدای ضبط‌شده خالی است."
+                        );
+
+                        return;
+                    }
+
+                    const extension =
+                        recorderMime.includes(
+                            "ogg"
+                        )
+                            ? "ogg"
+                            : "webm";
+
+                    const file =
+                        new File(
+                            [blob],
+                            `voice-${Date.now()}.${extension}`,
+                            {
+                                type:
+                                    recorderMime
+                            }
+                        );
+
+                    await sendFile(file);
+
+                } catch (error) {
+
+                    console.error(
+                        "Voice error:",
+                        error
+                    );
+
+                    cleanupVoice();
+
+                    showToast(
+                        "ارسال پیام صوتی انجام نشد."
+                    );
+                }
+            };
+
+        mediaRecorder.start();
+
+        isRecording = true;
+
+        updateVoiceUI();
+
+        showToast(
+            "🎙️ در حال ضبط..."
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Microphone error:",
+            error
+        );
+
+        cleanupVoice();
+
+        showToast(
+            "دسترسی به میکروفن داده نشد."
+        );
+    }
+}
+
+
+function stopVoiceRecording() {
+
+    if (
+        mediaRecorder &&
+        mediaRecorder.state !==
+            "inactive"
+    ) {
+
+        mediaRecorder.stop();
+
+    } else {
+
+        cleanupVoice();
+
+    }
+}
+
+
+function cleanupVoice() {
+
+    if (mediaStream) {
+
+        mediaStream
+            .getTracks()
+            .forEach(track => {
+
+                try {
+                    track.stop();
+                } catch (_) {}
+
+            });
+
+    }
+
+    mediaStream = null;
+    mediaRecorder = null;
+    audioChunks = [];
+    isRecording = false;
+
+    updateVoiceUI();
+}
+
+
+function updateVoiceUI() {
+
+    if (!voiceButton) {
+        return;
+    }
+
+    voiceButton.textContent =
+        isRecording
+            ? "⏹️"
+            : "🎙️";
+
+    voiceButton.classList.toggle(
+        "recording",
+        isRecording
+    );
+
+    voiceButton.title =
+        isRecording
+            ? "توقف ضبط"
+            : "ضبط پیام صوتی";
+}
+
+
+/* =========================================================
+   WEBSOCKET
+   ========================================================= */
+
+function getWebSocketUrl() {
+
+    const protocol =
+        location.protocol === "https:"
+            ? "wss:"
+            : "ws:";
+
+    return (
+        `${protocol}//${location.host}/ws/${encodeURIComponent(
+            getCurrentUserId()
+        )}`
+    );
+}
+
+
+function connectWebSocket() {
+
+    if (!getCurrentUserId()) {
+        return;
+    }
+
+    if (
+        socket &&
+        (
+            socket.readyState ===
+                WebSocket.OPEN ||
+            socket.readyState ===
+                WebSocket.CONNECTING
+        )
+    ) {
+        return;
+    }
+
+    clearTimeout(
+        reconnectTimer
+    );
+
+    const url =
+        getWebSocketUrl();
+
+    console.log(
+        "GAPINO WebSocket:",
+        url
+    );
+
+    try {
+
+        socket =
+            new WebSocket(url);
+
+    } catch (error) {
+
+        console.error(
+            "WebSocket create error:",
+            error
+        );
+
+        scheduleReconnect();
+
+        return;
+    }
+
+    socket.onopen =
+        () => {
+
+            reconnectAttempts =
+                0;
+
+            startPing();
+
+            if (currentChatUser) {
+
+                setChatInputEnabled(
+                    true
+                );
+
+            }
+
+        };
+
+    socket.onmessage =
+        event => {
+
+            handleSocketMessage(
+                event.data
+            );
+
+        };
+
+    socket.onerror =
+        error => {
+
+            console.error(
+                "WebSocket error:",
+                error
+            );
+
+        };
+
+    socket.onclose =
+        () => {
+
+            stopPing();
+
+            scheduleReconnect();
+
+        };
+}
+
+
+function sendSocket(data) {
+
+    if (
+        !socket ||
+        socket.readyState !==
+            WebSocket.OPEN
+    ) {
+
+        return false;
+    }
+
+    try {
+
+        socket.send(
+            JSON.stringify(data)
+        );
+
+        return true;
+
+    } catch (error) {
+
+        console.error(
+            "Socket send error:",
+            error
+        );
+
+        return false;
+    }
+}
+
+
+function scheduleReconnect() {
+
+    clearTimeout(
+        reconnectTimer
+    );
+
+    reconnectAttempts =
+        Math.min(
+            reconnectAttempts + 1,
+            10
+        );
+
+    const delay =
+        Math.min(
+            1000 *
+            Math.pow(
+                1.5,
+                reconnectAttempts - 1
+            ),
+            10000
+        );
+
+    reconnectTimer =
+        setTimeout(
+            connectWebSocket,
+            delay
+        );
+}
+
+
+function startPing() {
+
+    stopPing();
+
+    pingTimer =
+        setInterval(
+            () => {
+
+                sendSocket({
+                    type: "ping"
+                });
+
+            },
+            25000
+        );
+}
+
+
+function stopPing() {
+
+    if (pingTimer) {
+
+        clearInterval(
+            pingTimer
+        );
+
+        pingTimer = null;
+    }
+}
+
+
+/* =========================================================
+   SOCKET MESSAGE
+   ========================================================= */
+
+function handleSocketMessage(
+    raw
+) {
+
+    let data;
+
+    try {
+
+        data =
+            typeof raw === "string"
+                ? JSON.parse(raw)
+                : raw;
+
+    } catch (error) {
+
+        console.error(
+            "Invalid socket JSON:",
+            raw
+        );
+
+        return;
+    }
+
+    if (!data) {
+        return;
+    }
+
+
+    /* -----------------------------------------------------
+       CALL SIGNALING
+       ----------------------------------------------------- */
+
+    if (
+        typeof data.type === "string" &&
+        data.type.startsWith("call_")
+    ) {
+
+        window.dispatchEvent(
+            new CustomEvent(
+                "gapino:call",
+                {
+                    detail:
+                        data
+                }
+            )
+        );
+
+        return;
+    }
+
+
+    /* -----------------------------------------------------
+       PONG
+       ----------------------------------------------------- */
+
+    if (
+        data.type === "connected" ||
+        data.type === "pong"
+    ) {
+        return;
+    }
+
+
+    /* -----------------------------------------------------
+       ONLINE USERS
+       ----------------------------------------------------- */
+
+    if (
+        data.type ===
+        "online_users"
+    ) {
+
+        updatePresence(
+            data
+        );
+
+        return;
+    }
+
+
+    if (
+        data.type === "online"
+    ) {
+
+        updateSingleUserPresence(
+            data.user_id,
+            true
+        );
+
+        return;
+    }
+
+
+    if (
+        data.type === "offline"
+    ) {
+
+        updateSingleUserPresence(
+            data.user_id,
+            false
+        );
+
+        return;
+    }
+
+
+    /* -----------------------------------------------------
+       TYPING
+       ----------------------------------------------------- */
+
+    if (
+        data.type === "typing"
+    ) {
+
+        if (
+            currentChatUser &&
+            getUserId(
+                currentChatUser
+            ) ===
+            String(
+                data.sender_id
+            )
+        ) {
+
+            showTyping();
+
+        }
+
+        return;
+    }
+
+
+    if (
+        data.type ===
+        "stop_typing"
+    ) {
+
+        hideTyping();
+
+        return;
+    }
+
+
+    /* -----------------------------------------------------
+       MESSAGE
+       ----------------------------------------------------- */
+
+    if (
+        data.type ===
+            "message" ||
+        data.type ===
+            "message_sent" ||
+        data.type ===
+            "file"
+    ) {
+
+        receiveMessage(
+            data.message
+        );
+
+        return;
+    }
+
+
+    /* -----------------------------------------------------
+       PROFILE
+       ----------------------------------------------------- */
+
+    if (
+        data.type ===
+        "profile_updated"
+    ) {
+
+        handleProfileUpdated(
+            data.user
+        );
+
+        return;
+    }
+
+
+    /* -----------------------------------------------------
+       ERROR
+       ----------------------------------------------------- */
+
+    if (
+        data.type ===
+        "error"
+    ) {
+
+        showToast(
+            data.message ||
+            "خطایی رخ داد."
+        );
+    }
+}
+
+
+/* =========================================================
+   RECEIVE MESSAGE
+   ========================================================= */
+
+function receiveMessage(
+    message
+) {
+
+    if (!message) {
+        return;
+    }
+
+    const sender =
+        String(
+            message.sender_id ||
+            message.sender ||
+            ""
+        );
+
+    const receiver =
+        String(
+            message.receiver_id ||
+            message.receiver ||
+            ""
+        );
+
+    const me =
+        getCurrentUserId();
+
+    const selected =
+        currentChatUser
+            ? getUserId(
+                currentChatUser
+            )
+            : "";
+
+    const belongs =
+        (
+            sender === me &&
+            receiver === selected
+        ) ||
+        (
+            receiver === me &&
+            sender === selected
+        );
+
+    if (belongs) {
+
+        appendMessage(
+            message,
+            true
+        );
+
+        markConversationRead(
+            selected
+        );
+
+    } else if (
+        sender !== me
+    ) {
+
+        showToast(
+            "💬 پیام جدید"
+        );
+    }
+}
+
+
+/* =========================================================
+   PRESENCE
+   ========================================================= */
+
+function updatePresence(
+    data
+) {
+
+    const onlineIds =
+        Array.isArray(
+            data?.users
+        )
+            ? data.users.map(String)
+            : [];
+
+    allUsers =
+        allUsers.map(
+            user => {
+
+                const id =
+                    getUserId(user);
+
+                const online =
+                    onlineIds.includes(
+                        id
+                    );
+
+                return {
+                    ...user,
+                    online,
+                    status:
+                        online
+                            ? "آنلاین"
+                            : "آفلاین"
+                };
+            }
+        );
+
+    window.GAPINO_USERS =
+        allUsers;
+
+    renderUsers();
+
+    if (currentChatUser) {
+
+        const updated =
+            allUsers.find(
+                item =>
+                    getUserId(
+                        item
+                    ) ===
+                    getUserId(
+                        currentChatUser
+                    )
+            );
+
+        if (updated) {
+
+            currentChatUser =
+                updated;
+
+            updateChatHeader(
+                updated
+            );
+        }
+    }
+}
+
+
+function updateSingleUserPresence(
+    userId,
+    online
+) {
+
+    const target =
+        String(userId || "");
+
+    if (!target) {
+        return;
+    }
+
+    allUsers =
+        allUsers.map(
+            user => {
+
+                if (
+                    getUserId(user) !==
+                    target
+                ) {
+
+                    return user;
+                }
+
+                return {
+                    ...user,
+                    online:
+                        Boolean(online),
+                    status:
+                        online
+                            ? "آنلاین"
+                            : "آفلاین"
+                };
+            }
+        );
+
+    window.GAPINO_USERS =
+        allUsers;
+
+    renderUsers();
+
+    if (
+        currentChatUser &&
+        getUserId(
+            currentChatUser
+        ) === target
+    ) {
+
+        currentChatUser = {
+            ...currentChatUser,
+            online:
+                Boolean(online),
+            status:
+                online
+                    ? "آنلاین"
+                    : "آفلاین"
+        };
+
+        updateChatHeader(
+            currentChatUser
+        );
+    }
+}
+
+
+/* =========================================================
+   PROFILE
+   ========================================================= */
+
+function openMyProfile() {
+
+    if (!profilePanel) {
+        return;
+    }
+
+    if (profileName) {
+
+        profileName.textContent =
+            getUserName(
+                currentUser
+            );
+
+    }
+
+    if (profileUsername) {
+
+        const username =
+            safeText(
+                currentUser?.username
+            );
+
+        profileUsername.textContent =
+            username
+                ? `@${username}`
+                : "کاربر";
+
+    }
+
+    renderAvatar(
+        profileAvatar,
+        currentUser
+    );
+
+    if (editDisplayName) {
+
+        editDisplayName.value =
+            currentUser?.display_name ||
+            currentUser?.full_name ||
+            currentUser?.name ||
+            currentUser?.username ||
+            "";
+    }
+
+    if (editBio) {
+
+        editBio.value =
+            currentUser?.bio ||
+            currentUser?.profile?.bio ||
+            "";
+    }
+
+    if (editStatus) {
+
+        editStatus.value =
+            currentUser?.status ||
+            "در دسترس";
+    }
+
+    selectedAvatarUrl =
+        currentUser?.avatar ||
+        currentUser?.profile?.avatar ||
+        "";
+
+    profilePanel.hidden =
+        false;
+
+    profilePanel.classList.add(
+        "open"
+    );
+}
+
+
+function closeMyProfile() {
+
+    if (!profilePanel) {
+        return;
+    }
+
+    profilePanel.hidden =
+        true;
+
+    profilePanel.classList.remove(
+        "open"
+    );
+}
+
+
+async function saveMyProfile() {
+
+    if (isSavingProfile) {
+        return;
+    }
+
+    const displayName =
+        safeText(
+            editDisplayName?.value
+        ).trim();
+
+    const bio =
+        safeText(
+            editBio?.value
+        ).trim();
+
+    const status =
+        safeText(
+            editStatus?.value
+        ).trim();
+
+    if (!displayName) {
+
+        showToast(
+            "نام نمایشی را وارد کن."
+        );
+
+        return;
+    }
+
+    isSavingProfile =
+        true;
+
+    if (saveProfile) {
+
+        saveProfile.disabled =
+            true;
+
+        saveProfile.textContent =
+            "در حال ذخیره...";
+
+    }
+
+    try {
+
+        const form =
+            new FormData();
+
+        form.append(
+            "user_id",
+            getCurrentUserId()
+        );
+
+        form.append(
+            "display_name",
+            displayName
+        );
+
+        form.append(
+            "bio",
+            bio
+        );
+
+        form.append(
+            "status",
+            status
+        );
+
+        form.append(
+            "avatar",
+            selectedAvatarUrl
+        );
+
+        const data =
+            await apiFetch(
+                "/profile/update",
+                {
+                    method:
+                        "POST",
+                    body:
+                        form
+                }
+            );
+
+        if (data?.user) {
+
+            currentUser =
+                data.user;
+
+            localStorage.setItem(
+                "gapino_user",
+                JSON.stringify(
+                    currentUser
+                )
+            );
+
+            updateCurrentUserUI();
+
+            await loadUsers();
+
+            showToast(
+                "✅ پروفایل ذخیره شد."
+            );
+
+            closeMyProfile();
+
+        } else {
+
+            throw new Error(
+                data?.message ||
+                "ذخیره پروفایل انجام نشد."
+            );
+
+        }
+
+    } catch (error) {
+
+        console.error(
+            "Profile error:",
+            error
+        );
+
+        showToast(
+            error.message ||
+            "ذخیره پروفایل انجام نشد."
+        );
+
+    } finally {
+
+        isSavingProfile =
+            false;
+
+        if (saveProfile) {
+
+            saveProfile.disabled =
+                false;
+
+            saveProfile.textContent =
+                "ذخیره تغییرات";
+        }
+    }
+}
+
+
+/* =========================================================
+   THEME
+   ========================================================= */
+
+function loadTheme() {
+
+    const theme =
+        localStorage.getItem(
+            "gapino_theme"
+        ) || "dark";
+
+    document.documentElement
+        .setAttribute(
+            "data-theme",
+            theme
+        );
+
+    updateThemeButton(
+        theme
+    );
+}
+
+
+function updateThemeButton(
+    theme
+) {
+
+    if (!themeButton) {
+        return;
+    }
+
+    themeButton.textContent =
+        theme === "dark"
+            ? "☀️ حالت روشن"
+            : "🌙 حالت تیره";
+}
+
+
+function toggleTheme() {
+
+    const current =
+        document.documentElement
+            .getAttribute(
+                "data-theme"
+            ) || "dark";
+
+    const next =
+        current === "dark"
+            ? "light"
+            : "dark";
+
+    document.documentElement
+        .setAttribute(
+            "data-theme",
+            next
+        );
+
+    localStorage.setItem(
+        "gapino_theme",
+        next
+    );
+
+    updateThemeButton(
+        next
+    );
+}
+
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+function openSidebar() {
+
+    appShell?.classList.add(
+        "sidebar-open"
+    );
+
+    if (appOverlay) {
+        appOverlay.hidden = false;
+    }
+}
+
+
+function closeSidebar() {
+
+    appShell?.classList.remove(
+        "sidebar-open"
+    );
+
+    if (appOverlay) {
+        appOverlay.hidden = true;
+    }
+}
+
+
+/* =========================================================
+   LOGOUT
+   ========================================================= */
+
+async function logout() {
+
+    try {
+
+        await apiFetch(
+            "/logout",
+            {
+                method:
+                    "POST"
+            }
+        );
+
+    } catch (_) {}
+
+    cleanupVoice();
+
+    stopPing();
+
+    clearTimeout(
+        reconnectTimer
+    );
+
+    clearInterval(
+        usersRefreshTimer
+    );
+
+    if (socket) {
+
+        try {
+            socket.close();
+        } catch (_) {}
+
+    }
+
+    localStorage.removeItem(
+        "gapino_user"
+    );
+
+    window.location.replace(
+        "/login.html"
+    );
+}
+
+
+/* =========================================================
+   EVENTS
+   ========================================================= */
+
+profileButton?.addEventListener(
+    "click",
+    openMyProfile
+);
+
+profileHeaderButton?.addEventListener(
+    "click",
+    openMyProfile
+);
+
+closeProfile?.addEventListener(
+    "click",
+    closeMyProfile
+);
+
+saveProfile?.addEventListener(
+    "click",
+    saveMyProfile
+);
+
+themeButton?.addEventListener(
+    "click",
+    toggleTheme
+);
+
+logoutButton?.addEventListener(
+    "click",
+    logout
+);
+
+mobileMenuButton?.addEventListener(
+    "click",
+    openSidebar
+);
+
+menuButton?.addEventListener(
+    "click",
+    closeSidebar
+);
+
+appOverlay?.addEventListener(
+    "click",
+    closeSidebar
+);
+
+refreshButton?.addEventListener(
+    "click",
+    async () => {
+
+        await loadUsers();
+
+        if (currentChatUser) {
+
+            await loadConversation(
+                getUserId(
+                    currentChatUser
+                )
+            );
+        }
+
+        showToast(
+            "🔄 بروزرسانی شد."
+        );
+    }
+);
+
+userSearch?.addEventListener(
+    "input",
+    () => {
+
+        renderUsers();
+
+        if (clearSearch) {
+
+            clearSearch.hidden =
+                !userSearch.value.trim();
+
+        }
+    }
+);
+
+clearSearch?.addEventListener(
+    "click",
+    () => {
+
+        if (userSearch) {
+            userSearch.value = "";
+        }
+
+        if (clearSearch) {
+            clearSearch.hidden = true;
+        }
+
+        renderUsers();
+
+    }
+);
+
+messageInput?.addEventListener(
+    "input",
+    () => {
+
+        resizeMessageInput();
+
+        sendTyping();
+
+    }
+);
+
+messageInput?.addEventListener(
+    "keydown",
+    event => {
+
+        if (
+            event.key === "Enter" &&
+            !event.shiftKey
+        ) {
+
+            event.preventDefault();
+
+            sendTextMessage();
+
+        }
+    }
+);
+
+sendButton?.addEventListener(
+    "click",
+    sendTextMessage
+);
+
+attachButton?.addEventListener(
+    "click",
+    () => fileInput?.click()
+);
+
+fileInput?.addEventListener(
+    "change",
+    async () => {
+
+        const file =
+            fileInput.files?.[0];
+
+        if (!file) {
+            return;
+        }
+
+        await sendFile(file);
+
+        fileInput.value = "";
+
+    }
+);
+
+voiceButton?.addEventListener(
+    "click",
+    toggleVoiceRecording
+);
+
+callButton?.addEventListener(
+    "click",
+    () => {
+
+        if (
+            window.GAPINO_CALL &&
+            typeof
+                window.GAPINO_CALL.start ===
+                "function"
+        ) {
+
+            window.GAPINO_CALL.start();
+
+        } else {
+
+            showToast(
+                "سیستم تماس هنوز آماده نشده است."
+            );
+
+        }
+    }
+);
+
+document.addEventListener(
+    "keydown",
+    event => {
+
+        if (
+            event.key === "Escape"
+        ) {
+
+            closeMyProfile();
+            closeSidebar();
+
+        }
+    }
+);
+
+document.addEventListener(
+    "visibilitychange",
+    () => {
+
+        if (
+            document.visibilityState !==
+                "visible" ||
+            !currentUser
+        ) {
+
+            return;
+        }
+
+        loadUsers();
+
+        if (
+            !socket ||
+            socket.readyState !==
+                WebSocket.OPEN
+        ) {
+
+            connectWebSocket();
+
+        } else {
+
+            sendSocket({
+                type: "ping"
+            });
+
+        }
+    }
+);
+
+window.addEventListener(
+    "beforeunload",
+    () => {
+
+        clearTimeout(
+            reconnectTimer
+        );
+
+        clearInterval(
+            usersRefreshTimer
+        );
+
+        clearTimeout(
+            typingTimer
+        );
+
+        stopPing();
+
+        cleanupVoice();
+
+    }
+);
+
+
+/* =========================================================
+   RESIZE
+   ========================================================= */
+
+function resizeMessageInput() {
+
+    if (!messageInput) {
+        return;
+    }
+
+    messageInput.style.height =
+        "auto";
+
+    messageInput.style.height =
+        `${Math.min(
+            messageInput.scrollHeight,
+            140
+        )}px`;
+}
+
+
+/* =========================================================
+   INIT
+   ========================================================= */
+
+async function initGapino() {
+
+    loadTheme();
+
+    setChatInputEnabled(
+        false
+    );
+
+    currentUser =
+        await loadCurrentUser();
+
+    if (!currentUser) {
+        return;
+    }
+
+    updateCurrentUserUI();
+
+    await loadUsers();
+
+    connectWebSocket();
+
+    clearInterval(
+        usersRefreshTimer
+    );
+
+    usersRefreshTimer =
+        setInterval(
+            () => {
+
+                if (currentUser) {
+                    loadUsers();
+                }
+
+            },
+            15000
+        );
+}
+
+
+if (
+    document.readyState ===
+    "loading"
+) {
+
+    document.addEventListener(
+        "DOMContentLoaded",
+        initGapino,
+        {
+            once: true
+        }
+    );
+
+} else {
+
+    initGapino();
+
+}
+
+
+/* =========================================================
+   PUBLIC API
+   ========================================================= */
+
+window.GAPINO = {
+
+    get currentUser() {
+        return currentUser;
+    },
+
+    get currentChatUser() {
+        return currentChatUser;
+    },
+
+    get socket() {
+        return socket;
+    },
+
+    get users() {
+        return allUsers;
+    },
+
+    connectWebSocket,
+    loadUsers,
+    openChat,
+    sendTextMessage,
+    toggleVoiceRecording,
+    sendFile,
+    showToast,
+    markConversationRead
+};
+
+window.GAPINO_USERS =
+    allUsers;

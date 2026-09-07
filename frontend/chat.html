@@ -1,13 +1,13 @@
-```html
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
 
 <head>
+
     <meta charset="UTF-8">
 
     <meta
         name="viewport"
-        content="width=device-width, initial-scale=1.0"
+        content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     >
 
     <meta
@@ -19,244 +19,242 @@
 
     <link
         rel="stylesheet"
-        href="/static/style.css?v=301"
+        href="/static/style.css?v=304"
     >
 
-    <!-- =====================================================
-         MOBILE MENU / OVERLAY FIX
-         ===================================================== -->
-
     <style>
-        /* -----------------------------------------------
-           hidden باید واقعاً مخفی بماند
-           ----------------------------------------------- */
 
         [hidden] {
             display: none !important;
         }
 
-
-        /* -----------------------------------------------
-           لایه تارکننده
-           ----------------------------------------------- */
-
-        .app-overlay {
-            position: fixed !important;
-            inset: 0 !important;
-
-            z-index: 900 !important;
-
-            background:
-                rgba(0, 0, 0, 0.45);
-
-            backdrop-filter:
-                blur(4px);
-
-            -webkit-backdrop-filter:
-                blur(4px);
-
-            pointer-events: auto;
-
-            touch-action: auto;
-        }
-
-
-        /* -----------------------------------------------
-           سایدبار
-           ----------------------------------------------- */
-
-        .sidebar {
-            position: relative !important;
-            z-index: 1000 !important;
-
-            pointer-events: auto !important;
-
-            touch-action: auto;
-        }
-
-
-        /* -----------------------------------------------
-           لیست کاربران
-           ----------------------------------------------- */
-
-        .user-list {
-            position: relative;
-
-            z-index: 1001;
-
-            pointer-events: auto !important;
-
-            touch-action: pan-y;
-        }
-
-
-        .user-list > * {
-            pointer-events: auto !important;
-        }
-
-
-        .user-list button,
-        .user-list a,
-        .user-list .user-item {
-            pointer-events: auto !important;
-
-            position: relative;
-
-            z-index: 1002;
-        }
-
-
-        /* -----------------------------------------------
-           کاربر فعلی
-           ----------------------------------------------- */
-
-        .current-user-card {
-            position: relative;
-
-            z-index: 1002;
-
-            pointer-events: auto !important;
-        }
-
-
-        .current-user-card *,
-        .current-user-main {
-            pointer-events: auto !important;
-        }
-
-
-        /* -----------------------------------------------
-           بخش اصلی چت
-           ----------------------------------------------- */
-
-        .chat-main {
-            position: relative;
-
-            z-index: 1;
-        }
-
-
-        /* -----------------------------------------------
-           پنل پروفایل
-           ----------------------------------------------- */
-
-        .profile-panel {
+        .gapino-call-overlay {
             position: fixed;
-
-            z-index: 1100 !important;
+            inset: 0;
+            z-index: 50000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: rgba(3, 7, 18, .78);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .25s ease;
         }
 
-
-        /* -----------------------------------------------
-           دکمه‌های منو
-           ----------------------------------------------- */
-
-        #mobileMenuButton,
-        #menuButton {
-            position: relative;
-
-            z-index: 1200 !important;
-
-            pointer-events: auto !important;
+        .gapino-call-overlay.show {
+            opacity: 1;
+            pointer-events: auto;
         }
 
-
-        /* -----------------------------------------------
-           هدر
-           ----------------------------------------------- */
-
-        .chat-header {
-            position: relative;
-
-            z-index: 10;
+        .gapino-call-card {
+            width: min(420px, 100%);
+            padding: 38px 22px 28px;
+            border: 1px solid rgba(255,255,255,.10);
+            border-radius: 30px;
+            text-align: center;
+            background: linear-gradient(145deg,#121a2d,#09101f);
+            box-shadow: 0 35px 100px rgba(0,0,0,.45);
         }
 
-
-        /* -----------------------------------------------
-           در دسکتاپ overlay نباید فعال باشد
-           ----------------------------------------------- */
-
-        @media (min-width: 769px) {
-
-            .app-overlay {
-                display: none !important;
-
-                pointer-events: none !important;
-            }
-
+        .gapino-call-avatar {
+            width: 96px;
+            height: 96px;
+            margin: 0 auto 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            border-radius: 28px;
+            color: #fff;
+            font-size: 34px;
+            font-weight: 900;
+            background: linear-gradient(135deg,#6366f1,#8b5cf6);
+            box-shadow: 0 18px 50px rgba(99,102,241,.30);
+            animation: gapinoCallPulse 2s infinite;
         }
 
-
-        /* -----------------------------------------------
-           موبایل
-           ----------------------------------------------- */
-
-        @media (max-width: 768px) {
-
-            .sidebar {
-                pointer-events: auto !important;
-            }
-
-
-            .user-list {
-                overflow-y: auto;
-
-                -webkit-overflow-scrolling: touch;
-
-                pointer-events: auto !important;
-
-                touch-action: pan-y;
-            }
-
-
-            .user-list .user-item {
-                cursor: pointer;
-
-                pointer-events: auto !important;
-
-                touch-action: manipulation;
-            }
-
-
-            #mobileMenuButton {
-                cursor: pointer;
-
-                touch-action: manipulation;
-            }
-
+        .gapino-call-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
+
+        .gapino-call-name {
+            color: #f8fafc;
+            font-size: 22px;
+            font-weight: 800;
+        }
+
+        .gapino-call-status {
+            margin-top: 8px;
+            color: #94a3b8;
+            font-size: 13px;
+        }
+
+        .gapino-call-timer {
+            margin-top: 8px;
+            color: #a5b4fc;
+            font-size: 14px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .gapino-call-actions {
+            margin-top: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .gapino-call-button {
+            min-width: 108px;
+            min-height: 50px;
+            padding: 10px 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            border: 1px solid rgba(255,255,255,.08);
+            border-radius: 15px;
+            color: white;
+            background: rgba(255,255,255,.05);
+            cursor: pointer;
+        }
+
+        .gapino-call-button.accept {
+            background: linear-gradient(135deg,#22c55e,#16a34a);
+        }
+
+        .gapino-call-button.reject {
+            background: linear-gradient(135deg,#ef4444,#dc2626);
+        }
+
+        .gapino-call-button:hover {
+            transform: translateY(-2px);
+        }
+
+        #voiceButton.recording {
+            background: rgba(239,68,68,.18) !important;
+            border-color: rgba(239,68,68,.4) !important;
+            color: #fca5a5 !important;
+            animation: gapinoVoicePulse 1.2s infinite;
+        }
+
+        @keyframes gapinoVoicePulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(239,68,68,.2);
+            }
+
+            50% {
+                box-shadow: 0 0 0 7px rgba(239,68,68,0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(239,68,68,0);
+            }
+        }
+
+        @keyframes gapinoCallPulse {
+            0% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.04);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        .message-audio {
+            max-width: 100%;
+            min-width: min(260px,100%);
+        }
+
+        .message-audio audio {
+            display: block;
+            width: 100%;
+            max-width: 100%;
+        }
+
+        .voice-name {
+            margin-top: 6px;
+            color: rgba(255,255,255,.7);
+            font-size: 10px;
+        }
+
+        .message-image {
+            display: block;
+            max-width: min(380px,100%);
+            max-height: 450px;
+            border-radius: 14px;
+            object-fit: cover;
+            cursor: pointer;
+        }
+
+        @media (max-width: 600px) {
+
+            .gapino-call-card {
+                padding: 32px 17px 22px;
+            }
+
+            .gapino-call-avatar {
+                width: 86px;
+                height: 86px;
+                font-size: 30px;
+            }
+
+            .gapino-call-name {
+                font-size: 20px;
+            }
+
+            .gapino-call-button {
+                min-width: 96px;
+            }
+        }
+
     </style>
 
 </head>
 
+
 <body>
 
-<div class="app-shell" id="appShell">
+<div
+    id="appShell"
+    class="app-shell"
+>
+
 
     <!-- =====================================================
          SIDEBAR
          ===================================================== -->
 
     <aside
-        class="sidebar"
         id="sidebar"
+        class="sidebar"
     >
-
-        <!-- ================= HEADER ================= -->
 
         <div class="sidebar-header">
 
             <div class="sidebar-brand">
 
-                <div class="sidebar-logo">
+                <div
+                    class="sidebar-logo"
+                    aria-hidden="true"
+                >
                     G
                 </div>
 
                 <div>
 
-                    <h1>
-                        گپینو
-                    </h1>
+                    <h1>گپینو</h1>
 
                     <span>
                         پیام‌رسان شما
@@ -266,23 +264,17 @@
 
             </div>
 
-
             <button
                 id="menuButton"
                 class="icon-button"
                 type="button"
                 aria-label="بستن منو"
-                title="بستن منو"
             >
                 ☰
             </button>
 
         </div>
 
-
-        <!-- =================================================
-             CURRENT USER
-             ================================================= -->
 
         <div class="current-user-card">
 
@@ -313,18 +305,13 @@
 
             </button>
 
-
             <span
                 class="online-dot"
-                title="آنلاین"
+                aria-label="آنلاین"
             ></span>
 
         </div>
 
-
-        <!-- =================================================
-             SEARCH
-             ================================================= -->
 
         <div class="search-box">
 
@@ -344,17 +331,12 @@
                 class="search-clear"
                 type="button"
                 hidden
-                aria-label="پاک کردن جستجو"
             >
                 ×
             </button>
 
         </div>
 
-
-        <!-- =================================================
-             LIST HEADER
-             ================================================= -->
 
         <div class="list-header">
 
@@ -369,10 +351,6 @@
         </div>
 
 
-        <!-- =================================================
-             USER LIST
-             ================================================= -->
-
         <div
             id="userList"
             class="user-list"
@@ -385,11 +363,11 @@
                 </div>
 
                 <strong>
-                    هنوز کاربری پیدا نشده
+                    در حال دریافت کاربران...
                 </strong>
 
                 <span>
-                    برای شروع گفتگو، کاربر موردنظر خودت را انتخاب کن.
+                    لطفاً کمی صبر کن.
                 </span>
 
             </div>
@@ -397,37 +375,22 @@
         </div>
 
 
-        <!-- =================================================
-             SIDEBAR FOOTER
-             ================================================= -->
-
         <div class="sidebar-footer">
-
-            <!-- THEME -->
 
             <button
                 id="themeButton"
                 class="sidebar-action"
                 type="button"
             >
-                🌙
-                <span>
-                    حالت تیره
-                </span>
+                ☀️ حالت روشن
             </button>
-
-
-            <!-- LOGOUT -->
 
             <button
                 id="logoutButton"
                 class="sidebar-action danger"
                 type="button"
             >
-                🚪
-                <span>
-                    خروج از حساب
-                </span>
+                🚪 خروج از حساب
             </button>
 
         </div>
@@ -436,34 +399,22 @@
 
 
     <!-- =====================================================
-         MAIN CHAT
+         CHAT
          ===================================================== -->
 
     <main class="chat-main">
 
-        <!-- =================================================
-             HEADER
-             ================================================= -->
-
-        <header
-            id="chatHeader"
-            class="chat-header"
-        >
-
-            <!-- MOBILE MENU -->
+        <header class="chat-header">
 
             <button
                 id="mobileMenuButton"
                 class="icon-button mobile-only"
                 type="button"
-                aria-label="باز کردن منو"
-                title="کاربران"
+                aria-label="کاربران"
             >
                 ☰
             </button>
 
-
-            <!-- CONTACT -->
 
             <div
                 id="chatContact"
@@ -477,7 +428,6 @@
                 >
                     G
                 </div>
-
 
                 <div class="chat-contact-info">
 
@@ -493,8 +443,6 @@
 
             </div>
 
-
-            <!-- EMPTY HEADER -->
 
             <div
                 id="chatHeaderEmpty"
@@ -512,9 +460,18 @@
             </div>
 
 
-            <!-- HEADER ACTIONS -->
-
             <div class="chat-header-actions">
+
+                <button
+                    id="callButton"
+                    class="icon-button"
+                    type="button"
+                    title="تماس صوتی"
+                    aria-label="تماس صوتی"
+                    disabled
+                >
+                    📞
+                </button>
 
                 <button
                     id="refreshButton"
@@ -525,7 +482,6 @@
                 >
                     ↻
                 </button>
-
 
                 <button
                     id="profileHeaderButton"
@@ -542,10 +498,6 @@
         </header>
 
 
-        <!-- =================================================
-             WELCOME SCREEN
-             ================================================= -->
-
         <section
             id="welcomeScreen"
             class="welcome-screen"
@@ -553,60 +505,41 @@
 
             <div class="welcome-card">
 
-                <div class="welcome-logo">
+                <div
+                    class="welcome-logo"
+                    aria-hidden="true"
+                >
                     G
                 </div>
-
 
                 <h2>
                     به گپینو خوش آمدی 👋
                 </h2>
 
-
                 <p>
-                    یک کاربر را از فهرست سمت راست انتخاب کن
-                    تا گفتگوی خودت را شروع کنی.
+                    یک کاربر را انتخاب کن تا گفتگو را شروع کنی.
                 </p>
-
 
                 <div class="welcome-features">
 
                     <div>
-
-                        <span>
-                            ⚡
-                        </span>
-
-                        <small>
-                            گفتگوی سریع
-                        </small>
-
+                        <span>⚡</span>
+                        <small>گفتگوی سریع</small>
                     </div>
 
-
                     <div>
-
-                        <span>
-                            🔒
-                        </span>
-
-                        <small>
-                            محیط امن
-                        </small>
-
+                        <span>🎙️</span>
+                        <small>پیام صوتی</small>
                     </div>
 
+                    <div>
+                        <span>📞</span>
+                        <small>تماس صوتی</small>
+                    </div>
 
                     <div>
-
-                        <span>
-                            📎
-                        </span>
-
-                        <small>
-                            ارسال فایل
-                        </small>
-
+                        <span>📎</span>
+                        <small>ارسال فایل</small>
                     </div>
 
                 </div>
@@ -616,54 +549,35 @@
         </section>
 
 
-        <!-- =================================================
-             CHAT VIEW
-             ================================================= -->
-
         <section
             id="chatView"
             class="chat-view"
             hidden
         >
 
-            <!-- =================================================
-                 MESSAGES
-                 ================================================= -->
-
             <div
                 id="messages"
                 class="messages"
+                aria-live="polite"
             ></div>
 
-
-            <!-- =================================================
-                 TYPING
-                 ================================================= -->
 
             <div
                 id="typingArea"
                 class="typing-area"
                 hidden
             >
-
                 <div class="typing-dots">
-
                     <span></span>
                     <span></span>
                     <span></span>
-
                 </div>
 
                 <span>
                     در حال نوشتن...
                 </span>
-
             </div>
 
-
-            <!-- =================================================
-                 COMPOSER
-                 ================================================= -->
 
             <div class="composer">
 
@@ -673,34 +587,25 @@
                     hidden
                 >
 
-
-                <!-- ATTACH -->
-
                 <button
                     id="attachButton"
                     class="composer-button"
                     type="button"
                     title="ارسال فایل"
-                    aria-label="ارسال فایل"
+                    disabled
                 >
                     📎
                 </button>
-
-
-                <!-- VOICE -->
 
                 <button
                     id="voiceButton"
                     class="composer-button"
                     type="button"
                     title="ضبط پیام صوتی"
-                    aria-label="ضبط پیام صوتی"
+                    disabled
                 >
                     🎙️
                 </button>
-
-
-                <!-- INPUT -->
 
                 <div class="message-input-wrapper">
 
@@ -708,21 +613,18 @@
                         id="messageInput"
                         rows="1"
                         maxlength="5000"
-                        placeholder="پیامت را بنویس..."
+                        placeholder="یک کاربر را انتخاب کنید..."
                         autocomplete="off"
+                        disabled
                     ></textarea>
 
                 </div>
-
-
-                <!-- SEND -->
 
                 <button
                     id="sendButton"
                     class="send-button"
                     type="button"
-                    title="ارسال پیام"
-                    aria-label="ارسال پیام"
+                    disabled
                 >
                     ➤
                 </button>
@@ -735,7 +637,7 @@
 
 
     <!-- =====================================================
-         PROFILE PANEL
+         PROFILE
          ===================================================== -->
 
     <aside
@@ -747,16 +649,13 @@
         <div class="profile-panel-header">
 
             <strong>
-                پروفایل
+                پروفایل من
             </strong>
-
 
             <button
                 id="closeProfile"
                 class="icon-button"
                 type="button"
-                title="بستن"
-                aria-label="بستن"
             >
                 ×
             </button>
@@ -766,17 +665,12 @@
 
         <div class="profile-content">
 
-            <!-- AVATAR -->
-
             <div
                 id="profileAvatar"
                 class="profile-avatar-large"
             >
                 G
             </div>
-
-
-            <!-- NAME -->
 
             <div
                 id="profileName"
@@ -785,9 +679,6 @@
                 گپینو
             </div>
 
-
-            <!-- USERNAME -->
-
             <div
                 id="profileUsername"
                 class="profile-username"
@@ -795,8 +686,6 @@
                 @user
             </div>
 
-
-            <!-- DISPLAY NAME -->
 
             <div class="profile-section">
 
@@ -809,13 +698,10 @@
                     type="text"
                     maxlength="60"
                     placeholder="نام نمایشی"
-                    autocomplete="name"
                 >
 
             </div>
 
-
-            <!-- BIO -->
 
             <div class="profile-section">
 
@@ -827,13 +713,11 @@
                     id="editBio"
                     maxlength="300"
                     rows="4"
-                    placeholder="چند کلمه درباره خودت..."
+                    placeholder="درباره خودت..."
                 ></textarea>
 
             </div>
 
-
-            <!-- STATUS -->
 
             <div class="profile-section">
 
@@ -864,8 +748,6 @@
             </div>
 
 
-            <!-- SAVE -->
-
             <button
                 id="saveProfile"
                 class="primary-button"
@@ -874,8 +756,6 @@
                 ذخیره تغییرات
             </button>
 
-
-            <!-- FULL PROFILE -->
 
             <button
                 id="profilePageButton"
@@ -908,131 +788,23 @@
     <div
         id="toast"
         class="toast"
+        role="status"
         aria-live="polite"
     ></div>
+
 
 </div>
 
 
-<!-- =========================================================
-     THEME SYSTEM
-     ========================================================= -->
+<script
+    src="/chat.js?v=305"
+    defer
+></script>
 
-<script>
-"use strict";
-
-(function () {
-
-    const themeButton =
-        document.getElementById("themeButton");
-
-
-    function updateThemeButton(theme) {
-
-        if (!themeButton) {
-            return;
-        }
-
-        if (theme === "light") {
-
-            themeButton.innerHTML =
-                "🌙 <span>حالت تیره</span>";
-
-            themeButton.setAttribute(
-                "title",
-                "فعال کردن حالت تیره"
-            );
-
-        } else {
-
-            themeButton.innerHTML =
-                "☀️ <span>حالت روشن</span>";
-
-            themeButton.setAttribute(
-                "title",
-                "فعال کردن حالت روشن"
-            );
-
-        }
-    }
-
-
-    function applyTheme() {
-
-        const saved =
-            localStorage.getItem(
-                "gapino_theme"
-            );
-
-        const theme =
-            saved === "light"
-                ? "light"
-                : "dark";
-
-
-        document.documentElement.setAttribute(
-            "data-theme",
-            theme
-        );
-
-
-        updateThemeButton(theme);
-    }
-
-
-    applyTheme();
-
-
-    if (themeButton) {
-
-        themeButton.addEventListener(
-            "click",
-            function () {
-
-                const current =
-                    document.documentElement.getAttribute(
-                        "data-theme"
-                    ) || "dark";
-
-
-                const next =
-                    current === "dark"
-                        ? "light"
-                        : "dark";
-
-
-                document.documentElement.setAttribute(
-                    "data-theme",
-                    next
-                );
-
-
-                localStorage.setItem(
-                    "gapino_theme",
-                    next
-                );
-
-
-                updateThemeButton(
-                    next
-                );
-
-            }
-        );
-
-    }
-
-})();
-</script>
-
-
-<!-- =========================================================
-     MAIN APP
-     ========================================================= -->
-
-<script src="/static/app.js?v=301"></script>
-
+<script
+    src="/call.js?v=3"
+    defer
+></script>
 
 </body>
 </html>
-```

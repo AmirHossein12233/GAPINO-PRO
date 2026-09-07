@@ -2,15 +2,19 @@
 
 /* =========================================================
    GAPINO PRO
-   app.js
-   نسخه اصلاح‌شده برای:
-   - نمایش کاربران
-   - لمس کاربران در APK
-   - منوی سه‌خط
+   APP.JS
+   عمومی و هماهنگ با chat.html + chat.js
+
+   امکانات:
+   - Session helper
+   - Theme
+   - Mobile sidebar
    - Overlay
-   - WebSocket
-   - پروفایل
-   - پیام‌ها
+   - Toast
+   - Global keyboard shortcuts
+   - API helper
+   - Browser notification
+   - Online status helpers
    ========================================================= */
 
 
@@ -18,3154 +22,528 @@
    CONFIG
    ========================================================= */
 
-const API_BASE =
-    window.GAPINO_API_BASE ||
+const GAPINO_API =
     window.location.origin;
 
-const WS_BASE =
-    window.GAPINO_WS_BASE ||
-    (
-        window.location.protocol === "https:"
-            ? `wss://${window.location.host}`
-            : `ws://${window.location.host}`
-    );
+const GAPINO_STORAGE_USER =
+    "gapino_user";
 
-
-/* =========================================================
-   STATE
-   ========================================================= */
-
-let currentUser = null;
-let selectedUser = null;
-
-let users = [];
-let messages = [];
-
-let socket = null;
-
-let socketReconnectTimer = null;
-let socketReconnectAttempts = 0;
-
-let usersRefreshTimer = null;
-let typingTimer = null;
-
-let lastTypingState = false;
-
-let mediaRecorder = null;
-let audioChunks = [];
-
-let profileLoaded = false;
-let toastTimer = null;
-
-let sidebarOpen = false;
-
-
-/* =========================================================
-   DOM
-   ========================================================= */
-
-const appShell =
-    document.getElementById("appShell");
-
-const sidebar =
-    document.getElementById("sidebar");
-
-const userSearch =
-    document.getElementById("userSearch");
-
-const clearSearch =
-    document.getElementById("clearSearch");
-
-const userList =
-    document.getElementById("userList");
-
-const userCount =
-    document.getElementById("userCount");
-
-const currentAvatar =
-    document.getElementById("currentAvatar");
-
-const currentDisplayName =
-    document.getElementById("currentDisplayName");
-
-const currentUsername =
-    document.getElementById("currentUsername");
-
-const profileButton =
-    document.getElementById("profileButton");
-
-const profileHeaderButton =
-    document.getElementById("profileHeaderButton");
-
-const menuButton =
-    document.getElementById("menuButton");
-
-const mobileMenuButton =
-    document.getElementById("mobileMenuButton");
-
-const welcomeScreen =
-    document.getElementById("welcomeScreen");
-
-const chatView =
-    document.getElementById("chatView");
-
-const chatContact =
-    document.getElementById("chatContact");
-
-const chatHeaderEmpty =
-    document.getElementById("chatHeaderEmpty");
-
-const chatAvatar =
-    document.getElementById("chatAvatar");
-
-const chatName =
-    document.getElementById("chatName");
-
-const chatStatus =
-    document.getElementById("chatStatus");
-
-const refreshButton =
-    document.getElementById("refreshButton");
-
-const messagesElement =
-    document.getElementById("messages");
-
-const messageInput =
-    document.getElementById("messageInput");
-
-const sendButton =
-    document.getElementById("sendButton");
-
-const attachButton =
-    document.getElementById("attachButton");
-
-const fileInput =
-    document.getElementById("fileInput");
-
-const voiceButton =
-    document.getElementById("voiceButton");
-
-const typingArea =
-    document.getElementById("typingArea");
-
-const profilePanel =
-    document.getElementById("profilePanel");
-
-const closeProfile =
-    document.getElementById("closeProfile");
-
-const profileAvatar =
-    document.getElementById("profileAvatar");
-
-const profileName =
-    document.getElementById("profileName");
-
-const profileUsername =
-    document.getElementById("profileUsername");
-
-const editDisplayName =
-    document.getElementById("editDisplayName");
-
-const editBio =
-    document.getElementById("editBio");
-
-const editStatus =
-    document.getElementById("editStatus");
-
-const saveProfile =
-    document.getElementById("saveProfile");
-
-const profilePageButton =
-    document.getElementById("profilePageButton");
-
-const appOverlay =
-    document.getElementById("appOverlay");
-
-const logoutButton =
-    document.getElementById("logoutButton");
-
-const toast =
-    document.getElementById("toast");
+const GAPINO_STORAGE_THEME =
+    "gapino_theme";
 
 
 /* =========================================================
    HELPERS
    ========================================================= */
 
-function apiUrl(path) {
-
-    if (!path) {
-        return API_BASE;
-    }
-
-    if (
-        path.startsWith("http://") ||
-        path.startsWith("https://")
-    ) {
-        return path;
-    }
-
-    return `${API_BASE}${path}`;
+function gapino$(id) {
+    return document.getElementById(id);
 }
 
 
-function escapeHtml(value) {
-
-    const div =
-        document.createElement("div");
-
-    div.textContent =
-        String(value ?? "");
-
-    return div.innerHTML;
-}
-
-
-function formatTime(value) {
-
-    if (!value) {
-        return "";
-    }
-
-    try {
-
-        const date =
-            new Date(value);
-
-        if (
-            Number.isNaN(
-                date.getTime()
-            )
-        ) {
-            return "";
-        }
-
-        return date.toLocaleTimeString(
-            "fa-IR",
-            {
-                hour: "2-digit",
-                minute: "2-digit"
-            }
-        );
-
-    } catch {
-
-        return "";
-    }
-}
-
-
-function avatarLetter(user) {
-
-    const name =
-        user?.display_name ||
-        user?.username ||
-        "G";
-
-    return (
-        String(name)
-            .trim()
-            .charAt(0)
-            .toUpperCase()
-        || "G"
-    );
-}
-
-
-function avatarUrl(value) {
-
-    if (!value) {
-        return "";
-    }
-
-    return (
-        value.startsWith("http://") ||
-        value.startsWith("https://")
-    )
-        ? value
-        : apiUrl(value);
-}
-
-
-function avatarHtml(
-    user,
-    extraClass = ""
-) {
-
-    const avatar =
-        user?.avatar || "";
-
-    if (avatar) {
-
-        return `
-            <div class="avatar ${extraClass}">
-                <img
-                    src="${escapeHtml(
-                        avatarUrl(avatar)
-                    )}"
-                    alt=""
-                    class="avatar-image"
-                    loading="lazy"
-                >
-            </div>
-        `;
-    }
-
-    return `
-        <div class="avatar ${extraClass}">
-            ${escapeHtml(
-                avatarLetter(user)
-            )}
-        </div>
-    `;
-}
-
-
-function showToast(
-    text,
-    type = ""
-) {
-
-    if (!toast) {
-        return;
-    }
-
-    toast.textContent =
-        text || "";
-
-    toast.className =
-        `toast ${type}`.trim();
-
-    if (text) {
-        toast.classList.add("show");
-    }
-
-    window.clearTimeout(
-        toastTimer
-    );
-
-    if (text) {
-
-        toastTimer =
-            window.setTimeout(
-                () => {
-
-                    toast.classList.remove(
-                        "show"
-                    );
-
-                },
-                3000
-            );
-    }
-}
-
-
-async function readJson(response) {
-
-    try {
-        return await response.json();
-    } catch {
-        return null;
-    }
+function gapinoSafeText(value) {
+    return String(value ?? "");
 }
 
 
 /* =========================================================
-   AUTH
+   ELEMENTS
    ========================================================= */
 
-async function getCurrentUser() {
+const appShell =
+    gapino$("appShell");
+
+const sidebar =
+    gapino$("sidebar");
+
+const menuButton =
+    gapino$("menuButton");
+
+const mobileMenuButton =
+    gapino$("mobileMenuButton");
+
+const appOverlay =
+    gapino$("appOverlay");
+
+const themeButton =
+    gapino$("themeButton");
+
+const logoutButton =
+    gapino$("logoutButton");
+
+const toastElement =
+    gapino$("toast");
+
+const profilePanel =
+    gapino$("profilePanel");
+
+const closeProfile =
+    gapino$("closeProfile");
+
+const profileButton =
+    gapino$("profileButton");
+
+const profileHeaderButton =
+    gapino$("profileHeaderButton");
+
+
+/* =========================================================
+   TOAST
+   ========================================================= */
+
+function showGapinoToast(
+    message,
+    duration = 2500
+) {
+
+    const text =
+        gapinoSafeText(
+            message
+        );
+
+
+    if (!toastElement) {
+
+        console.log(
+            "GAPINO:",
+            text
+        );
+
+        return;
+    }
+
+
+    toastElement.textContent =
+        text;
+
+
+    toastElement.classList.add(
+        "show"
+    );
+
+
+    clearTimeout(
+        showGapinoToast.timer
+    );
+
+
+    showGapinoToast.timer =
+        setTimeout(
+            () => {
+
+                toastElement.classList.remove(
+                    "show"
+                );
+
+            },
+            duration
+        );
+}
+
+
+/* =========================================================
+   API
+   ========================================================= */
+
+async function gapinoFetch(
+    path,
+    options = {}
+) {
 
     const response =
         await fetch(
-            apiUrl("/api/me"),
+            GAPINO_API + path,
             {
-                method: "GET",
-                credentials: "include",
-                cache: "no-store"
+                ...options,
+
+                credentials:
+                    "include",
+
+                cache:
+                    "no-store"
             }
         );
 
-    const data =
-        await readJson(response);
+
+    const contentType =
+        response.headers.get(
+            "content-type"
+        ) || "";
+
+
+    let data = null;
+
+
+    try {
+
+        if (
+            contentType.includes(
+                "application/json"
+            )
+        ) {
+
+            data =
+                await response.json();
+
+        } else {
+
+            const text =
+                await response.text();
+
+
+            data =
+                text
+                    ? {
+                        detail: text
+                    }
+                    : null;
+        }
+
+    } catch (_) {
+
+        data = null;
+    }
+
 
     if (!response.ok) {
 
         throw new Error(
+            data?.message ||
             data?.detail ||
-            "نشست ورود شما معتبر نیست."
+            `HTTP ${response.status}`
         );
     }
+
 
     return data;
 }
 
 
-async function prepareWebSocketSession() {
-
-    try {
-
-        const response =
-            await fetch(
-                apiUrl("/api/me"),
-                {
-                    method: "GET",
-                    credentials: "include",
-                    cache: "no-store"
-                }
-            );
-
-        if (!response.ok) {
-            throw new Error(
-                "نشست WebSocket ایجاد نشد."
-            );
-        }
-
-        const data =
-            await readJson(response);
-
-        if (data) {
-            currentUser = data;
-        }
-
-        return true;
-
-    } catch (error) {
-
-        console.error(
-            "WebSocket session preparation failed:",
-            error
-        );
-
-        return false;
-    }
-}
-
-
 /* =========================================================
-   CURRENT USER
+   SESSION
    ========================================================= */
 
-function renderCurrentUser() {
-
-    if (!currentUser) {
-        return;
-    }
-
-    if (currentDisplayName) {
-
-        currentDisplayName.textContent =
-            currentUser.display_name ||
-            currentUser.username ||
-            "گپینو";
-    }
-
-    if (currentUsername) {
-
-        currentUsername.textContent =
-            currentUser.username
-                ? `@${currentUser.username}`
-                : "@user";
-    }
-
-    if (currentAvatar) {
-
-        if (currentUser.avatar) {
-
-            currentAvatar.innerHTML = `
-                <img
-                    src="${escapeHtml(
-                        avatarUrl(
-                            currentUser.avatar
-                        )
-                    )}"
-                    alt=""
-                    class="avatar-image"
-                >
-            `;
-
-        } else {
-
-            currentAvatar.textContent =
-                avatarLetter(
-                    currentUser
-                );
-        }
-    }
-}
-
-
-async function loadCurrentUser() {
+async function getGapinoSession() {
 
     try {
-
-        currentUser =
-            await getCurrentUser();
-
-        localStorage.setItem(
-            "gapino_user",
-            JSON.stringify(
-                currentUser
-            )
-        );
-
-        renderCurrentUser();
-
-    } catch (error) {
-
-        console.error(error);
-
-        localStorage.removeItem(
-            "gapino_user"
-        );
-
-        window.location.href =
-            "/login.html";
-    }
-}
-
-
-/* =========================================================
-   USERS
-   ========================================================= */
-
-async function loadUsers() {
-
-    try {
-
-        const query =
-            userSearch?.value.trim() || "";
-
-        const endpoint =
-            query
-                ? `/api/users?q=${encodeURIComponent(query)}`
-                : "/api/users";
-
-
-        const response =
-            await fetch(
-                apiUrl(endpoint),
-                {
-                    method: "GET",
-                    credentials: "include",
-                    cache: "no-store",
-                    headers: {
-                        "Accept":
-                            "application/json"
-                    }
-                }
-            );
-
 
         const data =
-            await readJson(response);
-
-
-        if (!response.ok) {
-
-            if (
-                response.status === 401
-            ) {
-
-                localStorage.removeItem(
-                    "gapino_user"
-                );
-
-                window.location.href =
-                    "/login.html";
-
-                return;
-            }
-
-            throw new Error(
-                data?.detail ||
-                "دریافت کاربران انجام نشد."
+            await gapinoFetch(
+                "/me"
             );
-        }
 
-
-        users =
-            Array.isArray(data)
-                ? data
-                : [];
-
-
-        /*
-         * کاربر انتخاب‌شده را در زمان جستجو
-         * از بین نبر.
-         */
 
         if (
-            selectedUser &&
-            !users.some(
-                user =>
-                    Number(user.id) ===
-                    Number(selectedUser.id)
+            data?.authenticated &&
+            data?.user
+        ) {
+
+            try {
+
+                localStorage.setItem(
+                    GAPINO_STORAGE_USER,
+                    JSON.stringify(
+                        data.user
+                    )
+                );
+
+            } catch (_) {}
+
+
+            return data.user;
+        }
+
+    } catch (error) {
+
+        console.warn(
+            "GAPINO session:",
+            error
+        );
+    }
+
+
+    return null;
+}
+
+
+function getStoredGapinoUser() {
+
+    try {
+
+        const raw =
+            localStorage.getItem(
+                GAPINO_STORAGE_USER
+            );
+
+
+        if (!raw) {
+            return null;
+        }
+
+
+        const user =
+            JSON.parse(
+                raw
+            );
+
+
+        if (
+            user &&
+            (
+                user.id ||
+                user.user_id
             )
         ) {
 
-            users.push(
-                selectedUser
-            );
+            return user;
         }
-
-
-        renderUsers();
-
 
     } catch (error) {
 
-        console.error(
-            "loadUsers error:",
+        console.warn(
+            "Stored user error:",
             error
         );
-
-        if (userList) {
-
-            userList.innerHTML = `
-                <div class="empty-users">
-
-                    <div class="empty-icon">
-                        ⚠️
-                    </div>
-
-                    <strong>
-                        دریافت کاربران ناموفق بود
-                    </strong>
-
-                    <span>
-                        ${escapeHtml(
-                            error.message ||
-                            "اتصال سرور را بررسی کنید."
-                        )}
-                    </span>
-
-                    <button
-                        type="button"
-                        class="secondary-button"
-                        id="retryUsersButton"
-                        style="margin-top:12px"
-                    >
-                        تلاش دوباره
-                    </button>
-
-                </div>
-            `;
-
-
-            const retry =
-                document.getElementById(
-                    "retryUsersButton"
-                );
-
-
-            if (retry) {
-
-                retry.addEventListener(
-                    "click",
-                    () => {
-
-                        loadUsers();
-                    }
-                );
-            }
-        }
-    }
-}
-
-
-function renderUsers() {
-
-    if (!userList) {
-        return;
     }
 
 
-    if (userCount) {
-
-        userCount.textContent =
-            String(
-                users.length
-            );
-    }
-
-
-    if (!users.length) {
-
-        const searching =
-            Boolean(
-                userSearch?.value.trim()
-            );
-
-
-        userList.innerHTML = `
-            <div class="empty-users">
-
-                <div class="empty-icon">
-                    ${
-                        searching
-                            ? "🔎"
-                            : "💬"
-                    }
-                </div>
-
-                <strong>
-                    ${
-                        searching
-                            ? "کاربری پیدا نشد"
-                            : "هنوز کاربر دیگری وجود ندارد"
-                    }
-                </strong>
-
-                <span>
-                    ${
-                        searching
-                            ? "عبارت جستجو را تغییر بده."
-                            : "با ثبت‌نام کاربران، آنها اینجا نمایش داده می‌شوند."
-                    }
-                </span>
-
-            </div>
-        `;
-
-        return;
-    }
-
-
-    /*
-     * ساخت لیست کاربران
-     */
-
-    userList.innerHTML =
-        users
-            .map(
-                user => {
-
-                    const active =
-                        selectedUser &&
-                        Number(
-                            selectedUser.id
-                        ) ===
-                        Number(
-                            user.id
-                        );
-
-
-                    const online =
-                        Boolean(
-                            user.online
-                        );
-
-
-                    return `
-                        <button
-                            type="button"
-                            class="
-                                user-item
-                                ${active ? "active" : ""}
-                                ${online ? "online" : ""}
-                            "
-                            data-user-id="${Number(
-                                user.id
-                            )}"
-                        >
-
-                            ${avatarHtml(user)}
-
-                            <div class="user-item-info">
-
-                                <span class="user-item-name">
-                                    ${escapeHtml(
-                                        user.display_name ||
-                                        user.username ||
-                                        "کاربر"
-                                    )}
-                                </span>
-
-                                <span class="user-item-username">
-                                    @${escapeHtml(
-                                        user.username ||
-                                        ""
-                                    )}
-                                </span>
-
-                                <span class="user-item-status">
-                                    ${
-                                        online
-                                            ? "آنلاین"
-                                            : "آفلاین"
-                                    }
-                                </span>
-
-                            </div>
-
-                        </button>
-                    `;
-                }
-            )
-            .join("");
-
-
-    /*
-     * رویداد لمس/کلیک کاربر
-     */
-
-    userList
-        .querySelectorAll(
-            ".user-item"
-        )
-        .forEach(
-            button => {
-
-                /*
-                 * pointerdown برای Android/WebView
-                 */
-
-                button.addEventListener(
-                    "pointerdown",
-                    event => {
-
-                        if (
-                            event.pointerType ===
-                            "touch"
-                        ) {
-
-                            button.dataset.touchStarted =
-                                "true";
-                        }
-                    },
-                    {
-                        passive: true
-                    }
-                );
-
-
-                button.addEventListener(
-                    "click",
-                    async event => {
-
-                        event.preventDefault();
-                        event.stopPropagation();
-
-
-                        const id =
-                            Number(
-                                button.dataset.userId
-                            );
-
-
-                        if (
-                            !Number.isFinite(id)
-                        ) {
-                            return;
-                        }
-
-
-                        const user =
-                            users.find(
-                                item =>
-                                    Number(
-                                        item.id
-                                    ) === id
-                            );
-
-
-                        if (!user) {
-                            return;
-                        }
-
-
-                        await selectUser(
-                            user
-                        );
-                    }
-                );
-            }
-        );
+    return null;
 }
 
 
 /* =========================================================
-   SELECT USER
+   LOGOUT
    ========================================================= */
 
-async function selectUser(user) {
-
-    if (!user) {
-        return;
-    }
-
-
-    selectedUser =
-        user;
-
-
-    /*
-     * ابتدا منو را ببند.
-     * این قسمت مهم است تا Overlay روی صفحه باقی نماند.
-     */
-
-    closeSidebarMobile(
-        true
-    );
-
-
-    renderUsers();
-
-    renderChatHeader();
-
-    showChat();
-
+async function gapinoLogout() {
 
     try {
 
-        await loadMessages();
-
-    } catch (error) {
-
-        console.error(
-            "selectUser / loadMessages:",
-            error
-        );
-    }
-
-
-    if (
-        !socket ||
-        socket.readyState !==
-            WebSocket.OPEN
-    ) {
-
-        await prepareWebSocketSession();
-
-        connectSocket();
-    }
-
-
-    scrollMessagesToBottom();
-
-
-    if (messageInput) {
-        messageInput.focus();
-    }
-}
-
-
-/* =========================================================
-   CHAT HEADER
-   ========================================================= */
-
-function renderChatHeader() {
-
-    if (!selectedUser) {
-        return;
-    }
-
-
-    if (welcomeScreen) {
-        welcomeScreen.hidden =
-            true;
-    }
-
-
-    if (chatView) {
-        chatView.hidden =
-            false;
-    }
-
-
-    if (chatContact) {
-        chatContact.hidden =
-            false;
-    }
-
-
-    if (chatHeaderEmpty) {
-        chatHeaderEmpty.hidden =
-            true;
-    }
-
-
-    if (chatName) {
-
-        chatName.textContent =
-            selectedUser.display_name ||
-            selectedUser.username ||
-            "کاربر";
-    }
-
-
-    if (chatStatus) {
-
-        const online =
-            Boolean(
-                selectedUser.online
-            );
-
-
-        chatStatus.textContent =
-            online
-                ? "آنلاین"
-                : (
-                    selectedUser.status ||
-                    "آفلاین"
-                );
-
-
-        chatStatus.classList.toggle(
-            "online",
-            online
-        );
-    }
-
-
-    if (chatAvatar) {
-
-        if (selectedUser.avatar) {
-
-            chatAvatar.innerHTML = `
-                <img
-                    src="${escapeHtml(
-                        avatarUrl(
-                            selectedUser.avatar
-                        )
-                    )}"
-                    alt=""
-                    class="avatar-image"
-                >
-            `;
-
-        } else {
-
-            chatAvatar.textContent =
-                avatarLetter(
-                    selectedUser
-                );
-        }
-    }
-}
-
-
-function showChat() {
-
-    if (welcomeScreen) {
-        welcomeScreen.hidden =
-            true;
-    }
-
-    if (chatView) {
-        chatView.hidden =
-            false;
-    }
-}
-
-
-function showWelcome() {
-
-    if (welcomeScreen) {
-        welcomeScreen.hidden =
-            false;
-    }
-
-    if (chatView) {
-        chatView.hidden =
-            true;
-    }
-
-    if (chatContact) {
-        chatContact.hidden =
-            true;
-    }
-
-    if (chatHeaderEmpty) {
-        chatHeaderEmpty.hidden =
-            false;
-    }
-}
-
-
-/* =========================================================
-   MESSAGES
-   ========================================================= */
-
-async function loadMessages() {
-
-    if (
-        !selectedUser ||
-        !currentUser
-    ) {
-        return;
-    }
-
-
-    const response =
-        await fetch(
-            apiUrl(
-                `/api/messages/${Number(
-                    selectedUser.id
-                )}`
-            ),
+        await gapinoFetch(
+            "/logout",
             {
-                method: "GET",
-                credentials: "include",
-                cache: "no-store",
-                headers: {
-                    "Accept":
-                        "application/json"
-                }
+                method:
+                    "POST"
             }
         );
-
-
-    const data =
-        await readJson(response);
-
-
-    if (!response.ok) {
-
-        throw new Error(
-            data?.detail ||
-            "دریافت پیام‌ها ناموفق بود."
-        );
-    }
-
-
-    messages =
-        Array.isArray(data)
-            ? data
-            : [];
-
-
-    renderMessages();
-
-    scrollMessagesToBottom();
-}
-
-
-function isMyMessage(message) {
-
-    return (
-        Number(
-            message?.sender_id
-        ) ===
-        Number(
-            currentUser?.id
-        )
-    );
-}
-
-
-function renderMessages() {
-
-    if (!messagesElement) {
-        return;
-    }
-
-
-    if (!messages.length) {
-
-        messagesElement.innerHTML = `
-            <div
-                style="
-                    margin:auto;
-                    text-align:center;
-                    color:var(--muted);
-                    font-size:16px;
-                    padding:30px;
-                "
-            >
-
-                <div
-                    style="
-                        font-size:28px;
-                        margin-bottom:10px;
-                    "
-                >
-                    💬
-                </div>
-
-                <div
-                    style="
-                        margin-bottom:6px;
-                    "
-                >
-                    هنوز پیامی وجود ندارد
-                </div>
-
-                <div>
-                    اولین پیام را بفرست!
-                </div>
-
-            </div>
-        `;
-
-        return;
-    }
-
-
-    messagesElement.innerHTML =
-        messages
-            .map(
-                renderSingleMessage
-            )
-            .join("");
-
-
-    attachMessageMenus();
-}
-
-
-function renderSingleMessage(
-    message
-) {
-
-    const mine =
-        isMyMessage(message);
-
-    const deleted =
-        Boolean(message.deleted);
-
-    const edited =
-        Boolean(message.edited);
-
-    const text =
-        message.text || "";
-
-    let content = "";
-
-
-    if (deleted) {
-
-        content = `
-            <div class="deleted-message">
-
-                <span>
-                    🚫
-                </span>
-
-                <span>
-                    این پیام حذف شده است
-                </span>
-
-            </div>
-        `;
-
-    } else {
-
-        if (text) {
-
-            content += `
-                <div class="message-text">
-                    ${escapeHtml(text)}
-                </div>
-            `;
-        }
-
-
-        if (message.file_url) {
-
-            const url =
-                avatarUrl(
-                    message.file_url
-                );
-
-            const mime =
-                String(
-                    message.mime_type ||
-                    ""
-                ).toLowerCase();
-
-            const fileName =
-                message.file_name ||
-                "فایل";
-
-
-            if (
-                mime.startsWith(
-                    "image/"
-                )
-            ) {
-
-                content += `
-                    <div
-                        style="
-                            margin-top:${text ? "8px" : "0"};
-                        "
-                    >
-
-                        <img
-                            src="${escapeHtml(url)}"
-                            class="message-image"
-                            alt="${escapeHtml(
-                                fileName
-                            )}"
-                            loading="lazy"
-                            data-image-url="${escapeHtml(
-                                url
-                            )}"
-                        >
-
-                    </div>
-                `;
-
-            } else if (
-                mime.startsWith(
-                    "audio/"
-                )
-            ) {
-
-                content += `
-                    <div class="message-audio">
-
-                        <audio
-                            controls
-                            preload="metadata"
-                            src="${escapeHtml(
-                                url
-                            )}"
-                        ></audio>
-
-                    </div>
-                `;
-
-            } else {
-
-                content += `
-                    <div
-                        class="message-file"
-                        style="
-                            margin-top:${text ? "8px" : "0"};
-                        "
-                    >
-
-                        <div class="message-file-icon">
-                            📄
-                        </div>
-
-                        <div class="message-file-info">
-
-                            <div class="message-file-name">
-                                ${escapeHtml(
-                                    fileName
-                                )}
-                            </div>
-
-                            <a
-                                class="message-file-link"
-                                href="${escapeHtml(
-                                    url
-                                )}"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                            >
-                                مشاهده / دانلود
-                            </a>
-
-                        </div>
-
-                    </div>
-                `;
-            }
-        }
-    }
-
-
-    const editedText =
-        edited && !deleted
-            ? `
-                <span class="message-edited">
-                    ویرایش‌شده
-                </span>
-            `
-            : "";
-
-
-    const ticks =
-        mine && !deleted
-            ? `
-                <span class="message-ticks">
-                    ✓✓
-                </span>
-            `
-            : "";
-
-
-    return `
-        <div
-            class="
-                message-row
-                ${mine ? "mine" : "theirs"}
-            "
-            data-message-id="${Number(
-                message.id
-            )}"
-        >
-
-            <div
-                class="
-                    message
-                    ${mine ? "mine" : "theirs"}
-                    ${deleted ? "deleted" : ""}
-                "
-                data-message-id="${Number(
-                    message.id
-                )}"
-                ${!deleted
-                    ? 'data-message-menu="true"'
-                    : ""}
-            >
-
-                ${content}
-
-                <div class="message-meta">
-
-                    <span>
-                        ${escapeHtml(
-                            formatTime(
-                                message.created_at
-                            )
-                        )}
-                    </span>
-
-                    ${editedText}
-
-                    ${ticks}
-
-                </div>
-
-            </div>
-
-        </div>
-    `;
-}
-
-
-/* =========================================================
-   MESSAGE MENU
-   ========================================================= */
-
-function attachMessageMenus() {
-
-    if (!messagesElement) {
-        return;
-    }
-
-
-    messagesElement
-        .querySelectorAll(
-            '[data-message-menu="true"]'
-        )
-        .forEach(
-            element => {
-
-                element.addEventListener(
-                    "contextmenu",
-                    event => {
-
-                        event.preventDefault();
-
-                        const id =
-                            Number(
-                                element.dataset.messageId
-                            );
-
-                        openMessageMenu(
-                            event,
-                            id
-                        );
-                    }
-                );
-            }
-        );
-
-
-    messagesElement
-        .querySelectorAll(
-            ".message-image"
-        )
-        .forEach(
-            image => {
-
-                image.addEventListener(
-                    "click",
-                    () => {
-
-                        const url =
-                            image.dataset.imageUrl ||
-                            image.src;
-
-                        window.open(
-                            url,
-                            "_blank",
-                            "noopener,noreferrer"
-                        );
-                    }
-                );
-            }
-        );
-}
-
-
-function openMessageMenu(
-    event,
-    messageId
-) {
-
-    closeMessageMenu();
-
-
-    const message =
-        messages.find(
-            item =>
-                Number(item.id) ===
-                Number(messageId)
-        );
-
-
-    if (!message) {
-        return;
-    }
-
-
-    const menu =
-        document.createElement(
-            "div"
-        );
-
-
-    menu.className =
-        "message-menu";
-
-    menu.id =
-        "dynamicMessageMenu";
-
-
-    menu.innerHTML = `
-
-        <button
-            type="button"
-            data-action="copy"
-        >
-            📋
-            کپی
-        </button>
-
-        ${
-            isMyMessage(message)
-                ? `
-                    <button
-                        type="button"
-                        data-action="edit"
-                    >
-                        ✏️
-                        ویرایش
-                    </button>
-
-                    <button
-                        type="button"
-                        class="danger"
-                        data-action="delete"
-                    >
-                        🗑️
-                        حذف
-                    </button>
-                `
-                : ""
-        }
-    `;
-
-
-    const x =
-        Number(event.clientX || 0);
-
-    const y =
-        Number(event.clientY || 0);
-
-
-    menu.style.position =
-        "fixed";
-
-    menu.style.zIndex =
-        "100000";
-
-    menu.style.left =
-        `${Math.max(
-            8,
-            Math.min(
-                x,
-                window.innerWidth - 160
-            )
-        )}px`;
-
-    menu.style.top =
-        `${Math.max(
-            8,
-            Math.min(
-                y,
-                window.innerHeight - 140
-            )
-        )}px`;
-
-
-    document.body.appendChild(
-        menu
-    );
-
-
-    menu.querySelectorAll(
-        "button"
-    ).forEach(
-        button => {
-
-            button.addEventListener(
-                "click",
-                async () => {
-
-                    const action =
-                        button.dataset.action;
-
-                    closeMessageMenu();
-
-
-                    if (
-                        action ===
-                        "copy"
-                    ) {
-
-                        await copyMessage(
-                            message
-                        );
-                    }
-
-
-                    if (
-                        action ===
-                        "edit"
-                    ) {
-
-                        await editMessage(
-                            message
-                        );
-                    }
-
-
-                    if (
-                        action ===
-                        "delete"
-                    ) {
-
-                        await deleteMessage(
-                            message
-                        );
-                    }
-                }
-            );
-        }
-    );
-
-
-    window.setTimeout(
-        () => {
-
-            document.addEventListener(
-                "click",
-                closeMessageMenuOnce,
-                {
-                    once: true
-                }
-            );
-
-        },
-        0
-    );
-}
-
-
-function closeMessageMenuOnce() {
-    closeMessageMenu();
-}
-
-
-function closeMessageMenu() {
-
-    const menu =
-        document.getElementById(
-            "dynamicMessageMenu"
-        );
-
-    if (menu) {
-        menu.remove();
-    }
-}
-
-
-/* =========================================================
-   COPY
-   ========================================================= */
-
-async function copyMessage(
-    message
-) {
-
-    const text =
-        message.text ||
-        message.file_name ||
-        "";
-
-
-    if (!text) {
-
-        showToast(
-            "چیزی برای کپی وجود ندارد."
-        );
-
-        return;
-    }
-
-
-    try {
-
-        await navigator.clipboard.writeText(
-            text
-        );
-
-
-        showToast(
-            "پیام کپی شد. ✅",
-            "success"
-        );
-
-    } catch {
-
-        showToast(
-            "کپی پیام انجام نشد.",
-            "error"
-        );
-    }
-}
-
-
-/* =========================================================
-   EDIT
-   ========================================================= */
-
-async function editMessage(
-    message
-) {
-
-    const currentText =
-        message.text || "";
-
-
-    const nextText =
-        window.prompt(
-            "متن جدید پیام:",
-            currentText
-        );
-
-
-    if (nextText === null) {
-        return;
-    }
-
-
-    const text =
-        nextText.trim();
-
-
-    if (!text) {
-
-        showToast(
-            "پیام نمی‌تواند خالی باشد.",
-            "error"
-        );
-
-        return;
-    }
-
-
-    try {
-
-        const response =
-            await fetch(
-                apiUrl(
-                    `/api/messages/${Number(
-                        message.id
-                    )}/edit`
-                ),
-                {
-                    method:
-                        "POST",
-
-                    credentials:
-                        "include",
-
-                    headers: {
-                        "Content-Type":
-                            "application/json"
-                    },
-
-                    body:
-                        JSON.stringify({
-                            text
-                        })
-                }
-            );
-
-
-        const data =
-            await readJson(response);
-
-
-        if (!response.ok) {
-
-            throw new Error(
-                data?.detail ||
-                "ویرایش پیام انجام نشد."
-            );
-        }
-
-
-        replaceMessage(
-            data
-        );
-
-
-        showToast(
-            "پیام ویرایش شد. ✅",
-            "success"
-        );
-
 
     } catch (error) {
 
-        showToast(
-            error.message ||
-            "ویرایش پیام ناموفق بود.",
-            "error"
-        );
-    }
-}
-
-
-/* =========================================================
-   DELETE
-   ========================================================= */
-
-async function deleteMessage(
-    message
-) {
-
-    const confirmed =
-        window.confirm(
-            "این پیام حذف شود؟"
-        );
-
-
-    if (!confirmed) {
-        return;
-    }
-
-
-    try {
-
-        const response =
-            await fetch(
-                apiUrl(
-                    `/api/messages/${Number(
-                        message.id
-                    )}`
-                ),
-                {
-                    method:
-                        "DELETE",
-
-                    credentials:
-                        "include"
-                }
-            );
-
-
-        const data =
-            await readJson(response);
-
-
-        if (!response.ok) {
-
-            throw new Error(
-                data?.detail ||
-                "حذف پیام انجام نشد."
-            );
-        }
-
-
-        replaceMessage(
-            data
-        );
-
-
-        showToast(
-            "پیام حذف شد.",
-            "success"
-        );
-
-
-    } catch (error) {
-
-        showToast(
-            error.message ||
-            "حذف پیام ناموفق بود.",
-            "error"
-        );
-    }
-}
-
-
-function replaceMessage(
-    updatedMessage
-) {
-
-    const index =
-        messages.findIndex(
-            item =>
-                Number(item.id) ===
-                Number(
-                    updatedMessage.id
-                )
-        );
-
-
-    if (index >= 0) {
-
-        messages[index] =
-            updatedMessage;
-
-    } else {
-
-        messages.push(
-            updatedMessage
-        );
-    }
-
-
-    messages.sort(
-        (a, b) =>
-            Number(a.id) -
-            Number(b.id)
-    );
-
-
-    renderMessages();
-
-    scrollMessagesToBottom();
-}
-
-
-/* =========================================================
-   SEND MESSAGE
-   ========================================================= */
-
-async function sendMessage() {
-
-    if (!currentUser) {
-        return;
-    }
-
-
-    if (!selectedUser) {
-
-        showToast(
-            "ابتدا یک کاربر را انتخاب کن."
-        );
-
-        return;
-    }
-
-
-    const text =
-        messageInput?.value.trim() || "";
-
-
-    if (!text) {
-        return;
-    }
-
-
-    setTyping(false);
-
-
-    try {
-
-        if (sendButton) {
-            sendButton.disabled =
-                true;
-        }
-
-
-        const response =
-            await fetch(
-                apiUrl(
-                    "/api/messages"
-                ),
-                {
-                    method:
-                        "POST",
-
-                    credentials:
-                        "include",
-
-                    headers: {
-                        "Content-Type":
-                            "application/json",
-
-                        "Accept":
-                            "application/json"
-                    },
-
-                    body:
-                        JSON.stringify({
-                            receiver_id:
-                                Number(
-                                    selectedUser.id
-                                ),
-                            text
-                        })
-                }
-            );
-
-
-        const data =
-            await readJson(response);
-
-
-        if (!response.ok) {
-
-            throw new Error(
-                data?.detail ||
-                "ارسال پیام انجام نشد."
-            );
-        }
-
-
-        if (messageInput) {
-            messageInput.value =
-                "";
-        }
-
-
-        resizeMessageInput();
-
-        addOrReplaceMessage(
-            data
-        );
-
-        scrollMessagesToBottom();
-
-
-    } catch (error) {
-
-        console.error(error);
-
-        showToast(
-            error.message ||
-            "ارسال پیام ناموفق بود.",
-            "error"
-        );
-
-
-    } finally {
-
-        if (sendButton) {
-            sendButton.disabled =
-                false;
-        }
-
-
-        if (messageInput) {
-            messageInput.focus();
-        }
-    }
-}
-
-
-/* =========================================================
-   ADD MESSAGE
-   ========================================================= */
-
-function addOrReplaceMessage(
-    message
-) {
-
-    if (!message) {
-        return;
-    }
-
-
-    const existing =
-        messages.findIndex(
-            item =>
-                Number(item.id) ===
-                Number(message.id)
-        );
-
-
-    if (existing >= 0) {
-
-        messages[existing] =
-            message;
-
-    } else {
-
-        messages.push(
-            message
-        );
-    }
-
-
-    messages.sort(
-        (a, b) =>
-            Number(a.id) -
-            Number(b.id)
-    );
-
-
-    renderMessages();
-}
-
-
-/* =========================================================
-   FILE UPLOAD
-   ========================================================= */
-
-async function uploadFile(
-    file
-) {
-
-    if (!selectedUser) {
-
-        showToast(
-            "ابتدا یک کاربر را انتخاب کن."
-        );
-
-        return;
-    }
-
-
-    if (!file) {
-        return;
-    }
-
-
-    if (
-        file.size >
-        10 * 1024 * 1024
-    ) {
-
-        showToast(
-            "حداکثر اندازه فایل ۱۰ مگابایت است.",
-            "error"
-        );
-
-        return;
-    }
-
-
-    try {
-
-        showToast(
-            "در حال ارسال فایل..."
-        );
-
-
-        const formData =
-            new FormData();
-
-
-        formData.append(
-            "receiver_id",
-            String(
-                selectedUser.id
-            )
-        );
-
-
-        formData.append(
-            "file",
-            file,
-            file.name
-        );
-
-
-        const response =
-            await fetch(
-                apiUrl(
-                    "/api/upload"
-                ),
-                {
-                    method:
-                        "POST",
-
-                    credentials:
-                        "include",
-
-                    body:
-                        formData
-                }
-            );
-
-
-        const data =
-            await readJson(response);
-
-
-        if (!response.ok) {
-
-            throw new Error(
-                data?.detail ||
-                "ارسال فایل انجام نشد."
-            );
-        }
-
-
-        addOrReplaceMessage(
-            data
-        );
-
-
-        scrollMessagesToBottom();
-
-
-        showToast(
-            "فایل ارسال شد. ✅",
-            "success"
-        );
-
-
-    } catch (error) {
-
-        console.error(error);
-
-        showToast(
-            error.message ||
-            "ارسال فایل ناموفق بود.",
-            "error"
-        );
-    }
-}
-
-
-/* =========================================================
-   VOICE
-   ========================================================= */
-
-async function toggleVoiceRecording() {
-
-    if (mediaRecorder) {
-
-        stopVoiceRecording();
-
-        return;
-    }
-
-
-    if (
-        !navigator.mediaDevices ||
-        !navigator.mediaDevices.getUserMedia
-    ) {
-
-        showToast(
-            "مرورگر شما ضبط صدا را پشتیبانی نمی‌کند.",
-            "error"
-        );
-
-        return;
-    }
-
-
-    if (!selectedUser) {
-
-        showToast(
-            "ابتدا یک کاربر را انتخاب کن."
-        );
-
-        return;
-    }
-
-
-    try {
-
-        const stream =
-            await navigator.mediaDevices.getUserMedia(
-                {
-                    audio: true
-                }
-            );
-
-
-        audioChunks = [];
-
-
-        mediaRecorder =
-            new MediaRecorder(
-                stream
-            );
-
-
-        mediaRecorder.ondataavailable =
-            event => {
-
-                if (
-                    event.data &&
-                    event.data.size > 0
-                ) {
-
-                    audioChunks.push(
-                        event.data
-                    );
-                }
-            };
-
-
-        mediaRecorder.onstop =
-            async () => {
-
-                const mimeType =
-                    mediaRecorder.mimeType ||
-                    "audio/webm";
-
-
-                const blob =
-                    new Blob(
-                        audioChunks,
-                        {
-                            type:
-                                mimeType
-                        }
-                    );
-
-
-                stream
-                    .getTracks()
-                    .forEach(
-                        track =>
-                            track.stop()
-                    );
-
-
-                mediaRecorder =
-                    null;
-
-                audioChunks =
-                    [];
-
-
-                if (blob.size > 0) {
-
-                    const file =
-                        new File(
-                            [blob],
-                            `voice-${Date.now()}.webm`,
-                            {
-                                type:
-                                    blob.type ||
-                                    "audio/webm"
-                            }
-                        );
-
-
-                    await uploadFile(
-                        file
-                    );
-                }
-
-
-                updateVoiceButton();
-            };
-
-
-        mediaRecorder.start();
-
-        updateVoiceButton();
-
-
-        showToast(
-            "ضبط صدا شروع شد 🎙️"
-        );
-
-
-    } catch (error) {
-
-        console.error(error);
-
-        mediaRecorder =
-            null;
-
-        showToast(
-            "اجازه دسترسی به میکروفون داده نشد.",
-            "error"
-        );
-
-        updateVoiceButton();
-    }
-}
-
-
-function stopVoiceRecording() {
-
-    if (!mediaRecorder) {
-        return;
-    }
-
-
-    try {
-
-        mediaRecorder.stop();
-
-        showToast(
-            "در حال آماده‌سازی پیام صوتی..."
-        );
-
-    } catch {
-
-        mediaRecorder =
-            null;
-
-        updateVoiceButton();
-    }
-}
-
-
-function updateVoiceButton() {
-
-    if (!voiceButton) {
-        return;
-    }
-
-
-    if (mediaRecorder) {
-
-        voiceButton.textContent =
-            "⏹️";
-
-        voiceButton.title =
-            "توقف ضبط";
-
-    } else {
-
-        voiceButton.textContent =
-            "🎙️";
-
-        voiceButton.title =
-            "ضبط پیام صوتی";
-    }
-}
-
-
-/* =========================================================
-   WEBSOCKET
-   ========================================================= */
-
-async function connectSocket() {
-
-    if (
-        socket &&
-        (
-            socket.readyState ===
-                WebSocket.OPEN ||
-            socket.readyState ===
-                WebSocket.CONNECTING
-        )
-    ) {
-        return;
-    }
-
-
-    disconnectSocket(false);
-
-
-    const sessionReady =
-        await prepareWebSocketSession();
-
-
-    if (!sessionReady) {
-
-        scheduleSocketReconnect();
-
-        return;
-    }
-
-
-    try {
-
-        socket =
-            new WebSocket(
-                `${WS_BASE}/ws`
-            );
-
-
-        socket.addEventListener(
-            "open",
-            () => {
-
-                socketReconnectAttempts =
-                    0;
-
-                console.log(
-                    "GAPINO WebSocket connected:",
-                    `${WS_BASE}/ws`
-                );
-
-
-                try {
-
-                    socket.send(
-                        JSON.stringify(
-                            {
-                                type:
-                                    "ping"
-                            }
-                        )
-                    );
-
-                } catch (error) {
-
-                    console.error(
-                        error
-                    );
-                }
-            }
-        );
-
-
-        socket.addEventListener(
-            "message",
-            event => {
-
-                handleSocketMessage(
-                    event.data
-                );
-            }
-        );
-
-
-        socket.addEventListener(
-            "close",
-            event => {
-
-                console.warn(
-                    "GAPINO WebSocket closed:",
-                    event.code,
-                    event.reason
-                );
-
-
-                socket =
-                    null;
-
-
-                if (
-                    document.visibilityState !==
-                    "hidden"
-                ) {
-
-                    scheduleSocketReconnect();
-                }
-            }
-        );
-
-
-        socket.addEventListener(
-            "error",
-            error => {
-
-                console.error(
-                    "GAPINO WebSocket error:",
-                    error
-                );
-            }
-        );
-
-
-    } catch (error) {
-
-        console.error(
+        console.warn(
+            "Logout:",
             error
         );
-
-        socket =
-            null;
-
-        scheduleSocketReconnect();
-    }
-}
-
-
-function scheduleSocketReconnect() {
-
-    if (socketReconnectTimer) {
-        return;
-    }
-
-
-    socketReconnectAttempts =
-        Math.min(
-            socketReconnectAttempts + 1,
-            8
-        );
-
-
-    const delay =
-        Math.min(
-            1000 *
-            Math.pow(
-                2,
-                socketReconnectAttempts - 1
-            ),
-            15000
-        );
-
-
-    socketReconnectTimer =
-        window.setTimeout(
-            async () => {
-
-                socketReconnectTimer =
-                    null;
-
-                await connectSocket();
-
-            },
-            delay
-        );
-}
-
-
-function disconnectSocket(
-    clearReconnect = true
-) {
-
-    if (clearReconnect) {
-
-        window.clearTimeout(
-            socketReconnectTimer
-        );
-
-        socketReconnectTimer =
-            null;
-    }
-
-
-    if (socket) {
-
-        try {
-            socket.close();
-        } catch {}
-
-        socket =
-            null;
-    }
-}
-
-
-/* =========================================================
-   SOCKET MESSAGE
-   ========================================================= */
-
-function handleSocketMessage(
-    rawData
-) {
-
-    let data;
-
-    try {
-
-        data =
-            JSON.parse(
-                rawData
-            );
-
-    } catch {
-
-        return;
-    }
-
-
-    if (!data) {
-        return;
-    }
-
-
-    switch (data.type) {
-
-        case "ready":
-
-            handleSocketReady(
-                data
-            );
-
-            break;
-
-
-        case "pong":
-
-            break;
-
-
-        case "message":
-
-            if (data.message) {
-
-                handleIncomingMessage(
-                    data.message
-                );
-            }
-
-            break;
-
-
-        case "message:update":
-
-            if (data.message) {
-
-                replaceMessage(
-                    data.message
-                );
-            }
-
-            break;
-
-
-        case "typing":
-
-            if (
-                selectedUser &&
-                Number(data.from) ===
-                Number(selectedUser.id)
-            ) {
-
-                showTyping(
-                    Boolean(
-                        data.value
-                    )
-                );
-            }
-
-            break;
-
-
-        case "user_online":
-
-            updateUserOnlineState(
-                data.user_id,
-                true
-            );
-
-            break;
-
-
-        case "user_offline":
-
-            updateUserOnlineState(
-                data.user_id,
-                false
-            );
-
-            break;
-
-
-        case "profile_updated":
-
-            if (data.user) {
-
-                const updated =
-                    data.user;
-
-
-                users =
-                    users.map(
-                        user =>
-                            Number(
-                                user.id
-                            ) ===
-                            Number(
-                                updated.id
-                            )
-                                ? {
-                                    ...user,
-                                    ...updated
-                                }
-                                : user
-                    );
-
-
-                if (
-                    currentUser &&
-                    Number(
-                        currentUser.id
-                    ) ===
-                    Number(
-                        updated.id
-                    )
-                ) {
-
-                    currentUser =
-                        {
-                            ...currentUser,
-                            ...updated
-                        };
-
-                    renderCurrentUser();
-                }
-
-
-                if (
-                    selectedUser &&
-                    Number(
-                        selectedUser.id
-                    ) ===
-                    Number(
-                        updated.id
-                    )
-                ) {
-
-                    selectedUser =
-                        {
-                            ...selectedUser,
-                            ...updated
-                        };
-
-                    renderChatHeader();
-                }
-
-
-                renderUsers();
-            }
-
-            break;
-
-
-        default:
-
-            console.log(
-                "Unknown WebSocket event:",
-                data
-            );
-    }
-}
-
-
-function handleIncomingMessage(
-    message
-) {
-
-    const relevant =
-        isRelevantMessage(
-            message
-        );
-
-
-    if (!relevant) {
-
-        refreshUsersSilently();
-
-        showToast(
-            "پیام جدید دریافت شد 💬",
-            "success"
-        );
-
-        return;
-    }
-
-
-    addOrReplaceMessage(
-        message
-    );
-
-
-    scrollMessagesToBottom();
-
-    refreshUsersSilently();
-}
-
-
-function handleSocketReady(
-    data
-) {
-
-    if (
-        data &&
-        Array.isArray(data.online)
-    ) {
-
-        const onlineSet =
-            new Set(
-                data.online.map(
-                    Number
-                )
-            );
-
-
-        users =
-            users.map(
-                user => ({
-                    ...user,
-                    online:
-                        onlineSet.has(
-                            Number(
-                                user.id
-                            )
-                        )
-                })
-            );
-
-
-        if (selectedUser) {
-
-            const refreshed =
-                users.find(
-                    user =>
-                        Number(
-                            user.id
-                        ) ===
-                        Number(
-                            selectedUser.id
-                        )
-                );
-
-
-            if (refreshed) {
-
-                selectedUser =
-                    {
-                        ...selectedUser,
-                        ...refreshed
-                    };
-
-                renderChatHeader();
-            }
-        }
-
-
-        renderUsers();
-    }
-}
-
-
-function isRelevantMessage(
-    message
-) {
-
-    if (
-        !selectedUser ||
-        !currentUser
-    ) {
-        return false;
-    }
-
-
-    const sender =
-        Number(
-            message.sender_id
-        );
-
-    const receiver =
-        Number(
-            message.receiver_id
-        );
-
-
-    const a =
-        Number(
-            currentUser.id
-        );
-
-    const b =
-        Number(
-            selectedUser.id
-        );
-
-
-    return (
-        (
-            sender === a &&
-            receiver === b
-        ) ||
-        (
-            sender === b &&
-            receiver === a
-        )
-    );
-}
-
-
-/* =========================================================
-   ONLINE USERS
-   ========================================================= */
-
-function updateUserOnlineState(
-    userId,
-    online
-) {
-
-    const id =
-        Number(userId);
-
-
-    users =
-        users.map(
-            user => {
-
-                if (
-                    Number(user.id) ===
-                    id
-                ) {
-
-                    return {
-                        ...user,
-                        online
-                    };
-                }
-
-                return user;
-            }
-        );
-
-
-    if (
-        selectedUser &&
-        Number(
-            selectedUser.id
-        ) === id
-    ) {
-
-        selectedUser =
-            {
-                ...selectedUser,
-                online
-            };
-
-        renderChatHeader();
-    }
-
-
-    renderUsers();
-}
-
-
-/* =========================================================
-   TYPING
-   ========================================================= */
-
-function sendSocketTyping(
-    value
-) {
-
-    if (
-        !socket ||
-        socket.readyState !==
-            WebSocket.OPEN ||
-        !selectedUser
-    ) {
-        return;
     }
 
 
     try {
 
-        socket.send(
-            JSON.stringify(
-                {
-                    type:
-                        "typing",
-
-                    to:
-                        Number(
-                            selectedUser.id
-                        ),
-
-                    value:
-                        Boolean(value)
-                }
-            )
+        localStorage.removeItem(
+            GAPINO_STORAGE_USER
         );
 
-    } catch {}
-}
+    } catch (_) {}
 
 
-function setTyping(value) {
-
-    const state =
-        Boolean(value);
-
-
-    if (
-        lastTypingState ===
-        state
-    ) {
-        return;
-    }
-
-
-    lastTypingState =
-        state;
-
-
-    sendSocketTyping(
-        state
+    window.location.replace(
+        "/login.html"
     );
-
-
-    window.clearTimeout(
-        typingTimer
-    );
-
-
-    if (state) {
-
-        typingTimer =
-            window.setTimeout(
-                () => {
-
-                    lastTypingState =
-                        false;
-
-                    sendSocketTyping(
-                        false
-                    );
-
-                },
-                1800
-            );
-    }
-}
-
-
-function showTyping(value) {
-
-    if (!typingArea) {
-        return;
-    }
-
-    typingArea.hidden =
-        !value;
 }
 
 
 /* =========================================================
-   USERS SILENT REFRESH
+   THEME
    ========================================================= */
 
-function refreshUsersSilently() {
+function getSavedTheme() {
 
-    loadUsers()
-        .catch(
-            error =>
-                console.error(
-                    error
-                )
+    try {
+
+        const saved =
+            localStorage.getItem(
+                GAPINO_STORAGE_THEME
+            );
+
+
+        return saved === "light"
+            ? "light"
+            : "dark";
+
+    } catch (_) {
+
+        return "dark";
+    }
+}
+
+
+function updateThemeButton() {
+
+    if (!themeButton) {
+        return;
+    }
+
+
+    const theme =
+        document.documentElement.getAttribute(
+            "data-theme"
+        ) || "dark";
+
+
+    if (
+        theme === "light"
+    ) {
+
+        themeButton.innerHTML =
+            "🌙 <span>حالت تیره</span>";
+
+        themeButton.title =
+            "فعال کردن حالت تیره";
+
+    } else {
+
+        themeButton.innerHTML =
+            "☀️ <span>حالت روشن</span>";
+
+        themeButton.title =
+            "فعال کردن حالت روشن";
+    }
+}
+
+
+function applyGapinoTheme(
+    theme
+) {
+
+    const value =
+        theme === "light"
+            ? "light"
+            : "dark";
+
+
+    document.documentElement.setAttribute(
+        "data-theme",
+        value
+    );
+
+
+    try {
+
+        localStorage.setItem(
+            GAPINO_STORAGE_THEME,
+            value
         );
+
+    } catch (_) {}
+
+
+    updateThemeButton();
+}
+
+
+function toggleGapinoTheme() {
+
+    const current =
+        document.documentElement.getAttribute(
+            "data-theme"
+        ) || "dark";
+
+
+    applyGapinoTheme(
+        current === "dark"
+            ? "light"
+            : "dark"
+    );
+}
+
+
+/* =========================================================
+   SIDEBAR
+   ========================================================= */
+
+function openGapinoOverlay() {
+
+    if (!appOverlay) {
+        return;
+    }
+
+
+    appOverlay.hidden =
+        false;
+
+
+    appOverlay.style.display =
+        "block";
+}
+
+
+function closeGapinoOverlay() {
+
+    if (!appOverlay) {
+        return;
+    }
+
+
+    appOverlay.hidden =
+        true;
+
+
+    appOverlay.style.display =
+        "none";
+}
+
+
+function openGapinoSidebar() {
+
+    if (!appShell) {
+        return;
+    }
+
+
+    if (
+        window.innerWidth >
+        820
+    ) {
+
+        return;
+    }
+
+
+    appShell.classList.add(
+        "sidebar-open"
+    );
+
+
+    openGapinoOverlay();
+}
+
+
+function closeGapinoSidebar() {
+
+    appShell?.classList.remove(
+        "sidebar-open"
+    );
+
+
+    closeGapinoOverlay();
+}
+
+
+function toggleGapinoSidebar() {
+
+    const opened =
+        appShell?.classList.contains(
+            "sidebar-open"
+        );
+
+
+    if (opened) {
+
+        closeGapinoSidebar();
+
+    } else {
+
+        openGapinoSidebar();
+    }
 }
 
 
@@ -3173,7 +551,7 @@ function refreshUsersSilently() {
    PROFILE
    ========================================================= */
 
-function openProfile() {
+function openGapinoProfile() {
 
     if (!profilePanel) {
         return;
@@ -3189,14 +567,17 @@ function openProfile() {
     );
 
 
-    openOverlay();
+    if (
+        window.innerWidth <=
+        820
+    ) {
 
-
-    loadProfileIntoPanel();
+        openGapinoOverlay();
+    }
 }
 
 
-function closeProfilePanel() {
+function closeGapinoProfile() {
 
     if (!profilePanel) {
         return;
@@ -3212,996 +593,325 @@ function closeProfilePanel() {
         true;
 
 
-    if (!sidebarOpen) {
-        closeOverlay();
-    }
-}
-
-
-async function loadProfileIntoPanel() {
-
-    if (!currentUser) {
-        return;
-    }
-
-
-    try {
-
-        const fresh =
-            await getCurrentUser();
-
-
-        currentUser =
-            fresh;
-
-
-        localStorage.setItem(
-            "gapino_user",
-            JSON.stringify(
-                currentUser
-            )
-        );
-
-
-        renderCurrentUser();
-
-
-        if (profileName) {
-
-            profileName.textContent =
-                currentUser.display_name ||
-                currentUser.username ||
-                "گپینو";
-        }
-
-
-        if (profileUsername) {
-
-            profileUsername.textContent =
-                currentUser.username
-                    ? `@${currentUser.username}`
-                    : "@user";
-        }
-
-
-        if (profileAvatar) {
-
-            if (currentUser.avatar) {
-
-                profileAvatar.innerHTML = `
-                    <img
-                        src="${escapeHtml(
-                            avatarUrl(
-                                currentUser.avatar
-                            )
-                        )}"
-                        alt=""
-                    >
-                `;
-
-            } else {
-
-                profileAvatar.textContent =
-                    avatarLetter(
-                        currentUser
-                    );
-            }
-        }
-
-
-        if (editDisplayName) {
-
-            editDisplayName.value =
-                currentUser.display_name ||
-                "";
-        }
-
-
-        if (editBio) {
-
-            editBio.value =
-                currentUser.bio ||
-                "";
-        }
-
-
-        if (editStatus) {
-
-            const allowed =
-                Array.from(
-                    editStatus.options
-                ).map(
-                    option =>
-                        option.value
-                );
-
-
-            editStatus.value =
-                allowed.includes(
-                    currentUser.status
-                )
-                    ? currentUser.status
-                    : (
-                        allowed[0] ||
-                        ""
-                    );
-        }
-
-
-        profileLoaded =
-            true;
-
-
-    } catch (error) {
-
-        console.error(error);
-
-        showToast(
-            "دریافت اطلاعات پروفایل ناموفق بود.",
-            "error"
-        );
-    }
-}
-
-
-async function saveCurrentProfile() {
-
-    if (!currentUser) {
-        return;
-    }
-
-
-    const display =
-        editDisplayName?.value.trim() ||
-        "";
-
-
-    const bio =
-        editBio?.value.trim() ||
-        "";
-
-
-    const status =
-        editStatus?.value.trim() ||
-        currentUser.status ||
-        "در دسترس";
-
-
-    if (!display) {
-
-        showToast(
-            "نام نمایشی نمی‌تواند خالی باشد.",
-            "error"
-        );
-
-        return;
-    }
-
-
-    try {
-
-        if (saveProfile) {
-            saveProfile.disabled =
-                true;
-        }
-
-
-        const response =
-            await fetch(
-                apiUrl(
-                    "/api/profile"
-                ),
-                {
-                    method:
-                        "PUT",
-
-                    credentials:
-                        "include",
-
-                    headers: {
-                        "Content-Type":
-                            "application/json"
-                    },
-
-                    body:
-                        JSON.stringify({
-                            display_name:
-                                display,
-                            bio,
-                            status
-                        })
-                }
-            );
-
-
-        const data =
-            await readJson(response);
-
-
-        if (!response.ok) {
-
-            throw new Error(
-                data?.detail ||
-                "ذخیره پروفایل انجام نشد."
-            );
-        }
-
-
-        currentUser =
-            data.user ||
-            currentUser;
-
-
-        localStorage.setItem(
-            "gapino_user",
-            JSON.stringify(
-                currentUser
-            )
-        );
-
-
-        renderCurrentUser();
-
-
-        showToast(
-            "پروفایل ذخیره شد. ✅",
-            "success"
-        );
-
-
-    } catch (error) {
-
-        console.error(error);
-
-        showToast(
-            error.message ||
-            "ذخیره پروفایل ناموفق بود.",
-            "error"
-        );
-
-
-    } finally {
-
-        if (saveProfile) {
-            saveProfile.disabled =
-                false;
-        }
-    }
+    closeGapinoOverlay();
 }
 
 
 /* =========================================================
-   OVERLAY
+   WINDOW RESPONSIVE
    ========================================================= */
 
-function openOverlay() {
-
-    if (!appOverlay) {
-        return;
-    }
-
-
-    appOverlay.hidden =
-        false;
-
-
-    appOverlay.classList.add(
-        "visible"
-    );
-}
-
-
-function closeOverlay() {
-
-    if (!appOverlay) {
-        return;
-    }
-
-
-    appOverlay.classList.remove(
-        "visible"
-    );
-
-
-    appOverlay.hidden =
-        true;
-}
-
-
-/* =========================================================
-   SIDEBAR
-   ========================================================= */
-
-function openSidebarMobile() {
-
-    if (!appShell) {
-        return;
-    }
-
-
-    sidebarOpen =
-        true;
-
-
-    appShell.classList.add(
-        "sidebar-open"
-    );
-
-
-    openOverlay();
-
-
-    /*
-     * مهم برای اندروید:
-     * سایدبار باید از overlay بالاتر باشد.
-     */
-
-    if (sidebar) {
-
-        sidebar.style.zIndex =
-            "10001";
-    }
-
-
-    if (userList) {
-
-        userList.style.pointerEvents =
-            "auto";
-
-        userList.style.touchAction =
-            "pan-y";
-    }
-}
-
-
-function closeSidebarMobile(
-    force = false
-) {
-
-    if (!appShell) {
-        return;
-    }
-
-
-    sidebarOpen =
-        false;
-
-
-    appShell.classList.remove(
-        "sidebar-open"
-    );
-
-
-    if (sidebar) {
-
-        sidebar.style.zIndex =
-            "";
-    }
-
-
-    /*
-     * حتماً overlay بسته شود.
-     */
+function handleGapinoResize() {
 
     if (
-        force ||
-        !profilePanel ||
-        profilePanel.hidden
+        window.innerWidth >
+        820
     ) {
 
-        closeOverlay();
-    }
-}
+        appShell?.classList.remove(
+            "sidebar-open"
+        );
 
 
-function toggleSidebar() {
-
-    if (sidebarOpen) {
-
-        closeSidebarMobile();
-
-    } else {
-
-        openSidebarMobile();
+        closeGapinoOverlay();
     }
 }
 
 
 /* =========================================================
-   LOGOUT
+   BROWSER NOTIFICATION
    ========================================================= */
 
-async function logout() {
+function isNotificationSupported() {
 
-    const confirmed =
-        window.confirm(
-            "می‌خواهی از حساب گپینو خارج شوی؟"
-        );
+    return (
+        "Notification" in
+        window
+    );
+}
 
 
-    if (!confirmed) {
+async function requestGapinoNotifications() {
+
+    if (
+        !isNotificationSupported()
+    ) {
+
+        return;
+    }
+
+
+    if (
+        Notification.permission ===
+        "default"
+    ) {
+
+        try {
+
+            await Notification.requestPermission();
+
+        } catch (_) {}
+    }
+}
+
+
+function showGapinoNotification(
+    title,
+    body
+) {
+
+    if (
+        !isNotificationSupported()
+    ) {
+
+        return;
+    }
+
+
+    if (
+        Notification.permission !==
+        "granted"
+    ) {
+
         return;
     }
 
 
     try {
 
-        await fetch(
-            apiUrl(
-                "/api/logout"
+        new Notification(
+            gapinoSafeText(
+                title ||
+                "گپینو"
             ),
             {
-                method:
-                    "POST",
+                body:
+                    gapinoSafeText(
+                        body
+                    ),
 
-                credentials:
-                    "include"
+                icon:
+                    "/favicon.ico"
             }
         );
 
     } catch (error) {
 
-        console.error(
+        console.warn(
+            "Notification error:",
             error
         );
-
-    } finally {
-
-        disconnectSocket();
-
-        localStorage.removeItem(
-            "gapino_user"
-        );
-
-        window.location.href =
-            "/login.html";
     }
 }
 
 
 /* =========================================================
-   INPUT
+   ONLINE STATUS
    ========================================================= */
 
-function resizeMessageInput() {
-
-    if (!messageInput) {
-        return;
-    }
-
-
-    messageInput.style.height =
-        "auto";
-
-
-    const height =
-        Math.min(
-            messageInput.scrollHeight,
-            126
-        );
-
-
-    messageInput.style.height =
-        `${Math.max(
-            height,
-            24
-        )}px`;
-}
-
-
-/* =========================================================
-   SCROLL
-   ========================================================= */
-
-function scrollMessagesToBottom() {
-
-    if (!messagesElement) {
-        return;
-    }
-
-
-    window.requestAnimationFrame(
-        () => {
-
-            messagesElement.scrollTop =
-                messagesElement.scrollHeight;
-        }
-    );
-}
-
-
-/* =========================================================
-   THEME
-   ========================================================= */
-
-function initializeTheme() {
-
-    const saved =
-        localStorage.getItem(
-            "gapino_theme"
-        );
-
-
-    const theme =
-        saved === "light"
-            ? "light"
-            : "dark";
-
-
-    document.documentElement.setAttribute(
-        "data-theme",
-        theme
-    );
-
-
-    updateThemeButton(
-        theme
-    );
-}
-
-
-function updateThemeButton(
-    theme
+function gapinoIsOnline(
+    user
 ) {
 
-    const button =
-        document.getElementById(
-            "themeButton"
-        );
+    return Boolean(
+        user?.online === true ||
+        user?.status === "online" ||
+        user?.status === "آنلاین"
+    );
+}
 
 
-    if (!button) {
+function gapinoGetUserId(
+    user
+) {
+
+    return String(
+        user?.id ||
+        user?.user_id ||
+        ""
+    );
+}
+
+
+/* =========================================================
+   LOCAL USER HELPERS
+   ========================================================= */
+
+function saveGapinoUser(
+    user
+) {
+
+    if (!user) {
         return;
     }
 
 
-    if (theme === "light") {
+    try {
 
-        button.innerHTML =
-            "🌙 <span>حالت تیره</span>";
+        localStorage.setItem(
+            GAPINO_STORAGE_USER,
+            JSON.stringify(
+                user
+            )
+        );
 
-        button.title =
-            "فعال کردن حالت تیره";
+    } catch (error) {
 
-    } else {
-
-        button.innerHTML =
-            "☀️ <span>حالت روشن</span>";
-
-        button.title =
-            "فعال کردن حالت روشن";
+        console.warn(
+            "Save user error:",
+            error
+        );
     }
 }
 
 
-function toggleTheme() {
+function clearGapinoUser() {
 
-    const current =
-        document.documentElement.getAttribute(
-            "data-theme"
-        ) || "dark";
+    try {
 
+        localStorage.removeItem(
+            GAPINO_STORAGE_USER
+        );
 
-    const next =
-        current === "dark"
-            ? "light"
-            : "dark";
-
-
-    document.documentElement.setAttribute(
-        "data-theme",
-        next
-    );
-
-
-    localStorage.setItem(
-        "gapino_theme",
-        next
-    );
-
-
-    updateThemeButton(
-        next
-    );
+    } catch (_) {}
 }
 
 
 /* =========================================================
-   SEARCH
+   DOCUMENT VISIBILITY
    ========================================================= */
 
-if (userSearch) {
+document.addEventListener(
+    "visibilitychange",
+    () => {
 
-    userSearch.addEventListener(
-        "input",
-        () => {
+        if (
+            document.visibilityState ===
+            "visible"
+        ) {
 
-            const hasText =
-                userSearch.value
-                    .trim()
-                    .length > 0;
+            /*
+             * chat.js مسئول WebSocket است.
+             * اینجا فقط UI عمومی را به‌روز می‌کنیم.
+             */
 
-
-            if (clearSearch) {
-
-                clearSearch.hidden =
-                    !hasText;
-            }
-
-
-            window.clearTimeout(
-                userSearch._timer
-            );
-
-
-            userSearch._timer =
-                window.setTimeout(
-                    () => {
-
-                        loadUsers();
-
-                    },
-                    250
-                );
+            updateThemeButton();
         }
-    );
-}
+    }
+);
 
 
-if (clearSearch) {
+/* =========================================================
+   KEYBOARD
+   ========================================================= */
 
-    clearSearch.addEventListener(
-        "click",
-        event => {
+document.addEventListener(
+    "keydown",
+    event => {
+
+        if (
+            event.key ===
+            "Escape"
+        ) {
+
+            closeGapinoSidebar();
+
+            closeGapinoProfile();
+
+            document.querySelector(
+                ".message-menu"
+            )?.remove();
+        }
+
+
+        /*
+         * Ctrl + Shift + T
+         * تغییر تم
+         */
+
+        if (
+            event.ctrlKey &&
+            event.shiftKey &&
+            event.key.toLowerCase() ===
+                "t"
+        ) {
 
             event.preventDefault();
-            event.stopPropagation();
 
-
-            if (userSearch) {
-
-                userSearch.value =
-                    "";
-
-                userSearch.focus();
-            }
-
-
-            clearSearch.hidden =
-                true;
-
-
-            loadUsers();
+            toggleGapinoTheme();
         }
-    );
-}
 
 
-/* =========================================================
-   SEND
-   ========================================================= */
+        /*
+         * Ctrl + K
+         * تمرکز روی جستجوی کاربران
+         */
 
-if (sendButton) {
+        if (
+            event.ctrlKey &&
+            event.key.toLowerCase() ===
+                "k"
+        ) {
 
-    sendButton.addEventListener(
-        "click",
-        () => {
-
-            sendMessage();
-        }
-    );
-}
-
-
-if (messageInput) {
-
-    messageInput.addEventListener(
-        "input",
-        () => {
-
-            resizeMessageInput();
-
-            setTyping(
-                messageInput.value
-                    .trim()
-                    .length > 0
-            );
-        }
-    );
+            const search =
+                document.getElementById(
+                    "userSearch"
+                );
 
 
-    messageInput.addEventListener(
-        "keydown",
-        event => {
-
-            if (
-                event.key === "Enter" &&
-                !event.shiftKey
-            ) {
+            if (search) {
 
                 event.preventDefault();
 
-                sendMessage();
+                search.focus();
+
+                search.select();
             }
         }
-    );
-}
+    }
+);
 
 
 /* =========================================================
-   FILE
+   GLOBAL CLICK
    ========================================================= */
 
-if (attachButton) {
+document.addEventListener(
+    "click",
+    event => {
 
-    attachButton.addEventListener(
-        "click",
-        () => {
+        const messageMenu =
+            document.querySelector(
+                ".message-menu"
+            );
 
-            if (fileInput) {
-                fileInput.click();
-            }
+
+        if (
+            messageMenu &&
+            !messageMenu.contains(
+                event.target
+            )
+        ) {
+
+            messageMenu.remove();
         }
-    );
-}
-
-
-if (fileInput) {
-
-    fileInput.addEventListener(
-        "change",
-        async () => {
-
-            const file =
-                fileInput.files?.[0];
-
-
-            if (file) {
-
-                await uploadFile(
-                    file
-                );
-            }
-
-
-            fileInput.value =
-                "";
-        }
-    );
-}
+    }
+);
 
 
 /* =========================================================
-   VOICE
+   EVENTS
    ========================================================= */
 
-if (voiceButton) {
 
-    voiceButton.addEventListener(
-        "click",
-        () => {
-
-            toggleVoiceRecording();
-        }
-    );
-}
-
-
-/* =========================================================
-   PROFILE
-   ========================================================= */
-
-if (profileButton) {
-
-    profileButton.addEventListener(
-        "click",
-        event => {
-
-            event.preventDefault();
-
-            openProfile();
-        }
-    );
-}
-
-
-if (profileHeaderButton) {
-
-    profileHeaderButton.addEventListener(
-        "click",
-        event => {
-
-            event.preventDefault();
-
-            openProfile();
-        }
-    );
-}
-
-
-if (closeProfile) {
-
-    closeProfile.addEventListener(
-        "click",
-        event => {
-
-            event.preventDefault();
-
-            closeProfilePanel();
-        }
-    );
-}
-
-
-if (saveProfile) {
-
-    saveProfile.addEventListener(
-        "click",
-        () => {
-
-            saveCurrentProfile();
-        }
-    );
-}
-
-
-if (profilePageButton) {
-
-    profilePageButton.addEventListener(
-        "click",
-        () => {
-
-            window.location.href =
-                "/profile.html";
-        }
-    );
-}
-
-
-/* =========================================================
-   MENU
-   ========================================================= */
-
-if (menuButton) {
-
-    menuButton.addEventListener(
-        "click",
-        event => {
-
-            event.preventDefault();
-            event.stopPropagation();
-
-            toggleSidebar();
-        }
-    );
-}
-
-
-if (mobileMenuButton) {
-
-    mobileMenuButton.addEventListener(
-        "click",
-        event => {
-
-            event.preventDefault();
-            event.stopPropagation();
-
-            toggleSidebar();
-        }
-    );
-}
-
-
-/* =========================================================
-   OVERLAY CLICK
-   ========================================================= */
-
-if (appOverlay) {
-
-    appOverlay.addEventListener(
-        "click",
-        event => {
-
-            event.preventDefault();
-            event.stopPropagation();
-
-            closeSidebarMobile();
-
-            if (
-                profilePanel &&
-                !profilePanel.hidden
-            ) {
-
-                closeProfilePanel();
-            }
-        }
-    );
-}
-
-
-/* =========================================================
-   REFRESH
-   ========================================================= */
-
-if (refreshButton) {
-
-    refreshButton.addEventListener(
-        "click",
-        async event => {
-
-            event.preventDefault();
-
-
-            refreshButton.disabled =
-                true;
-
-
-            try {
-
-                await loadUsers();
-
-
-                if (selectedUser) {
-
-                    await loadMessages();
-                }
-
-
-                showToast(
-                    "اطلاعات به‌روزرسانی شد. ✅",
-                    "success"
-                );
-
-
-            } catch (error) {
-
-                showToast(
-                    error.message ||
-                    "به‌روزرسانی انجام نشد.",
-                    "error"
-                );
-
-
-            } finally {
-
-                refreshButton.disabled =
-                    false;
-            }
-        }
-    );
-}
-
-
-/* =========================================================
-   LOGOUT BUTTON
-   ========================================================= */
-
-if (logoutButton) {
-
-    logoutButton.addEventListener(
-        "click",
-        () => {
-
-            logout();
-        }
-    );
-}
-
-
-/* =========================================================
-   THEME BUTTON
-   =========================================================
-   فقط اینجا ثبت می‌شود.
-   chat.html نباید دوباره event مربوط به theme
-   ثبت کند؛ در حال حاضر برای جلوگیری از دوبار اجرا،
-   این handler فقط از همین فایل استفاده می‌کند.
-   ========================================================= */
-
-const themeButton =
-    document.getElementById(
-        "themeButton"
-    );
-
+/*
+ * تم
+ *
+ * توجه:
+ * chat.html خودش هم Theme System دارد.
+ * بنابراین اگر listener قبلی وجود داشته باشد،
+ * از ثبت دوباره جلوگیری می‌کنیم.
+ */
 
 if (themeButton) {
 
@@ -4210,49 +920,279 @@ if (themeButton) {
         event => {
 
             event.preventDefault();
-            event.stopPropagation();
 
-            toggleTheme();
+            toggleGapinoTheme();
         }
     );
 }
 
 
-/* =========================================================
-   VISIBILITY
-   ========================================================= */
+/*
+ * منوی موبایل
+ */
 
-document.addEventListener(
-    "visibilitychange",
-    async () => {
+mobileMenuButton?.addEventListener(
+    "click",
+    event => {
+
+        event.preventDefault();
+
+        openGapinoSidebar();
+    }
+);
+
+
+/*
+ * دکمه منو
+ */
+
+menuButton?.addEventListener(
+    "click",
+    event => {
+
+        event.preventDefault();
+
 
         if (
-            document.visibilityState ===
-            "visible"
+            window.innerWidth <=
+            820
         ) {
 
-            await loadUsers();
-
-
-            if (selectedUser) {
-
-                try {
-                    await loadMessages();
-                } catch {}
-            }
-
-
-            if (
-                !socket ||
-                socket.readyState !==
-                    WebSocket.OPEN
-            ) {
-
-                await connectSocket();
-            }
+            toggleGapinoSidebar();
         }
     }
 );
+
+
+/*
+ * Overlay
+ */
+
+appOverlay?.addEventListener(
+    "click",
+    event => {
+
+        event.preventDefault();
+
+        closeGapinoSidebar();
+
+        closeGapinoProfile();
+    }
+);
+
+
+/*
+ * پروفایل
+ */
+
+profileButton?.addEventListener(
+    "click",
+    event => {
+
+        event.preventDefault();
+
+        openGapinoProfile();
+    }
+);
+
+
+profileHeaderButton?.addEventListener(
+    "click",
+    event => {
+
+        event.preventDefault();
+
+        openGapinoProfile();
+    }
+);
+
+
+closeProfile?.addEventListener(
+    "click",
+    event => {
+
+        event.preventDefault();
+
+        closeGapinoProfile();
+    }
+);
+
+
+/*
+ * خروج
+ */
+
+logoutButton?.addEventListener(
+    "click",
+    async event => {
+
+        event.preventDefault();
+
+        await gapinoLogout();
+    }
+);
+
+
+/* =========================================================
+   BEFORE UNLOAD
+   ========================================================= */
+
+window.addEventListener(
+    "beforeunload",
+    () => {
+
+        /*
+         * WebSocket و میکروفن
+         * توسط chat.js مدیریت می‌شوند.
+         */
+
+    }
+);
+
+
+/* =========================================================
+   INIT
+   ========================================================= */
+
+function initGapinoApp() {
+
+    /*
+     * تم اولیه
+     */
+
+    applyGapinoTheme(
+        getSavedTheme()
+    );
+
+
+    /*
+     * overlay اولیه
+     */
+
+    if (appOverlay) {
+
+        appOverlay.hidden =
+            true;
+
+        appOverlay.style.display =
+            "none";
+    }
+
+
+    /*
+     * در شروع،
+     * پروفایل بسته باشد.
+     */
+
+    if (profilePanel) {
+
+        profilePanel.hidden =
+            true;
+
+        profilePanel.classList.remove(
+            "open"
+        );
+    }
+
+
+    /*
+     * شروع درخواست Notification
+     * اختیاری و بدون توقف صفحه
+     */
+
+    setTimeout(
+        () => {
+
+            requestGapinoNotifications();
+
+        },
+        1200
+    );
+
+
+    /*
+     * ذخیره کاربر موجود
+     */
+
+    const storedUser =
+        getStoredGapinoUser();
+
+
+    if (storedUser) {
+
+        window.GAPINO_CURRENT_USER =
+            storedUser;
+    }
+
+
+    console.log(
+        "✅ GAPINO app.js loaded"
+    );
+}
+
+
+/* =========================================================
+   GLOBAL API
+   ========================================================= */
+
+window.GAPINO = {
+
+    api:
+        GAPINO_API,
+
+    fetch:
+        gapinoFetch,
+
+    toast:
+        showGapinoToast,
+
+    logout:
+        gapinoLogout,
+
+    openSidebar:
+        openGapinoSidebar,
+
+    closeSidebar:
+        closeGapinoSidebar,
+
+    openProfile:
+        openGapinoProfile,
+
+    closeProfile:
+        closeGapinoProfile,
+
+    theme:
+        toggleGapinoTheme,
+
+    notification:
+        showGapinoNotification,
+
+    getSession:
+        getGapinoSession,
+
+    getStoredUser:
+        getStoredGapinoUser
+};
+
+
+/* =========================================================
+   START
+   ========================================================= */
+
+if (
+    document.readyState ===
+    "loading"
+) {
+
+    document.addEventListener(
+        "DOMContentLoaded",
+        initGapinoApp
+    );
+
+} else {
+
+    initGapinoApp();
+}
 
 
 /* =========================================================
@@ -4261,169 +1201,5 @@ document.addEventListener(
 
 window.addEventListener(
     "resize",
-    () => {
-
-        if (
-            window.innerWidth > 820
-        ) {
-
-            closeSidebarMobile(
-                true
-            );
-        }
-    }
+    handleGapinoResize
 );
-
-
-/* =========================================================
-   ANDROID / TOUCH SAFETY
-   ========================================================= */
-
-if (userList) {
-
-    userList.addEventListener(
-        "touchstart",
-        event => {
-
-            /*
-             * اجازه اسکرول عمودی طبیعی
-             */
-            event.stopPropagation();
-
-        },
-        {
-            passive: true
-        }
-    );
-}
-
-
-/* =========================================================
-   START APP
-   ========================================================= */
-
-async function startApp() {
-
-    initializeTheme();
-
-    resizeMessageInput();
-
-
-    try {
-
-        currentUser =
-            await getCurrentUser();
-
-    } catch (error) {
-
-        console.error(
-            "Authentication failed:",
-            error
-        );
-
-        localStorage.removeItem(
-            "gapino_user"
-        );
-
-        window.location.href =
-            "/login.html";
-
-        return;
-    }
-
-
-    localStorage.setItem(
-        "gapino_user",
-        JSON.stringify(
-            currentUser
-        )
-    );
-
-
-    renderCurrentUser();
-
-
-    /*
-     * دریافت کاربران
-     */
-
-    await loadUsers();
-
-
-    /*
-     * آماده‌سازی Session
-     */
-
-    await prepareWebSocketSession();
-
-
-    /*
-     * اتصال WebSocket
-     */
-
-    await connectSocket();
-
-
-    /*
-     * بروزرسانی خودکار کاربران
-     */
-
-    window.clearInterval(
-        usersRefreshTimer
-    );
-
-
-    usersRefreshTimer =
-        window.setInterval(
-            () => {
-
-                loadUsers()
-                    .catch(
-                        error =>
-                            console.error(
-                                error
-                            )
-                    );
-
-            },
-            15000
-        );
-
-
-    showWelcome();
-}
-
-
-/* =========================================================
-   CLEANUP
-   ========================================================= */
-
-window.addEventListener(
-    "beforeunload",
-    () => {
-
-        window.clearInterval(
-            usersRefreshTimer
-        );
-
-
-        window.clearTimeout(
-            socketReconnectTimer
-        );
-
-
-        window.clearTimeout(
-            typingTimer
-        );
-
-
-        disconnectSocket();
-    }
-);
-
-
-/* =========================================================
-   RUN
-   ========================================================= */
-
-startApp();
